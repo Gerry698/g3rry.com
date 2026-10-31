@@ -12,6 +12,8 @@
 | 粒子效果 / 画廊交互 | `src/particles.js` / `src/gallery.js` |
 | 构建与检查 | `scripts/build.mjs`、`scripts/check.mjs` |
 
+页面带有 Content-Security-Policy（`src/layout.html` 的 meta）：只允许本站资源和 Cloudflare Web Analytics。引入任何外部脚本、字体或图片前，先在那里放行，否则浏览器会拦截。
+
 `site.json` 里 `hero.photoId` 指定首屏照片，`phantom.shapes` 的第一项是默认图案。图片 `sizes` 定义在 `build.mjs` 顶部的 `sizes` 对象里，修改 `styles.css` 的网格列数或断点时同步更新它。
 
 ## 照片
@@ -20,7 +22,8 @@
 - `featured: true` 的照片进首页精选，至少保留一张。
 - `add` 生成网页母版（长边 ≤ 3200px，无元数据），不保存相机原片。所有修改命令都支持 `--dry-run`。
 - 工具运行时持有 `.cache/photos.lock`；进程异常退出后，确认没有照片命令在跑再删掉它。
-- 构建用 `sharp` 生成 640/1280/1920 宽的 WebP 和一份 1920 宽 JPEG（无 JS 时的链接和"Open image"目标）。
+- 构建用 `sharp` 生成 320–1920 共六档宽度的 AVIF 和 WebP，外加一份 1920 宽 JPEG（无 JS 时的链接和"Open image"目标）。编码结果缓存在 `.cache/images`，CI 也会复用。
+- AVIF 质量 60 是对照 WebP 测过 PSNR 后定的：每张都不低于 WebP，体积约小两成。调参数前先做同样的对比。
 
 ## 粒子图案
 
