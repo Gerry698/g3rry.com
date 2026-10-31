@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out source
@@ -38,6 +38,14 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci
+
+      # Encoded images are keyed by source and settings hashes; reusing them skips most AVIF/WebP work.
+      - name: Restore image cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/images
+          key: images-${{ hashFiles('Photo/**', 'scripts/build.mjs', 'package-lock.json') }}
+          restore-keys: images-
 
       - name: Build website
         run: npm run build
@@ -58,7 +66,7 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read

@@ -76,7 +76,7 @@ for (const photo of photos) {
   const generated = report.photos.find(item => item.id === photo.id);
   assert(generated, 'Missing built photo: ' + photo.id);
   assert.equal(sha(await readFile(path.join(root, photo.source))), generated.originalSha256, 'Source changed since build: ' + photo.source);
-  for (const file of [generated.large, ...generated.versions.map(version => version.url)]) {
+  for (const file of [generated.large, ...generated.versions.flatMap(version => [version.avif, version.webp])]) {
     assert(exactFiles.has(file.slice(1)), 'Missing derived photo: ' + file);
     const bytes = await readFile(path.join(dist, file.slice(1)));
     const metadata = await sharp(bytes).metadata();

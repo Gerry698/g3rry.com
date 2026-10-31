@@ -9,7 +9,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 const cache = path.join(root, '.cache', 'images');
 const digest = value => createHash('sha256').update(value).digest('hex').slice(0, 12);
-const transform = { sharp: sharp.versions.sharp, webp: { quality: 80, effort: 4 }, jpeg: { quality: 86, mozjpeg: true }, autoOrient: true, maxWidth: 1920 };
+const transform = { sharp: sharp.versions.sharp, avif: { quality: 60, effort: 4 }, webp: { quality: 80, effort: 4 }, jpeg: { quality: 86, mozjpeg: true }, autoOrient: true, maxWidth: 1920 };
+const widths = [320, 480, 640, 960, 1280, 1920];
 const transformHash = digest(JSON.stringify(transform));
 const escape = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 
@@ -46,7 +47,9 @@ async function output(name, contents) {
   await mkdir(path.dirname(destination), { recursive: true });
   await writeFile(destination, contents);
 }
+const usedCache = new Set();
 async function cachedImage(name, produce) {
+  usedCache.add(name);
   const filename = path.join(cache, name);
   try { await stat(filename); } catch { await writeFile(filename, await produce()); }
   return readFile(filename);
@@ -65,12 +68,16 @@ for (const photo of photos) {
   const sourceHeight = rotated ? metadata.width : metadata.height;
   const resized = width => sharp(input).rotate().resize({ width, withoutEnlargement: true });
   const versions = [];
-  for (const width of [...new Set([640, 1280, 1920].map(width => Math.min(width, sourceWidth)))]) {
-    const name = photo.id + '-' + hash + '-' + transformHash + '-' + width + '.webp';
-    const bytes = await cachedImage(name, () => resized(width).webp(transform.webp).toBuffer());
-    await output('assets/photos/' + name, bytes);
-    imageBytes += bytes.length;
-    versions.push({ width, url: '/assets/photos/' + name });
+  for (const width of [...new Set(widths.map(width => Math.min(width, sourceWidth)))]) {
+    const version = { width };
+    for (const format of ['avif', 'webp']) {
+      const name = photo.id + '-' + hash + '-' + transformHash + '-' + width + '.' + format;
+      const bytes = await cachedImage(name, () => resized(width)[format](transform[format]).toBuffer());
+      await output('assets/photos/' + name, bytes);
+      imageBytes += bytes.length;
+      version[format] = '/assets/photos/' + name;
+    }
+    versions.push(version);
   }
   const width = Math.min(1920, sourceWidth);
   const jpegName = photo.id + '-' + hash + '-' + transformHash + '-' + width + '.jpg';
@@ -80,20 +87,18 @@ for (const photo of photos) {
   originalBytes += input.length;
   generated.push({
     ...photo, versions, large: '/assets/photos/' + jpegName, width, height: Math.round(sourceHeight * width / sourceWidth),
-    srcset: versions.map(version => version.url + ' ' + version.width + 'w').join(', '),
+    srcset: Object.fromEntries(['avif', 'webp'].map(format => [format, versions.map(version => version[format] + ' ' + version.width + 'w').join(', ')])),
     originalSha256: createHash('sha256').update(input).digest('hex')
   });
 }
 
-// Particle masks are sampled to roughly two thousand points, so a small, palette-reduced copy is enough.
+// Particle masks are sampled to roughly two thousand points, so a small WebP copy (alpha kept) is enough.
 const shapes = [];
 for (const shape of site.phantom.shapes) {
   const input = await readFile(path.join(root, shape.source));
-  const extension = path.extname(shape.source).toLowerCase();
-  const image = sharp(input).resize({ width: 900, height: 900, fit: 'inside', withoutEnlargement: true });
-  const bytes = extension === '.png' ? await image.png({ palette: true, compressionLevel: 9 }).toBuffer() : await image.jpeg({ quality: 85, mozjpeg: true }).toBuffer();
+  const bytes = await sharp(input).resize({ width: 900, height: 900, fit: 'inside', withoutEnlargement: true }).webp({ quality: 85, alphaQuality: 100 }).toBuffer();
   const metadata = await sharp(bytes).metadata();
-  const url = '/assets/marks/' + shape.id + '-' + digest(bytes) + extension;
+  const url = '/assets/marks/' + shape.id + '-' + digest(bytes) + '.webp';
   await output(url.slice(1), bytes);
   shapes.push({ ...shape, url, width: metadata.width, height: metadata.height });
 }
@@ -118,11 +123,11 @@ function replace(template, values) {
   if (/\{\{[A-Z_]+\}\}/.test(result)) throw new Error('Unresolved template token.');
   return result;
 }
-function picture(photo, layoutName) {
-  const hero = layoutName === 'hero';
-  return '<picture><source type="image/webp" srcset="' + photo.srcset + '" sizes="' + sizes[layoutName] + '">'
+// priority: 'high' for the page's likely LCP image, 'eager' for the rest of the first screen, otherwise lazy.
+function picture(photo, layoutName, priority) {
+  return '<picture>' + ['avif', 'webp'].map(format => '<source type="image/' + format + '" srcset="' + photo.srcset[format] + '" sizes="' + sizes[layoutName] + '">').join('')
     + '<img src="' + photo.large + '" alt="' + escape(photo.alt) + '" width="' + photo.width + '" height="' + photo.height + '"'
-    + ' loading="' + (hero ? 'eager' : 'lazy') + '" decoding="async"' + (hero ? ' fetchpriority="high"' : '') + '></picture>';
+    + ' loading="' + (priority ? 'eager' : 'lazy') + '" decoding="async"' + (priority === 'high' ? ' fetchpriority="high"' : '') + '></picture>';
 }
 const frame = index => String(index + 1).padStart(2, '0');
 const hero = generated.find(photo => photo.id === site.hero.photoId);
@@ -146,7 +151,7 @@ const featuredPhotos = generated.filter(photo => photo.featured).map(photo =>
   + '<figcaption><span>Frame ' + frame(generated.indexOf(photo)) + '</span><span aria-hidden="true">↗</span></figcaption></figure>');
 const home = replace(await readFile(path.join(root, 'src/index.html'), 'utf8'), {
   HERO_EYEBROW: escape(site.hero.eyebrow), HERO_TITLE: lines(site.hero.title), HERO_DESCRIPTION: escape(site.hero.description),
-  HERO_PICTURE: picture(hero, 'hero'), FEATURED_TITLE: lines(site.photography.featuredTitle), FEATURED_PHOTOS: featuredPhotos.join('\n'),
+  HERO_PICTURE: picture(hero, 'hero', 'high'), FEATURED_TITLE: lines(site.photography.featuredTitle), FEATURED_PHOTOS: featuredPhotos.join('\n'),
   PHANTOM_TITLE: escape(site.phantom.title), PHANTOM_DESCRIPTION: escape(site.phantom.description),
   PHANTOM_OPTIONS: shapes.map(shape => '<option value="' + shape.id + '" data-src="' + shape.url + '">' + escape(shape.label) + '</option>').join(''),
   PHANTOM_DEFAULT: shapes[0].url, PHANTOM_WIDTH: shapes[0].width, PHANTOM_HEIGHT: shapes[0].height
@@ -154,9 +159,9 @@ const home = replace(await readFile(path.join(root, 'src/index.html'), 'utf8'), 
 await output('index.html', render(home, { title: site.title, description: site.description, route: '/', pageClass: 'home-page', script: particleScript }));
 
 const galleryPhotos = generated.map((photo, index) =>
-  '<figure class="photo-card" id="photo-' + photo.id + '"><a data-photo="' + photo.id + '" data-srcset="' + photo.srcset + '"'
+  '<figure class="photo-card" id="photo-' + photo.id + '"><a data-photo="' + photo.id + '" data-srcset="' + photo.srcset.webp + '"'
   + ' data-width="' + photo.width + '" data-height="' + photo.height + '" href="' + photo.large + '" aria-label="View photograph: ' + escape(photo.alt) + '">'
-  + picture(photo, 'grid') + '</a><figcaption><span>' + frame(index) + '</span><span>View photograph ↗</span></figcaption></figure>');
+  + picture(photo, 'grid', index === 0 ? 'high' : index < 3 ? 'eager' : '') + '</a><figcaption><span>' + frame(index) + '</span><span>View photograph ↗</span></figcaption></figure>');
 const gallery = replace(await readFile(path.join(root, 'src/photos.html'), 'utf8'), {
   PHOTO_COUNT: String(generated.length).padStart(2, '0'), COLLECTION_TITLE: escape(site.photography.title), COLLECTION_DESCRIPTION: escape(site.photography.description),
   SIZES_GRID: sizes.grid, SIZES_LARGE: sizes.large, GALLERY_PHOTOS: galleryPhotos.join('\n')
@@ -173,6 +178,9 @@ await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/site
 await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url></urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');
+
+// Drop cached encodes no longer referenced, so the local and CI caches do not grow forever.
+for (const name of await readdir(cache)) if (!usedCache.has(name)) await rm(path.join(cache, name), { force: true });
 
 const report = { originalBytes, displayImageBytes: imageBytes, photoCount: generated.length, photos: generated.map(({ id, source, originalSha256, large, versions }) => ({ id, source, originalSha256, large, versions })) };
 await writeFile(path.join(root, '.cache/build-report.json'), JSON.stringify(report, null, 2) + '\n');

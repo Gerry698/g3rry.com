@@ -4,7 +4,7 @@ const collection = document.querySelector('.photo-collection');
 const tools = document.querySelector('#collection-tools');
 
 if (tools && collection) {
-  tools.hidden = false;
+  tools.classList.add('ready');
   tools.querySelectorAll('[data-view]').forEach(button => {
     button.addEventListener('click', () => {
       collection.dataset.view = button.dataset.view;
