@@ -1,0 +1,31 @@
+{
+  "url": "https://g3rry.com",
+  "name": "Gerry Zhao",
+  "language": "en",
+  "title": "Gerry Zhao — Light, Motion & Photography",
+  "description": "A personal collection of photographs, passing moments, and playful experiments with light and motion.",
+  "hero": {
+    "eyebrow": "A personal collection",
+    "title": "Chasing light.\nKeeping moments.",
+    "description": "A little space for the things that catch my eye — on the street, in the quiet, and somewhere in between.",
+    "photoId": "p01"
+  },
+  "photography": {
+    "title": "Photography",
+    "description": "Fleeting light, familiar strangers, and the small scenes worth keeping.",
+    "featuredTitle": "A few moments,\nheld a little longer."
+  },
+  "phantom": {
+    "title": "The Phantom",
+    "description": "A small experiment in light and motion. Choose a shape, then move your pointer through the particles — or tap them.",
+    "shapes": [
+      { "id": "gerry", "label": "Gerry", "source": "image/gz.png" },
+      { "id": "charging", "label": "0% Charging…", "source": "image/ch.png" },
+      { "id": "penguin", "label": "Penguin Logistics", "source": "image/pl.png" },
+      { "id": "rhodes", "label": "Rhodes Island", "source": "image/ri.png" },
+      { "id": "rhine", "label": "Rhine Lab", "source": "image/rl.png" },
+      { "id": "lungmen", "label": "Lungmen", "source": "image/lm.png" },
+      { "id": "reunion", "label": "Reunion", "source": "image/ru.jpg" }
+    ]
+  }
+}

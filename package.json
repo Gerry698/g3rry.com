@@ -1,0 +1,17 @@
+{
+  "name": "g3rry-personal-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "verify": "node scripts/verify.mjs",
+    "photos": "node scripts/photos.mjs",
+    "test": "node --test scripts/photos.test.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "preview": "node scripts/preview.mjs"
+  },
+  "devDependencies": { "sharp": "0.35.5" }
+}

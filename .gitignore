@@ -1,0 +1,17 @@
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor backups and swap files
+*~
+*.swp
+*.swo
+
+# Local preview/export outputs
+/.local-preview/
+
+# Dependencies, generated site, and local image cache
+/node_modules/
+/dist/
+/.cache/

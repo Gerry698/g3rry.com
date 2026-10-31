@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="{{LANGUAGE}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a24">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <link rel="canonical" href="{{CANONICAL}}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{NAME}}">
+  <meta property="og:title" content="{{TITLE}}">
+  <meta property="og:description" content="{{DESCRIPTION}}">
+  <meta property="og:url" content="{{CANONICAL}}">
+  <meta property="og:image" content="{{SOCIAL_IMAGE}}">
+  <meta property="og:image:width" content="{{SOCIAL_WIDTH}}">
+  <meta property="og:image:height" content="{{SOCIAL_HEIGHT}}">
+  <meta property="og:image:alt" content="{{SOCIAL_ALT}}">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{STYLES}}">
+  {{HEAD_EXTRA}}
+</head>
+<body class="{{PAGE_CLASS}}">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header wrap">
+    <a class="wordmark" href="/" aria-label="{{NAME}} — home">{{NAME}}<span aria-hidden="true">.</span></a>
+    <nav aria-label="Main navigation">
+      <a href="/" {{HOME_CURRENT}}>Home</a>
+      <a href="/photos/" {{PHOTOS_CURRENT}}>Photography</a>
+      <a href="/#phantom">The Phantom <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+  <main id="main">{{BODY}}</main>
+  <footer class="site-footer wrap">
+    <a class="wordmark" href="/">{{NAME}}<span aria-hidden="true">.</span></a>
+    <p>A small collection. An ongoing curiosity.</p>
+    <p class="copyright">© {{YEAR}} {{NAME}}</p>
+  </footer>
+  {{SCRIPTS}}
+</body>
+</html>
