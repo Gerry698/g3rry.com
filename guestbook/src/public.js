@@ -11,6 +11,8 @@ const pageSize = 20;
 const maxBodyBytes = 16 * 1024;
 // Generous per-address cap: campus and mobile networks put many people behind one address.
 const dailyLimit = 10;
+// Unreviewed notes allowed per address, so one sender cannot fill the shared review queue on their own.
+const senderPendingLimit = 3;
 // Beyond this many unreviewed notes, new ones are refused, so a spam wave cannot bury real notes or fill the database.
 const pendingLimit = 200;
 const listMaxAge = 60;
@@ -49,7 +51,8 @@ async function list(request, url, env, ctx) {
   const visitor = await ipHash(request.headers.get('cf-connecting-ip') ?? '', env.IP_PEPPER);
   if (await limited(env.READ_LIMIT, 'read:' + visitor)) return failure(429, 'rate_limited', { 'Retry-After': '60' });
 
-  // The cache key is rebuilt from validated input, so random query strings cannot force database reads.
+  // The cache key is rebuilt from validated input only, so extra query parameters cannot split the cache. A made-up
+  // but well-formed cursor still reaches D1; that costs one indexed range read and is covered by the rate limits.
   const cacheKey = new Request(env.SITE_ORIGIN + path + (cursor ? '?cursor=' + cursorText : ''));
   const cached = await caches.default.match(cacheKey);
   if (cached) return cached;
@@ -84,9 +87,10 @@ async function submit(request, env) {
   if (await limited(env.SUBMIT_LIMIT, 'submit:' + visitor)) return failure(429, 'rate_limited', { 'Retry-After': '60' });
 
   const data = await readJson(request, maxBodyBytes);
-  onlyKeys(data, ['name', 'message', 'website', 'token']);
-  // The website field is hidden from people; anything typed into it came from a script.
-  if (data.website !== undefined && data.website !== '') {
+  onlyKeys(data, ['name', 'message', 'extra', 'token']);
+  // The "extra" field is hidden from people and named so that browsers and password managers do not autofill it;
+  // anything typed into it came from a script.
+  if (data.extra !== undefined && data.extra !== '') {
     log('submit', { outcome: 'honeypot' });
     return accepted();
   }
@@ -109,9 +113,10 @@ async function submit(request, env) {
 
   const now = Date.now();
   const bodyHash = await sha256(duplicateKey(note.message));
-  const [ban, recent, pending, duplicates] = await env.DB.batch([
+  const [ban, recent, waiting, pending, duplicates] = await env.DB.batch([
     env.DB.prepare('SELECT 1 FROM bans WHERE ip_hash = ? AND until > ?').bind(visitor, now),
     env.DB.prepare('SELECT COUNT(*) AS n FROM entries WHERE ip_hash = ? AND created_at > ?').bind(visitor, now - day),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM entries WHERE ip_hash = ? AND status = 'pending'").bind(visitor),
     env.DB.prepare("SELECT COUNT(*) AS n FROM entries WHERE status = 'pending'"),
     env.DB.prepare('SELECT ip_hash FROM entries WHERE body_hash = ? AND created_at > ? LIMIT 50').bind(bodyHash, now - 7 * day)
   ]);
@@ -120,6 +125,7 @@ async function submit(request, env) {
     return accepted();
   }
   if (recent.results[0].n >= dailyLimit) return failure(429, 'daily_limit');
+  if (waiting.results[0].n >= senderPendingLimit) return failure(429, 'pending_limit');
   if (duplicates.results.some(row => row.ip_hash === visitor)) return failure(409, 'duplicate');
   if (pending.results[0].n >= pendingLimit) {
     log('submit', { outcome: 'queue_full' });

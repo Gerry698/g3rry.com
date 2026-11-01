@@ -4,6 +4,9 @@ const status = document.querySelector('#status');
 const more = document.querySelector('#more');
 const toggle = document.querySelector('#toggle-open');
 const banner = document.querySelector('#closed-banner');
+const viewNote = document.querySelector('#view-note');
+const bulk = document.querySelector('#bulk');
+const spamAll = document.querySelector('#spam-all');
 const template = document.querySelector('#entry-template');
 const tabs = [...document.querySelectorAll('.tabs [data-view]')];
 const time = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -89,11 +92,15 @@ async function loadEntries(append) {
     state.next = null;
   }
   status.textContent = '读取中…';
+  bulk.hidden = state.view !== 'pending';
+  viewNote.hidden = state.view !== 'hidden';
+  viewNote.textContent = '隐藏和垃圾留言会在处理 30 天后自动永久删除；在此之前可以恢复。';
   try {
     const query = '?view=' + state.view + (append && state.next ? '&cursor=' + encodeURIComponent(state.next) : '');
     const data = await api('/api/entries' + query);
     list.append(...data.entries.map(render));
     state.next = data.next;
+    spamAll.disabled = state.view === 'pending' && !list.children.length;
     status.textContent = list.children.length ? '' : '这里没有留言。';
   } catch (error) {
     report(error);
@@ -121,9 +128,11 @@ async function act(item, action) {
       status.textContent = reply ? '回复已保存。' : '回复已删除。';
     } else {
       const path = action === 'spam-ban' ? 'spam' : action;
-      await api('/api/entries/' + id + '/' + path, action === 'spam-ban' ? { ban: true } : {});
+      const result = await api('/api/entries/' + id + '/' + path, action === 'spam-ban' ? { ban: true } : {});
       item.remove();
-      status.textContent = { approve: '已发布。', reject: '已隐藏。', spam: '已标为垃圾。', 'spam-ban': '已标为垃圾并封禁。', delete: '已删除。' }[action];
+      status.textContent = action === 'spam-ban' && !result.banned
+        ? '已标为垃圾。这条留言超过 30 天，网络地址记录已删除，无法封禁。'
+        : { approve: '已发布。', reject: '已隐藏。', spam: '已标为垃圾。', 'spam-ban': '已标为垃圾并封禁。', delete: '已删除。' }[action];
       await loadSummary();
     }
   } catch (error) {
@@ -146,6 +155,20 @@ tabs.forEach(tab => tab.addEventListener('click', () => {
 }));
 
 more.addEventListener('click', () => { if (!state.busy) loadEntries(true); });
+
+spamAll.addEventListener('click', async () => {
+  if (!confirm('把所有待审留言都标为垃圾？用于应对垃圾潮；30 天内可以在“已隐藏”里逐条恢复。')) return;
+  spamAll.disabled = true;
+  try {
+    const { count } = await api('/api/pending/spam', {});
+    await loadSummary();
+    await loadEntries(false);
+    status.textContent = '已把 ' + count + ' 条待审留言标为垃圾。';
+  } catch (error) {
+    report(error);
+    spamAll.disabled = false;
+  }
+});
 
 toggle.addEventListener('click', async () => {
   if (state.open && !confirm('关闭投稿后访客无法提交新留言，已有留言照常显示。确定关闭？')) return;

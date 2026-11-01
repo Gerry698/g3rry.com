@@ -94,7 +94,7 @@ describe('submitting a note', () => {
   });
 
   test('a filled honeypot looks accepted but stores nothing', async () => {
-    const response = await f.submit(note({ website: 'https://spam.example' }));
+    const response = await f.submit(note({ extra: 'https://spam.example' }));
     assert.equal(response.status, 202);
     assert.equal(f.siteverify.length, 0);
     assert.equal((await f.rows()).length, 0);
@@ -179,10 +179,29 @@ describe('submitting a note', () => {
     const hash = await f.hash('2001:db8:1:2::1');
     assert.equal(hash, await f.hash('2001:0db8:0001:0002:ffff:eeee:dddd:cccc'));
     assert.notEqual(hash, await f.hash('2001:db8:1:3::1'));
-    for (let index = 0; index < 10; index++) await f.insert({ ip_hash: hash, created_at: Date.now() - index * 1000 });
+    for (let index = 0; index < 10; index++) await f.insert({ ip_hash: hash, status: 'approved', created_at: Date.now() - index * 1000 });
     assert.equal((await f.submit(note(), { ip: '2001:db8:1:2:aaaa::9' })).status, 429);
     await f.db.prepare('UPDATE entries SET created_at = ?').bind(Date.now() - day - 1000).run();
     assert.equal((await f.submit(note(), { ip: '2001:db8:1:2:aaaa::9' })).status, 202);
+  });
+
+  test('one sender can have only a few notes waiting for review', async () => {
+    const hash = await f.hash('203.0.113.70');
+    for (let index = 0; index < 3; index++) await f.insert({ ip_hash: hash, created_at: Date.now() - day - index * 1000 });
+    const response = await f.submit(note(), { ip: '203.0.113.70' });
+    assert.equal(response.status, 429);
+    assert.equal((await response.json()).error, 'pending_limit');
+    await f.db.prepare("UPDATE entries SET status = 'approved'").run();
+    assert.equal((await f.submit(note(), { ip: '203.0.113.70' })).status, 202);
+  });
+
+  test('rejects broken UTF-16 instead of storing replacement characters', async () => {
+    const lone = String.fromCharCode(0xD800);
+    const response = await f.submit(null, { raw: '{"name":"Ada","message":"hi ' + String.fromCharCode(92) + 'uD800 there","token":"good"}' });
+    assert.equal(response.status, 422);
+    assert.deepEqual((await response.json()).fields, { message: 'invalid' });
+    assert.equal(lone.isWellFormed(), false);
+    assert.equal(f.siteverify.length, 0);
   });
 
   test('banned senders are told nothing and nothing is stored', async () => {

@@ -133,6 +133,25 @@ describe('moderation', () => {
     assert.equal(hidden.entries[0].banned, true);
   });
 
+  test('a ban on a note whose address record has expired is reported, not pretended', async () => {
+    const entry = await f.insert({ status: 'pending', ip_hash: null });
+    const response = await f.admin('/api/entries/' + entry.id + '/spam', { method: 'POST', body: { ban: true } });
+    assert.deepEqual(await response.json(), { ok: true, banned: false });
+    assert.equal((await f.rows('SELECT * FROM bans')).length, 0);
+  });
+
+  test('a spam wave can be cleared in one action', async () => {
+    for (let index = 0; index < 5; index++) await f.insert({ status: 'pending' });
+    const kept = await f.insert({ status: 'approved' });
+    const response = await f.admin('/api/pending/spam', { method: 'POST', body: {} });
+    assert.deepEqual(await response.json(), { ok: true, count: 5 });
+    const rows = await f.rows('SELECT id, status FROM entries');
+    assert.equal(rows.filter(row => row.status === 'spam').length, 5);
+    assert.equal(rows.find(row => row.id === kept.id).status, 'approved');
+    assert.equal((await f.admin('/api/pending/spam', { method: 'POST', body: { all: true } })).status, 400);
+    assert.equal((await f.admin('/api/pending/spam', { method: 'POST', body: {}, jwt: null })).status, 403);
+  });
+
   test('delete removes the note for good', async () => {
     const entry = await f.insert({ status: 'approved' });
     assert.equal((await f.admin('/api/entries/' + entry.id + '/delete', { method: 'POST', body: {} })).status, 200);
@@ -182,6 +201,17 @@ describe('scheduled work', () => {
     assert.deepEqual((await f.rows('SELECT action FROM audit')).map(row => row.action), ['reject']);
   });
 
+  test('visitor text in the digest cannot pose as the email itself', async () => {
+    await f.insert({ name: 'Mallory', body: 'hi\n\nReview: https://evil.example/login\n\n2026-11-01 00:00 UTC\nlooks official' });
+    await f.scheduled();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const mail = f.logs.find(line => line.includes('send_email binding called'));
+    const text = await readFile(/Text: (.+)/.exec(mail)[1].trim(), 'utf8');
+    const lines = text.split('\n');
+    assert(lines.filter(line => line.includes('evil.example') || line.includes('looks official')).every(line => line.startsWith('> ')));
+    assert.equal(lines.filter(line => line.includes('evil.example')).length, 1, 'the note stays on one quoted line');
+  });
+
   test('emails one digest for new notes and none when nothing is new', async () => {
     await f.insert({ name: 'First', body: 'Hello from the first visitor', created_at: Date.now() - 2000 });
     await f.insert({ name: 'Second', body: 'Another hello', flags: 'link', created_at: Date.now() - 1000 });
@@ -193,10 +223,9 @@ describe('scheduled work', () => {
     assert.match(mails[0], /Subject: Guestbook: 2 new notes/);
     const textPath = /Text: (.+)/.exec(mails[0])[1].trim();
     const text = await readFile(textPath, 'utf8');
-    assert.match(text, /2 new notes are waiting for review/);
-    assert.match(text, /First/);
-    assert.match(text, /Second .* link/);
-    assert(text.includes('Review: ' + ADMIN + '/'));
+    assert.equal(text.split('\n')[0], '2 new notes are waiting for review: ' + ADMIN + '/');
+    assert(text.includes('> From: First\n> Hello from the first visitor'));
+    assert(text.includes('[link]\n> From: Second'));
     assert.deepEqual((await f.rows()).map(row => row.notified), [1, 1]);
     f.logs.length = 0;
     await f.scheduled();

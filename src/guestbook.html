@@ -1,0 +1,40 @@
+<section class="collection-header wrap" aria-labelledby="guestbook-title">
+  <p class="eyebrow">{{GUESTBOOK_EYEBROW}}</p>
+  <div class="collection-intro"><h1 id="guestbook-title">{{GUESTBOOK_HEADING}}<span class="gold-dot" aria-hidden="true">.</span></h1><p class="intro">{{GUESTBOOK_DESCRIPTION}}</p></div>
+  <div class="collection-rule"><span>Read by hand, one at a time.</span><span>No account needed</span></div>
+</section>
+<div class="guestbook wrap">
+  <section class="note-compose" aria-labelledby="compose-title">
+    <h2 class="panel-title" id="compose-title">Write a note</h2>
+    <noscript><p class="panel-note">The guestbook needs JavaScript to show and send notes.</p></noscript>
+    <form class="note-form" id="note-form" data-sitekey="{{TURNSTILE_SITEKEY}}" novalidate hidden>
+      <div class="field">
+        <label for="note-name">Your name</label>
+        <input id="note-name" name="name" type="text" maxlength="40" autocomplete="nickname" autocapitalize="words" spellcheck="false" required aria-describedby="note-name-error">
+        <p class="field-error" id="note-name-error"></p>
+      </div>
+      <div class="field">
+        <label for="note-message">Message</label>
+        <textarea id="note-message" name="message" rows="6" maxlength="1000" required aria-describedby="note-message-count note-message-error"></textarea>
+        <p class="field-meta" id="note-message-count">0 / 1000</p>
+        <p class="field-error" id="note-message-error"></p>
+      </div>
+      <div class="field-trap" aria-hidden="true">
+        <label for="note-extra">Leave this field empty</label>
+        <input id="note-extra" name="extra" type="text" tabindex="-1" autocomplete="off">
+      </div>
+      <div class="turnstile-slot" id="turnstile-slot"></div>
+      <div class="form-actions">
+        <button class="send-button" id="note-send" type="submit">Send note <span aria-hidden="true">↗</span></button>
+        <p class="form-status" id="note-status" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+    <p class="panel-note privacy-note">Your name and message become public once I have read them; no email or account is needed. To keep spam out, this form uses Cloudflare Turnstile and keeps a one-way hash of your network address, and your country, for 30 days (longer only if the address is blocked for spam). To have a note removed, write to <a href="mailto:{{GUESTBOOK_CONTACT}}">{{GUESTBOOK_CONTACT}}</a>.</p>
+  </section>
+  <section class="notes" aria-labelledby="notes-title">
+    <h2 class="panel-title" id="notes-title">Recent notes</h2>
+    <ol class="note-list" id="note-list"></ol>
+    <p class="notes-status" id="notes-status" role="status" aria-live="polite"></p>
+    <div class="notes-actions"><button class="quiet-button" id="notes-retry" type="button" hidden>Try again</button><button class="quiet-button" id="notes-more" type="button" hidden>Older notes</button></div>
+  </section>
+</div>

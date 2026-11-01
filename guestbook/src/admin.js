@@ -54,6 +54,7 @@ export default {
         const action = /^\/api\/entries\/([0-9a-f]{32})\/(approve|reject|spam|delete|reply)$/.exec(url.pathname);
         if (action) return await moderate(action[1], action[2], data, env, user);
         if (url.pathname === '/api/settings') return await updateSettings(data, env, user);
+        if (url.pathname === '/api/pending/spam') return await spamAllPending(data, env, user);
         return failure(404, 'not_found');
       }
       return failure(405, 'method_not_allowed', { Allow: 'GET, POST' });
@@ -139,9 +140,22 @@ async function moderate(id, action, data, env, user) {
           .bind(entry.ip_hash, now + banDays * day, now),
         audit('ban'));
     }
+    // After 30 days the address hash is gone, so there is nothing left to ban; the page says so.
+    if (data.ban) result.banned = Boolean(entry.ip_hash);
   }
   await env.DB.batch(statements);
   return json(result);
+}
+
+// For a spam wave: every unreviewed note becomes spam at once. They stay restorable from the hidden view for 30 days.
+async function spamAllPending(data, env, user) {
+  onlyKeys(data, []);
+  const now = Date.now();
+  const [update] = await env.DB.batch([
+    env.DB.prepare("UPDATE entries SET status = 'spam', reviewed_at = ? WHERE status = 'pending'").bind(now),
+    env.DB.prepare("INSERT INTO audit (at, actor, action, entry_id) VALUES (?, ?, 'spam_all_pending', NULL)").bind(now, user.email)
+  ]);
+  return json({ ok: true, count: update.meta.changes });
 }
 
 async function updateSettings(data, env, user) {
@@ -166,17 +180,18 @@ async function purgeExpired(env, now) {
 }
 
 const digestSize = 20;
-const preview = text => {
-  const characters = [...text];
-  return characters.length > 300 ? characters.slice(0, 300).join('') + '…' : text;
+// Visitor text in the email is one quoted line per note, so it cannot imitate the email's own text or links.
+const quoted = text => {
+  const characters = [...text.replace(/\s*\n\s*/g, ' / ')];
+  return '> ' + (characters.length > 240 ? characters.slice(0, 240).join('') + '…' : characters.join(''));
 };
 
 // One summary email per run (every 15 minutes) at most, and only when something new is waiting,
 // so a burst of spam cannot flood the owner's inbox.
 async function sendDigest(env) {
   const [fresh, total] = await env.DB.batch([
-    env.DB.prepare(`SELECT name, body, flags, created_at FROM entries WHERE status = 'pending' AND notified = 0 ORDER BY created_at LIMIT ${digestSize}`),
-    env.DB.prepare("SELECT COUNT(*) AS n, MAX(created_at) AS latest FROM entries WHERE status = 'pending' AND notified = 0")
+    env.DB.prepare(`SELECT id, name, body, flags, created_at FROM entries WHERE status = 'pending' AND notified = 0 ORDER BY created_at LIMIT ${digestSize}`),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM entries WHERE status = 'pending' AND notified = 0")
   ]);
   const count = total.results[0].n;
   if (!count) return;
@@ -184,13 +199,16 @@ async function sendDigest(env) {
     log('digest', { outcome: 'not_configured' });
     return;
   }
-  const lines = [count === 1 ? 'A new note is waiting for review.' : count + ' new notes are waiting for review.', ''];
+  const lines = [
+    (count === 1 ? 'A new note is waiting' : count + ' new notes are waiting') + ' for review: ' + env.ADMIN_ORIGIN + '/',
+    'Lines starting with ">" are visitor text, not links from the guestbook.',
+    ''
+  ];
   for (const row of fresh.results) {
-    lines.push('— ' + row.name + ' · ' + new Date(row.created_at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' + (row.flags ? ' · ' + row.flags : ''));
-    lines.push(preview(row.body), '');
+    const time = new Date(row.created_at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+    lines.push(time + (row.flags ? ' [' + row.flags + ']' : ''), quoted('From: ' + row.name), quoted(row.body), '');
   }
-  if (count > fresh.results.length) lines.push('…and ' + (count - fresh.results.length) + ' more.', '');
-  lines.push('Review: ' + env.ADMIN_ORIGIN + '/');
+  if (count > fresh.results.length) lines.push((count - fresh.results.length) + ' more will follow in the next email.');
   // The subject is fixed text; visitor text only ever appears in the plain-text body.
   await env.EMAIL.send({
     from: env.NOTIFY_FROM,
@@ -198,6 +216,8 @@ async function sendDigest(env) {
     subject: count === 1 ? 'Guestbook: 1 new note' : 'Guestbook: ' + count + ' new notes',
     text: lines.join('\n')
   });
-  await env.DB.prepare("UPDATE entries SET notified = 1 WHERE status = 'pending' AND notified = 0 AND created_at <= ?").bind(total.results[0].latest).run();
-  log('digest', { outcome: 'sent', count });
+  // Only the notes actually listed are marked, so a note that arrives while this runs is not skipped.
+  const ids = fresh.results.map(row => row.id);
+  await env.DB.prepare('UPDATE entries SET notified = 1 WHERE id IN (' + ids.map(() => '?').join(', ') + ')').bind(...ids).run();
+  log('digest', { outcome: 'sent', count: ids.length });
 }

@@ -44,8 +44,20 @@ test('normalization keeps real writing intact', () => {
 });
 
 test('reserved names catch the owner name in disguise, not ordinary names', () => {
+  const smallCapitalE = String.fromCodePoint(0x1D07);
+  const cyrillicGhe = String.fromCodePoint(0x0433);
+  for (const name of ['G' + smallCapitalE + 'rry', 'Ge' + cyrillicGhe + cyrillicGhe + 'y']) assert(isReservedName(name), name);
   for (const name of ['Gerry', 'gerry zhao', 'G3rry', 'GERRY!!', 'G\u00E9rry', 'g e r r y', 'ADMIN', 'Owner']) assert(isReservedName(name), name);
   for (const name of ['Jerry', 'Garry', 'Ada', '\u5C0F\u660E', 'Administrator of nothing']) assert(!isReservedName(name), name);
+});
+
+test('invisible and stacking tricks are removed', () => {
+  const chars = (...codes) => String.fromCodePoint(...codes);
+  assert.equal(normalizeText(chars(0x2800, 0x2800), { multiline: false }), '', 'Braille blanks are not a name');
+  assert.equal(normalizeText('a' + chars(0x1D173, 0x13430, 0x0600, 0x1BCA0) + 'b', { multiline: false }), 'ab', 'all invisible format characters go');
+  const marks = Array.from({ length: 50 }, () => chars(0x0301, 0x200C)).join('');
+  assert.equal(normalizeText('Z' + marks, { multiline: false }).length, 5, 'joiners cannot reset the combining-mark cap');
+  assert.equal(normalizeText(chars(0x0915, 0x094D, 0x200D, 0x0937), { multiline: false }), chars(0x0915, 0x094D, 0x200D, 0x0937), 'Devanagari conjunct with ZWJ survives');
 });
 
 test('replies are normalized and limited like notes', () => {

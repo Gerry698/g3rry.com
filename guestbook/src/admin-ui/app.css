@@ -13,7 +13,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0 auto; max-width: 860px; padding: 24px 20px 64px; background: var(--ink); color: var(--paper); font: 15px/1.65 var(--sans); }
 button, textarea { font: inherit; color: inherit; }
-button, .ghost { min-height: 44px; padding: .5rem .95rem; border: 1px solid #ffffff2e; background: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+button, .ghost { color: inherit; min-height: 44px; padding: .5rem .95rem; border: 1px solid #ffffff2e; background: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
 button:hover, .ghost:hover { border-color: var(--gold); }
 button:disabled { opacity: .5; cursor: default; }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
@@ -27,6 +27,8 @@ h1 { font: 400 1.9rem/1.1 var(--serif); letter-spacing: -.04em; margin: 0; }
 .tabs { display: flex; gap: 6px; margin: 20px 0 8px; flex-wrap: wrap; }
 .tabs button[aria-pressed="true"] { background: var(--paper); color: var(--ink); border-color: var(--paper); }
 .tabs span { margin-left: .4rem; font-size: .8rem; opacity: .8; }
+.view-note { margin: 12px 0 0; color: var(--muted); font-size: .8rem; }
+.bulk { margin-top: 12px; }
 .status { min-height: 1.6em; color: var(--muted); font-size: .85rem; }
 .entries { list-style: none; margin: 0; padding: 0; }
 .entry { border-top: 1px solid var(--line); padding: 20px 0 22px; }

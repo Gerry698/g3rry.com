@@ -27,6 +27,8 @@
     <button type="button" data-view="hidden" aria-pressed="false">已隐藏 <span data-count="hidden"></span></button>
   </nav>
   <main>
+    <p class="view-note" id="view-note" hidden></p>
+    <div class="bulk" id="bulk" hidden><button type="button" class="danger" id="spam-all">全部待审标为垃圾</button></div>
     <p id="status" class="status" role="status" aria-live="polite"></p>
     <ol id="entries" class="entries"></ol>
     <button type="button" id="more" class="ghost more" hidden>加载更多</button>
