@@ -10,6 +10,7 @@
 | 首页、摄影页结构 | `src/index.html`、`src/photos.html` |
 | 外观与响应式布局 | `src/styles.css` |
 | 粒子效果 / 画廊交互 | `src/particles.js` / `src/gallery.js` |
+| 山形目录页 | `content/mountain.json`、`src/mountain/`（见下文"山"） |
 | 构建与检查 | `scripts/build.mjs`、`scripts/check.mjs` |
 
 页面带有 Content-Security-Policy（`src/layout.html` 的 meta）：只允许本站资源和 Cloudflare Web Analytics。引入任何外部脚本、字体或图片前，先在那里放行，否则浏览器会拦截。
@@ -28,6 +29,16 @@
 ## 粒子图案
 
 素材放 `image/`（PNG 或 JPG，亮且不透明的区域会变成粒子），在 `site.json` 的 `phantom.shapes` 中登记。构建时会缩到 900px 以内并压缩，原图不必预先处理。
+
+## 山（/mountain/）
+
+一个用 WebGL2 画的雪山目录页：打开时镜头绕山缓慢旋转，滚轮、点击、方向键或手机上下滑动，镜头沿螺旋小径一站一站爬到峰顶，时辰随海拔从拂晓走到星夜。页面目前 `noindex`，不在导航和 sitemap 里。
+
+- 文案和营地在 `content/mountain.json`：`intro` 是标题屏，`camps` 按山脚到峰顶排列（3–9 个，最后一个是峰顶）。每个营地有 `id`（也是 `#id` 深链接）、`title`、`description`，可选 `kicker`、`href`（站内路径，缺省时显示 "Trail under construction"）、`time`（`dawn` / `morning` / `noon` / `golden` / `dusk` / `night`）。
+- 代码在 `src/mountain/`，原生 ES module，无运行时依赖：`terrain.js` 生成山体、营地位置、小径、树和云；`camera.js` 定每站机位和转场；`renderer.js` + `shaders.js` 负责渲染（阴影、雾、天空、云、泛光）；`palettes.js` 是各时辰配色；`props.js` 是帐篷、旗和石堆；`main.js` 管交互和状态。
+- 构建把整个目录连同两款 OFL 字体（`@fontsource` 的 Instrument Serif、JetBrains Mono 拉丁子集）按内容哈希发布到 `/assets/mountain-<hash>/`，所以模块之间的相对 import 不用改。
+- 山的形状是确定的：同一份代码每次生成同一座山。改 `terrain.js` 里的 `PEAKS` 和噪声参数会整体改变山形和营地位置。
+- 调试参数：`?debug` 暴露 `window.mountain`（`station(i)` 跳到第 i 站、`pose()`、`time('dusk')`、`bench()` 测每帧耗时、`hide('bloom')`）；`?clean` 隐藏文字层；`?timer` 用定时器驱动渲染（后台标签页不跑 requestAnimationFrame 时用）；`?quality=low|high`；`?motion=reduce`。
 
 ## 发布
 

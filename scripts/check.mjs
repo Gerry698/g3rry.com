@@ -23,7 +23,7 @@ async function walk(directory, prefix = '') {
 }
 const files = await walk(dist);
 const exactFiles = new Set(files);
-const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'Photo']);
+const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'Photo', 'mountain']);
 for (const file of files) assert(allowedRoots.has(file.split('/')[0]), 'Unexpected published file: ' + file);
 assert.equal(report.photoCount, photos.length, 'Build report must match the current manifest.');
 assert.equal(report.photos.length, photos.length);
@@ -67,6 +67,10 @@ assert(/id="phantom-shape" disabled/.test(home), 'No-JavaScript shape selector m
 assert(home.includes('name="description"') && gallery.includes('rel="canonical"'), 'SEO metadata is missing.');
 assert(htmlByFile.get('Photo/gallery.html').includes('http-equiv="refresh"'), 'Old gallery must work without JavaScript.');
 assert(htmlByFile.get('404.html').includes('name="robots" content="noindex"'), 'The 404 page must not be indexed.');
+const mountainPage = htmlByFile.get('mountain/index.html');
+const mountainCamps = JSON.parse(await readFile(path.join(root, 'content/mountain.json'), 'utf8')).camps;
+assert(mountainPage.includes('name="robots" content="noindex"'), 'The mountain page stays out of search until it launches.');
+assert.equal([...mountainPage.matchAll(/<li id="/g)].length, mountainCamps.length, 'Every camp needs a plain link for readers without WebGL.');
 assert.deepEqual(files.filter(file => file.startsWith('Photo/')), ['Photo/gallery.html'], 'Only the old gallery redirect belongs under Photo/.');
 assert.equal((await readFile(path.join(dist, 'CNAME'), 'utf8')).trim(), new URL(site.url).hostname);
 assert((await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/photos/', site.url).href));

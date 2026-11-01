@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "verify": "node scripts/verify.mjs",
@@ -13,5 +15,9 @@
     "check": "node scripts/check.mjs",
     "preview": "node scripts/preview.mjs"
   },
-  "devDependencies": { "sharp": "0.35.5" }
+  "devDependencies": {
+    "@fontsource/instrument-serif": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "sharp": "0.35.5"
+  }
 }

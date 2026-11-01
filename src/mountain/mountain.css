@@ -1,0 +1,117 @@
+@font-face { font-family: "Instrument Serif"; src: url(instrument-serif.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url(jetbrains-mono.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+:root {
+  color-scheme: dark;
+  --paper: #f7f3ec;
+  --mist: #f7f3ecb3;
+  --faint: #f7f3ec59;
+  --lantern: #ffcf7d;
+  --night: #0a1130;
+  --serif: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --gutter: clamp(20px, 6vw, 96px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--night); }
+body {
+  margin: 0; min-height: 100vh; color: var(--paper); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased;
+  background: linear-gradient(180deg, #03050e 0%, #10163a 38%, #29234f 72%, #4a3356 100%) fixed;
+}
+a { color: inherit; }
+button { font: inherit; color: inherit; cursor: pointer; }
+h1, h2, p { margin: 0; }
+:focus-visible { outline: 2px solid var(--lantern); outline-offset: 5px; border-radius: 2px; }
+[hidden] { display: none !important; }
+.mountain-skip { position: fixed; top: 10px; left: 12px; z-index: 20; padding: .6rem 1rem; background: var(--paper); color: var(--night); transform: translateY(-160%); }
+.mountain-skip:focus { transform: none; }
+
+.mountain-canvas { display: none; }
+.mountain-top { display: flex; justify-content: space-between; align-items: center; padding: 28px var(--gutter); }
+.mountain-mark { font: 1.7rem/1 var(--serif); text-decoration: none; letter-spacing: -.01em; }
+.mountain-mark span { color: var(--lantern); }
+.mountain-meter { font: .72rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mist); display: none; }
+.mountain-meter b { font-weight: 400; color: var(--paper); font-variant-numeric: tabular-nums; }
+.mountain-kicker { font: .72rem/1.4 var(--mono); letter-spacing: .22em; text-transform: uppercase; color: var(--lantern); }
+.mountain-intro h1 { font: 400 clamp(4.4rem, 11vw, 10rem)/.86 var(--serif); letter-spacing: -.025em; margin-top: 1.2rem; }
+.mountain-lede { margin-top: 1.6rem; max-width: 27em; color: var(--mist); font-size: 1.02rem; }
+.mountain-main { padding: 12vh var(--gutter) 10vh; max-width: 980px; }
+.mountain-card { display: none; }
+
+/* Without WebGL the route is a plain, readable list. */
+.mountain-route ol { list-style: none; margin: 4rem 0 0; padding: 0; display: grid; gap: 1.6rem; }
+.mountain-route a { display: inline-flex; gap: 1.1rem; align-items: baseline; text-decoration: none; }
+.camp-number { font: .78rem/1 var(--mono); color: var(--lantern); min-width: 2.2em; letter-spacing: .08em; }
+.camp-title { font: 2.4rem/1.05 var(--serif); }
+.mountain-route p { color: var(--mist); margin: .45rem 0 0 3.3rem; max-width: 34em; }
+.mountain-route a[data-pending] .camp-title { color: var(--mist); }
+
+/* Live: the canvas fills the window and the text floats over it. */
+.mountain-live body { overflow: hidden; height: 100vh; height: 100dvh; background: var(--night); }
+.mountain-live .mountain-canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: pointer; }
+.mountain-live body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(90deg, #050816a6 0%, #0508164d 32%, #05081600 58%), linear-gradient(0deg, #05081661 0%, #05081600 34%);
+}
+.mountain-live .mountain-top { position: fixed; inset: 0 0 auto; z-index: 3; }
+.mountain-live .mountain-meter { display: block; }
+.mountain-live .mountain-main { padding: 0; }
+.mountain-live .mountain-intro, .mountain-live .mountain-card {
+  position: fixed; left: var(--gutter); bottom: 13vh; z-index: 2; max-width: min(560px, 80vw);
+  transition: opacity .8s cubic-bezier(.2, .7, .2, 1), transform .8s cubic-bezier(.2, .7, .2, 1), visibility 0s;
+}
+.mountain-live .mountain-intro { pointer-events: none; text-shadow: 0 2px 30px #05081680; }
+.mountain-live .mountain-intro .mountain-begin { pointer-events: auto; }
+.mountain-intro.is-hidden { opacity: 0; transform: translateY(-16px); visibility: hidden; transition-property: opacity, transform, visibility; transition-delay: 0s, 0s, .8s; }
+.mountain-begin {
+  margin-top: 2.4rem; display: inline-flex; gap: .9rem; align-items: center; padding: .85rem 1.35rem; border-radius: 999px;
+  border: 1px solid var(--faint); background: #0508162e; font: .74rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+  backdrop-filter: blur(6px); transition: background .3s, border-color .3s;
+}
+.mountain-begin:hover { background: #f7f3ec1f; border-color: var(--mist); }
+.mountain-begin span { color: var(--lantern); }
+.mountain-live .mountain-card { display: block; opacity: 0; transform: translateY(18px); visibility: hidden; text-shadow: 0 2px 24px #0508168c; }
+.mountain-live .mountain-card.is-visible { opacity: 1; transform: none; visibility: visible; }
+.mountain-card h2 { font: 400 clamp(3.4rem, 7vw, 6.6rem)/.9 var(--serif); letter-spacing: -.02em; margin-top: 1rem; }
+.mountain-card-text { margin-top: 1.2rem; color: var(--mist); max-width: 26em; }
+.mountain-enter, .mountain-pending { margin-top: 2rem; display: inline-flex; gap: .8rem; align-items: center; font: .74rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
+.mountain-enter { padding: .9rem 1.4rem; border-radius: 999px; background: var(--paper); color: #10142b; text-decoration: none; text-shadow: none; transition: transform .25s, background .25s; }
+.mountain-enter:hover { background: #fff; transform: translateX(3px); }
+.mountain-pending { color: var(--mist); padding: .9rem 0; }
+.mountain-pending::before { content: ""; width: 22px; height: 1px; background: currentColor; }
+
+.mountain-live .mountain-route { position: fixed; right: var(--gutter); top: 50%; transform: translateY(-50%); z-index: 3; }
+.mountain-live .mountain-route ol { margin: 0; display: flex; flex-direction: column-reverse; gap: 1.15rem; position: relative; }
+.mountain-live .mountain-route ol::before { content: ""; position: absolute; right: .5rem; top: .3rem; bottom: .3rem; width: 1px; background: var(--faint); }
+.mountain-live .mountain-route li { display: flex; justify-content: flex-end; }
+.mountain-live .mountain-route p { display: none; }
+.mountain-live .mountain-route a { flex-direction: row-reverse; align-items: center; gap: .9rem; padding: .15rem 0; }
+.mountain-live .camp-number { min-width: 1.05rem; height: 1.05rem; display: grid; place-items: center; font-size: 0; position: relative; }
+.mountain-live .camp-number::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--night); border: 1px solid var(--mist); transition: all .4s; }
+.mountain-live .is-passed .camp-number::after { background: var(--mist); border-color: var(--mist); }
+.mountain-live [aria-current] .camp-number::after { width: 11px; height: 11px; background: var(--lantern); border-color: var(--lantern); box-shadow: 0 0 14px #ffcf7dcc; }
+.mountain-live .camp-title { font: .7rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--mist); opacity: 0; transform: translateX(6px); transition: opacity .3s, transform .3s; }
+.mountain-live .mountain-route a:hover .camp-title, .mountain-live .mountain-route a:focus-visible .camp-title, .mountain-live [aria-current] .camp-title { opacity: 1; transform: none; }
+.mountain-live [aria-current] .camp-title { color: var(--paper); }
+
+.mountain-hint { position: fixed; left: 50%; bottom: 30px; z-index: 3; transform: translateX(-50%); display: grid; justify-items: center; gap: .7rem; font: .66rem/1 var(--mono); letter-spacing: .24em; text-transform: uppercase; color: var(--mist); }
+.mountain-hint i { width: 1px; height: 34px; background: linear-gradient(var(--mist), transparent); animation: mountain-drop 2.2s cubic-bezier(.6, 0, .3, 1) infinite; transform-origin: top; }
+@keyframes mountain-drop { 0% { transform: scaleY(0); opacity: 1; } 60% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
+
+/* Debug: previews that pause animation frames also freeze transitions mid-way. */
+.mountain-still *, .mountain-still *::before, .mountain-still *::after { transition: none !important; animation: none !important; }
+.mountain-clean .mountain-top, .mountain-clean .mountain-main, .mountain-clean .mountain-hint, .mountain-clean body::before { display: none; }
+
+@media (max-aspect-ratio: 9/10) {
+  .mountain-live body::before { background: linear-gradient(0deg, #050816b3 0%, #05081666 30%, #05081600 55%); }
+  .mountain-live .mountain-intro, .mountain-live .mountain-card { left: 22px; right: 22px; bottom: max(26px, env(safe-area-inset-bottom)); max-width: none; }
+  .mountain-live .mountain-route { top: 84px; right: 18px; transform: none; }
+  .mountain-live .mountain-route ol { gap: .8rem; }
+  .mountain-live .camp-title { display: none; }
+  .mountain-hint { display: none; }
+  .mountain-top { padding: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mountain-live .mountain-intro, .mountain-live .mountain-card { transition-duration: .2s; transform: none; }
+  .mountain-hint i { animation: none; }
+}

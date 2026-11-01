@@ -37,7 +37,8 @@ npm run photos -- alt p16 "新的描述"
 | --- | --- |
 | `content/site.json` | 首页文案、粒子图案、站点信息 |
 | `content/photos.json` | 照片顺序、描述、是否精选 |
-| `src/` | 页面模板、样式、粒子动画和画廊交互 |
+| `content/mountain.json` | `/mountain/` 山形目录页的文案和营地 |
+| `src/` | 页面模板、样式、粒子动画和画廊交互；`src/mountain/` 是 WebGL2 山形目录页 |
 | `Photo/` | 照片网页母版 |
 | `image/` | 粒子图案素材 |
 | `scripts/` | 构建、检查、预览和照片工具 |
