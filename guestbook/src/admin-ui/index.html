@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#101a24">
+  <title>留言板后台 — g3rry.com</title>
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <h1>留言板后台<span class="dot" aria-hidden="true">.</span></h1>
+      <p class="muted" id="user"></p>
+    </div>
+    <div class="bar-actions">
+      <button type="button" id="toggle-open" class="ghost" disabled>读取中…</button>
+      <a class="ghost" href="/cdn-cgi/access/logout">退出登录</a>
+    </div>
+  </header>
+  <p class="closed-banner" id="closed-banner" hidden>投稿已关闭：访客现在无法提交新留言。</p>
+  <nav class="tabs" aria-label="留言分类">
+    <button type="button" data-view="pending" aria-pressed="true">待审 <span data-count="pending"></span></button>
+    <button type="button" data-view="approved" aria-pressed="false">已发布 <span data-count="approved"></span></button>
+    <button type="button" data-view="hidden" aria-pressed="false">已隐藏 <span data-count="hidden"></span></button>
+  </nav>
+  <main>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <ol id="entries" class="entries"></ol>
+    <button type="button" id="more" class="ghost more" hidden>加载更多</button>
+  </main>
+  <template id="entry-template">
+    <li class="entry">
+      <p class="meta"><time></time><span class="state"></span><span class="where"></span></p>
+      <p class="flags"></p>
+      <h2 class="name"></h2>
+      <p class="message"></p>
+      <div class="reply" hidden>
+        <p class="reply-label">我的回复</p>
+        <p class="reply-text"></p>
+      </div>
+      <details class="reply-editor">
+        <summary>写回复</summary>
+        <textarea rows="3" maxlength="1000" aria-label="回复内容"></textarea>
+        <div class="row">
+          <button type="button" data-action="reply">保存回复</button>
+          <button type="button" class="ghost" data-action="remove-reply">删除回复</button>
+        </div>
+      </details>
+      <div class="actions">
+        <button type="button" class="primary" data-action="approve">通过</button>
+        <button type="button" data-action="reject">隐藏</button>
+        <button type="button" data-action="spam">标为垃圾</button>
+        <button type="button" class="danger" data-action="spam-ban">垃圾并封禁 30 天</button>
+        <button type="button" class="danger" data-action="delete">永久删除</button>
+      </div>
+    </li>
+  </template>
+</body>
+</html>

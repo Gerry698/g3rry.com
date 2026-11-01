@@ -15,3 +15,8 @@ Desktop.ini
 /node_modules/
 /dist/
 /.cache/
+
+# Guestbook Worker dependencies, bundles and local state
+/guestbook/node_modules/
+/guestbook/build/
+/guestbook/.wrangler/

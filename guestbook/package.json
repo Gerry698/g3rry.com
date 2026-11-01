@@ -1,0 +1,21 @@
+{
+  "name": "g3rry-guestbook",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test --test-concurrency=1 \"test/*.test.mjs\"",
+    "dev": "node scripts/dev.mjs"
+  },
+  "dependencies": {
+    "jose": "6.2.12"
+  },
+  "devDependencies": {
+    "miniflare": "5.20261023.0-beta",
+    "wrangler": "4.153.0"
+  }
+}

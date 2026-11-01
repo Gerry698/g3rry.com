@@ -1,0 +1,22 @@
+// Public API Worker: g3rry.com/api/guestbook. Secrets (set with `wrangler secret put`): TURNSTILE_SECRET_KEY, IP_PEPPER.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "guestbook",
+  "main": "src/public.js",
+  "compatibility_date": "2026-10-15",
+  // Reachable only through the route below; no workers.dev or preview URLs that would bypass it.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "g3rry.com/api/guestbook*", "zone_name": "g3rry.com" }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "guestbook", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  // Burst limits per hashed address, counted per Cloudflare location; daily caps are enforced in D1.
+  "ratelimits": [
+    { "name": "SUBMIT_LIMIT", "namespace_id": "4101", "simple": { "limit": 3, "period": 60 } },
+    { "name": "READ_LIMIT", "namespace_id": "4102", "simple": { "limit": 60, "period": 60 } }
+  ],
+  "vars": { "SITE_ORIGIN": "https://g3rry.com", "TURNSTILE_HOSTNAME": "g3rry.com" },
+  // Our own logs carry only event names; automatic per-request logs (which include addresses) stay off.
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }
+}
