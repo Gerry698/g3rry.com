@@ -1,4 +1,4 @@
-import { createTerrain, placeCamps, buildTerrainMesh, buildTrail, scatterTrees, scatterClouds, QUALITY } from './terrain.js';
+import { createTerrain, placeCamps, buildTerrainMesh, buildTrail, scatterTrees, scatterClouds, snapSummit, QUALITY } from './terrain.js';
 import { buildProps } from './props.js';
 import { createRenderer } from './renderer.js';
 import { PALETTES, TIMES, blend } from './palettes.js';
@@ -27,11 +27,12 @@ function start() {
   const terrain = createTerrain();
   const camps = placeCamps(terrain, items.length);
   const mesh = buildTerrainMesh(terrain, quality);
+  snapSummit(camps, mesh);
   const trees = scatterTrees(terrain, camps, quality);
   const trail = buildTrail(terrain, camps);
-  let renderer;
   const props = buildProps(terrain, camps);
   const clouds = scatterClouds(terrain, quality);
+  let renderer;
   try { renderer = createRenderer(gl, { mesh, trees, trail, camps, props, clouds }, quality); }
   catch (error) { console.error(error); return; }
   root.classList.add('mountain-live');
@@ -235,7 +236,12 @@ function start() {
     }
   }
   let frames = 0;
-  const frame = now => { draw(now); frames++; schedule(frame); };
+  // High-refresh screens would otherwise redraw up to 240 times a second; ~80 is plenty for a slow orbit.
+  let lastDrawn = -Infinity;
+  const frame = now => {
+    if (now - lastDrawn >= 12) { lastDrawn = now; draw(now); frames++; }
+    schedule(frame);
+  };
   // ?timer drives frames from a timer, for previews that pause animation frames while hidden.
   const schedule = params.has('timer') ? callback => setTimeout(() => callback(performance.now()), 30) : callback => requestAnimationFrame(callback);
 
@@ -259,6 +265,19 @@ function start() {
       for (let i = 0; i < count; i++) { draw(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel); }
       return { ms: +((performance.now() - start) / count).toFixed(2), size: [canvas.width, canvas.height] };
     },
+    // Draws a frame and pins it as an image over the page: screenshots of a hidden preview can lag the canvas.
+    snap() {
+      draw(performance.now());
+      let image = document.querySelector('#mountain-snap');
+      if (!image) {
+        image = Object.assign(document.createElement('img'), { id: 'mountain-snap', alt: '' });
+        image.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none';
+        canvas.after(image);
+      }
+      image.src = canvas.toDataURL('image/jpeg', .9);
+      return new Promise(resolve => { image.onload = () => resolve('snapped'); });
+    },
+    unsnap() { document.querySelector('#mountain-snap')?.remove(); },
     hide(...names) { debugHide = new Set(names); return this.settle(); },
     station(i) { state.index = i; state.arrived = clock - 2; debugPose = stations[i]; debugPalette = paletteOf(i); return this.settle(); },
     // Resolves once two fresh frames have been drawn, so screenshots never catch a stale pose.

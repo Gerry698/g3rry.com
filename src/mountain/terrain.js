@@ -42,7 +42,8 @@ export function createTerrain(seed = 11) {
       const a = Math.atan2(z, x), w = smoothstep(Math.PI - .7, Math.PI, a);
       const spur = s => ridged(spurs, s * 2.7, r * .22, 4);
       const radial = lerp(spur(a), spur(a - TAU), w);
-      h += (radial - .42) * smoothstep(.2, 2.2, lift) * (.6 + 1.25 * e * (1 - .45 * e));
+      // Spurs converge on the summit axis; fade them there or they leave a needle thinner than a mesh cell.
+      h += (radial - .42) * smoothstep(.2, 2.2, lift) * smoothstep(.5, 2.4, r) * (.6 + 1.25 * e * (1 - .45 * e));
       h += (ridged(detail, wx * .26, wz * .26, 4) - .45) * smoothstep(.1, 1.6, lift) * (.15 + .8 * e);
       // Faint strata: stepped cliffs in the upper rock.
       const band = h / .62 + strata(x * .2, z * .2) * .8, f = band - Math.floor(band);
@@ -292,4 +293,12 @@ export function scatterClouds(terrain, quality, seed = 17) {
     }
   }
   return new Float32Array(out);
+}
+
+// The flag belongs on the highest point the mesh actually has, which can sit a little off the analytic summit.
+export function snapSummit(camps, mesh) {
+  const { n, px, py, pz } = mesh.grid, summit = camps.at(-1);
+  let best = -1;
+  for (let k = 0; k < n * n; k++) if (Math.hypot(px[k] - summit.x, pz[k] - summit.z) < 2 && (best < 0 || py[k] > py[best])) best = k;
+  if (best >= 0) Object.assign(summit, { x: px[best], y: py[best], z: pz[best], r: Math.hypot(px[best], pz[best]) });
 }
