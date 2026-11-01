@@ -208,7 +208,7 @@ function labPhoto(id) {
 }
 const labConfig = {
   shapes: shapes.map(({ id, label, url, width, height }) => ({ id, label, url, width, height })),
-  develop: await Promise.all(lab.develop.map(async entry => ({ ...labPhoto(entry.photo), depth: entry.depth, depthUrl: await labData('depth/' + entry.photo + '.png') }))),
+  develop: await Promise.all(lab.develop.map(async entry => ({ ...labPhoto(entry.photo), depth: entry.depth, depthUrl: await labData('depth/' + entry.photo + '.bin') }))),
   sites: lab.sites, trips: lab.trips
 };
 const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {

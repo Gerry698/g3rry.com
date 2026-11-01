@@ -181,6 +181,34 @@ export function markSet({ count, pixels, width, height, relief = false, seed = 1
   return set;
 }
 
+// Positive size flags carry a second value: flag = size + 16 * round(255 * level), with size < 16. Dust flags stay negative.
+const packFlag = (size, level) => Math.min(size, 15.9) + 16 * Math.round(Math.max(0, Math.min(1, level)) * 255);
+
+function blurredLuminance(pixels, width, height, radius) {
+  let a = new Float32Array(width * height), b = new Float32Array(width * height);
+  for (let i = 0; i < a.length; i++) a[i] = Math.pow((.2126 * pixels[i * 4] + .7152 * pixels[i * 4 + 1] + .0722 * pixels[i * 4 + 2]) / 255, .8);
+  // Two passes of a separable box filter approximate a gaussian.
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < height; y++) {
+      let sum = 0;
+      for (let x = -radius; x <= radius; x++) sum += a[y * width + Math.max(0, Math.min(width - 1, x))];
+      for (let x = 0; x < width; x++) {
+        b[y * width + x] = sum / (2 * radius + 1);
+        sum += a[y * width + Math.min(width - 1, x + radius + 1)] - a[y * width + Math.max(0, x - radius)];
+      }
+    }
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      for (let y = -radius; y <= radius; y++) sum += b[Math.max(0, Math.min(height - 1, y)) * width + x];
+      for (let y = 0; y < height; y++) {
+        a[y * width + x] = sum / (2 * radius + 1);
+        sum += b[Math.min(height - 1, y + radius + 1) * width + x] - b[Math.max(0, y - radius) * width + x];
+      }
+    }
+  }
+  return a;
+}
+
 // A photograph becomes one point per sample, pushed back to its estimated distance along the ray it was taken through.
 // From the camera position at the origin it projects to exactly the original frame; anywhere else the depth shows.
 export function photoSet({ count, pixels, width, height, depth, depthWidth, depthHeight, near, far, tanX, tanY, unit, sizeFlag, seed = 23 }) {
@@ -188,6 +216,8 @@ export function photoSet({ count, pixels, width, height, depth, depthWidth, dept
   const rand = random(seed);
   const shapes = Math.min(width * height, count - dustCount(count));
   const step = Math.sqrt(width * height / shapes);
+  // Isophotes are read from luminance smoothed over a few pixels; raw pixels would break every line into grain.
+  const smooth = blurredLuminance(pixels, width, height, Math.max(2, Math.round(width / 260)));
   let n = 0;
   for (let gy = 0; n < shapes && gy < height; gy += step) {
     for (let gx = 0; n < shapes && gx < width; gx += step) {
@@ -200,15 +230,19 @@ export function photoSet({ count, pixels, width, height, depth, depthWidth, dept
       const x0 = Math.max(0, Math.min(depthWidth - 1, Math.floor(dx))), y0 = Math.max(0, Math.min(depthHeight - 1, Math.floor(dy)));
       const x1 = Math.min(depthWidth - 1, x0 + 1), y1 = Math.min(depthHeight - 1, y0 + 1);
       const fx = Math.max(0, Math.min(1, dx - x0)), fy = Math.max(0, Math.min(1, dy - y0));
-      const disparity = (depth[y0 * depthWidth + x0] * (1 - fx) + depth[y0 * depthWidth + x1] * fx) * (1 - fy)
-        + (depth[y1 * depthWidth + x0] * (1 - fx) + depth[y1 * depthWidth + x1] * fx) * fy;
+      const d00 = depth[y0 * depthWidth + x0], d10 = depth[y0 * depthWidth + x1], d01 = depth[y1 * depthWidth + x0], d11 = depth[y1 * depthWidth + x1];
+      // Across a depth edge, interpolating would hang points in the empty air between subject and background;
+      // there each point takes its nearest neighbour instead, so it lands on one side or the other.
+      const edge = Math.max(d00, d10, d01, d11) - Math.min(d00, d10, d01, d11) > .035;
+      const disparity = edge ? (fy < .5 ? (fx < .5 ? d00 : d10) : (fx < .5 ? d01 : d11))
+        : (d00 * (1 - fx) + d10 * fx) * (1 - fy) + (d01 * (1 - fx) + d11 * fx) * fy;
       // The network predicts relative inverse depth; map it onto the chosen near/far range in inverse-depth space.
       const z = 1 / (1 / far + (1 / near - 1 / far) * disparity);
       const r = pixels[i] / 255, g = pixels[i + 1] / 255, b = pixels[i + 2] / 255;
       const luma = .2126 * r + .7152 * g + .0722 * b;
       // Lift highlights back above white so neon, lamps and the sun bloom as they did in the scene.
       const lift = 1 + 7 * Math.pow(Math.max(0, (luma - .72) / .28), 2);
-      put(set, n, (2 * u - 1) * tanX * z * unit, (1 - 2 * v) * tanY * z * unit, -z * unit, sizeFlag, [r, g, b], lift);
+      put(set, n, (2 * u - 1) * tanX * z * unit, (1 - 2 * v) * tanY * z * unit, -z * unit, packFlag(sizeFlag, smooth[y * width + x]), [r, g, b], lift);
       n++;
     }
   }

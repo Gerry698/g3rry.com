@@ -19,3 +19,7 @@ Desktop.ini
 # Local task state and editor launch configs
 /work/
 /.claude/
+
+# Offline data tools keep their own dependencies
+node_modules/
+/tools/phantom-data/.models/

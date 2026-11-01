@@ -1,0 +1,13 @@
+{
+  "name": "phantom-data",
+  "private": true,
+  "type": "module",
+  "description": "Offline data for the /phantom/ lab: depth maps and point clouds. Not installed in CI; outputs are committed to content/phantom.",
+  "scripts": {
+    "depth": "node depth.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2",
+    "sharp": "0.35.5"
+  }
+}

@@ -34,11 +34,11 @@
     }
   ],
   "develop": [
-    { "photo": "p05", "depth": [4, 90] },
-    { "photo": "p12", "depth": [40, 2400] },
-    { "photo": "p01", "depth": [3, 120] },
-    { "photo": "p07", "depth": [6, 400] },
-    { "photo": "p11", "depth": [1.2, 8] }
+    { "photo": "p05", "depth": [7, 120] },
+    { "photo": "p09", "depth": [3, 400] },
+    { "photo": "p01", "depth": [5, 150] },
+    { "photo": "p07", "depth": [9, 400] },
+    { "photo": "p11", "depth": [1.6, 9] }
   ],
   "sites": [
     { "id": "new-york", "name": "New York", "lat": 40.7128, "lon": -74.006, "period": "June 2023", "status": "live" },

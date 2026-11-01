@@ -55,19 +55,16 @@ function start({ gl, hdr }) {
     context2d.drawImage(image, 0, 0, width, height);
     return { pixels: new Uint8Array(context2d.getImageData(0, 0, width, height).data.buffer), width, height };
   }
-  // Depth maps are 16-bit values split across red (high byte) and green (low byte) of an ordinary PNG.
+  // Depth maps (tools/phantom-data/depth.mjs): gzip of a width/height header and row-delta uint16 disparities.
   async function loadDepth(url) {
-    const blob = await (await fetch(url)).blob();
-    const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
-    const sample = document.createElement('canvas');
-    sample.width = bitmap.width;
-    sample.height = bitmap.height;
-    const context2d = sample.getContext('2d', { willReadFrequently: true });
-    context2d.drawImage(bitmap, 0, 0);
-    const data = context2d.getImageData(0, 0, bitmap.width, bitmap.height).data;
-    const depth = new Float32Array(bitmap.width * bitmap.height);
-    for (let i = 0; i < depth.length; i++) depth[i] = (data[i * 4] * 256 + data[i * 4 + 1]) / 65535;
-    return { depth, depthWidth: bitmap.width, depthHeight: bitmap.height };
+    const response = await fetch(url);
+    const buffer = await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    const header = new DataView(buffer);
+    const width = header.getUint16(0, true), height = header.getUint16(2, true);
+    const deltas = new Uint16Array(buffer, 4, width * height);
+    const values = new Uint16Array(width * height);
+    for (let i = 0; i < deltas.length; i++) values[i] = (i % width ? values[i - 1] : i >= width ? values[i - width] : 0) + deltas[i];
+    return { depth: Float32Array.from(values, value => value / 65535), depthWidth: width, depthHeight: height };
   }
 
   // ---- Quality: particle count follows what the device sustains ---------------------------------
@@ -109,7 +106,7 @@ function start({ gl, hdr }) {
     const sensorW = photoAspect >= 1 ? 36 : 24, sensorH = photoAspect >= 1 ? 24 : 36;
     const tanX = sensorW / 2 / photo.focal, tanY = sensorH / 2 / photo.focal;
     // Our focal length is chosen so the whole frame fits the share of the screen left beside (or above) the text.
-    const [roomX, roomY] = wide() ? [.6, .84] : [.92, .56];
+    const [roomX, roomY] = wide() ? [.58, .76] : [.92, .54];
     const needX = tanX / roomX, needY = tanY / roomY;
     let viewTanX, viewTanY;
     if (aspect >= 1) { viewTanX = Math.max(needX, needY * aspect); viewTanY = viewTanX / aspect; } else { viewTanY = Math.max(needY, needX / aspect); viewTanX = viewTanY * aspect; }
@@ -218,9 +215,9 @@ function start({ gl, hdr }) {
         const pivot = [0, 0, -6];
         // At the start the camera stands exactly where the photograph was taken; then it steps aside.
         const away = smoothstep(.12, .7, p);
-        const azimuth = (Math.sin(p * Math.PI * 1.5) * .32) * away + state.dragAzimuth;
-        const elevation = (.05 + .1 * away) * away + state.dragElevation;
-        const pos = orbit(pivot, azimuth, elevation, 6 + away * .6);
+        const azimuth = Math.sin(p * Math.PI * 1.5) * .11 * away + state.dragAzimuth;
+        const elevation = .045 * away + state.dragElevation;
+        const pos = orbit(pivot, azimuth, elevation, 6 - away * .4);
         return { pos, look: pivot, focal: fit.focal, aperture: 8, focus: 6, shift: subjectShift(), metersPerUnit: 1 / photo.unit };
       }
     },

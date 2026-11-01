@@ -156,6 +156,8 @@ uniform float uDustGain;
 out vec3 vColor;
 out float vSize;
 out vec2 vScreen;
+// Size flag and an optional second value (smoothed light level), packed as size + 16 * level8; negative means dust.
+vec2 unpackFlag(float w) { return w < 0.0 ? vec2(w, 0.0) : vec2(mod(w, 16.0), floor(w / 16.0) / 255.0); }
 void main() {
   ivec2 cell = cellOf(gl_VertexID);
   vec4 fromPos = texelFetch(uFromPos, cell, 0);
@@ -163,7 +165,9 @@ void main() {
   float seed = hash1(uint(gl_VertexID) * 747796405u + 2891336453u);
   float m = progressOf(seed, toPos.xyz);
   vec4 color = mix(texelFetch(uFromColor, cell, 0), texelFetch(uToColor, cell, 0), m);
-  float flags = mix(fromPos.w, toPos.w, m);
+  vec2 fromFlag = unpackFlag(fromPos.w), toFlag = unpackFlag(toPos.w);
+  float flags = mix(fromFlag.x, toFlag.x, m);
+  float smoothLight = mix(fromFlag.y, toFlag.y, m);
   vec4 view = uView * vec4(aPos.xyz, 1.0);
   gl_Position = uProjection * view;
   float z = -view.z;
@@ -181,7 +185,7 @@ void main() {
   // Contour modes keep only points near an iso-level: equal light (isophotes) or equal distance from where the photo was taken.
   if (uContours > 0.0) {
     float luma = pow(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.45);
-    float level = uMode < 1.5 ? luma * 12.0 : log2(max(distance(mix(fromPos.xyz, toPos.xyz, m), uContourOrigin), 1e-3)) * 5.0;
+    float level = uMode < 1.5 ? smoothLight * 16.0 : log2(max(distance(mix(fromPos.xyz, toPos.xyz, m), uContourOrigin), 1e-3)) * 5.0;
     float keep = smoothstep(0.8, 0.96, abs(fract(level) - 0.5) * 2.0);
     rgb = mix(rgb, vec3(1.0, 0.8, 0.5) * (0.35 + luma), uContours * 0.8);
     intensity *= mix(1.0, keep * 2.4, uContours);
