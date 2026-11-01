@@ -30,7 +30,7 @@ const RAW = {
   golden: {
     key: [235, 10], keyColor: '#ffb560', keyPower: 3.4, sun: [235, 8], glow: '#ffb35c', glowPower: 1.35,
     zenith: '#36599a', horizon: '#f5c88a', below: '#8b7b7c', ambSky: '#7d95c8', ambGround: '#6b5244', ambPower: .5,
-    fog: .0095, haze: .035, stars: 0, moon: 0, moonDir: [250, 20], aurora: 0, sunDisc: 1, snow: .05,
+    fog: .0078, haze: .03, stars: 0, moon: 0, moonDir: [250, 20], aurora: 0, sunDisc: 1, snow: .05,
     exposure: 1, saturation: 1.08, tint: '#fff2e2', cloud: '#ffd29a'
   },
   dusk: {

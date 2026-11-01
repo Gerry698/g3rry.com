@@ -51,7 +51,7 @@ export function createTerrain(seed = 11) {
     }
     // A ring of far ranges, kept low enough that the hero peak always dominates.
     const ring = smoothstep(75, 125, r);
-    if (ring > 0) h += ring * Math.max(0, ridged(ranges, x * .012, z * .012, 5) * 30 - 7) * (1 - smoothstep(160, 188, r) * .6);
+    if (ring > 0) h += ring * Math.max(0, ridged(ranges, x * .012, z * .012, 3) * 30 - 7) * (1 - smoothstep(160, 188, r) * .6);
     return h;
   }
 
@@ -159,37 +159,43 @@ const COLORS = Object.fromEntries(Object.entries({
 }).map(([name, hex]) => [name, hexToLinear(hex)]));
 
 export const QUALITY = {
-  high: { cell: .19, growth: 1.075, trees: 4200, shadow: 2048, samples: 4, snow: 1800, clouds: 260, dpr: 1.5 },
-  low: { cell: .27, growth: 1.1, trees: 1600, shadow: 1024, samples: 0, snow: 700, clouds: 140, dpr: 1.5 }
+  high: { cell: .19, trees: 4200, shadow: 2048, samples: 4, snow: 1800, clouds: 260, dpr: 1.5 },
+  low: { cell: .27, trees: 1600, shadow: 1024, samples: 0, snow: 700, clouds: 140, dpr: 1.5 }
 };
 
 // Builds non-indexed triangles so every facet carries its own colour; alpha holds ambient occlusion.
 export function buildTerrainMesh(terrain, quality, seed = 3) {
   const next = random(seed);
-  const half = [];
-  let x = 0;
-  for (; x < 15.5; x += quality.cell) half.push(x);
-  let cell = quality.cell;
-  while (x < 190) { cell *= quality.growth; x += cell; half.push(x); }
-  const axis = [...half.slice(1).reverse().map(v => -v), ...half];
-  const n = axis.length;
+  // Grid in rings: uniform cells over the massif, then every ring of cells grows by the same factor
+  // in both directions out to the horizon, so far triangles stay roughly square instead of slivers.
+  const L = 15.5, extent = 190, stretch = 2.6;
+  const m = Math.round(L / quality.cell), s0 = 1 / (1 + Math.log(extent / L) / stretch), M = Math.round(m / s0), n = 2 * M + 1;
+  const tau = s0 / stretch;
+  const radius = s => s <= s0 ? s * L / s0 : L * Math.exp((s - s0) / tau);
   const px = new Float32Array(n * n), pz = new Float32Array(n * n), py = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-    const k = j * n + i, edge = i === 0 || j === 0 || i === n - 1 || j === n - 1;
-    const sx = edge ? 0 : (axis[i + 1] - axis[i - 1]) * .5, sz = edge ? 0 : (axis[j + 1] - axis[j - 1]) * .5;
-    px[k] = axis[i] + (next() - .5) * .62 * sx;
-    pz[k] = axis[j] + (next() - .5) * .62 * sz;
+    const k = j * n + i, qx = (i - M) / M, qz = (j - M) / M, s = Math.max(Math.abs(qx), Math.abs(qz));
+    const scale = s > 0 ? radius(s) / s : L / s0;
+    const edge = i === 0 || j === 0 || i === n - 1 || j === n - 1;
+    const spacing = edge ? 0 : Math.min(scale, s <= s0 ? L / s0 : radius(s) / tau) / M;
+    px[k] = qx * scale + (next() - .5) * .62 * spacing;
+    pz[k] = qz * scale + (next() - .5) * .62 * spacing;
     py[k] = terrain.height(px[k], pz[k]);
   }
+  // Tangents along the two grid directions, spanning ±s vertices.
+  const tangents = (i, j, s) => {
+    const i0 = Math.max(0, i - s), i1 = Math.min(n - 1, i + s), j0 = Math.max(0, j - s), j1 = Math.min(n - 1, j + s);
+    const a = j * n + i0, b = j * n + i1, c = j0 * n + i, d = j1 * n + i;
+    return { u: [px[b] - px[a], py[b] - py[a], pz[b] - pz[a]], v: [px[d] - px[c], py[d] - py[c], pz[d] - pz[c]], mean: (py[a] + py[b] + py[c] + py[d]) / 4 };
+  };
   // Cavity term from the height grid at several scales: creases darken, crests stay bright.
   const ao = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const k = j * n + i;
     let cavity = 0;
     for (const s of [1, 3, 7]) {
-      const i0 = Math.max(0, i - s), i1 = Math.min(n - 1, i + s), j0 = Math.max(0, j - s), j1 = Math.min(n - 1, j + s);
-      const mean = (py[j * n + i0] + py[j * n + i1] + py[j0 * n + i] + py[j1 * n + i]) / 4;
-      const span = Math.max(.05, (axis[i1] - axis[i0] + axis[j1] - axis[j0]) / 4);
+      const { u, v, mean } = tangents(i, j, s);
+      const span = Math.max(.05, (Math.hypot(u[0], u[2]) + Math.hypot(v[0], v[2])) / 4);
       cavity += clamp((mean - py[k]) / span, -1, 1) / s ** .35;
     }
     ao[k] = clamp(1 - cavity * .55, .5, 1.12);
@@ -197,11 +203,10 @@ export function buildTerrainMesh(terrain, quality, seed = 3) {
   // Materials follow a smoothed slope so snowfields and rock bands read as areas, not speckles.
   const smooth = new Float32Array(n * n * 3);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-    const i0 = Math.max(0, i - 2), i1 = Math.min(n - 1, i + 2), j0 = Math.max(0, j - 2), j1 = Math.min(n - 1, j + 2);
-    const gx = (py[j * n + i1] - py[j * n + i0]) / (px[j * n + i1] - px[j * n + i0]);
-    const gz = (py[j1 * n + i] - py[j0 * n + i]) / (pz[j1 * n + i] - pz[j0 * n + i]);
-    const l = Math.hypot(1, gx, gz);
-    smooth.set([-gx / l, 1 / l, -gz / l], (j * n + i) * 3);
+    const { u, v } = tangents(i, j, 2);
+    let nx = v[1] * u[2] - v[2] * u[1], ny = v[2] * u[0] - v[0] * u[2], nz = v[0] * u[1] - v[1] * u[0];
+    const l = (ny < 0 ? -1 : 1) * (Math.hypot(nx, ny, nz) || 1);
+    smooth.set([nx / l, ny / l, nz / l], (j * n + i) * 3);
   }
   const triangles = (n - 1) * (n - 1) * 2;
   const positions = new Float32Array(triangles * 9), colors = new Uint8Array(triangles * 12);
@@ -280,7 +285,7 @@ export function scatterTrees(terrain, camps, quality, seed = 9) {
 export function scatterClouds(terrain, quality, seed = 17) {
   const next = random(seed), out = [], banks = [];
   for (let i = 0; i < 24; i++) banks.push({ angle: next() * TAU, r: 9 + next() * 24, spread: 1.6 + next() * 2.6 });
-  for (let i = 0; i < 7; i++) banks.push({ angle: next() * TAU, r: 8.5 + next() * 5, spread: 1.1 + next(), y: 5 + next() * 2.5 });
+  for (let i = 0; i < 5; i++) banks.push({ angle: next() * TAU, r: 9 + next() * 5, spread: 1 + next() * .8, y: 5 + next() * 2.5 });
   const per = Math.ceil(quality.clouds / banks.length);
   for (const bank of banks) {
     const cx = Math.cos(bank.angle) * bank.r, cz = Math.sin(bank.angle) * bank.r;
