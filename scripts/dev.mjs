@@ -54,7 +54,7 @@ function stop(code = 0) {
 process.once('SIGINT', () => stop());
 process.once('SIGTERM', () => stop());
 for (const directory of ['src', 'content', 'Photo', 'image']) {
-  watchers.push(watch(path.join(root, directory), () => {
+  watchers.push(watch(path.join(root, directory), { recursive: true }, () => {
     clearTimeout(timer);
     timer = setTimeout(rebuild, 200);
   }));
