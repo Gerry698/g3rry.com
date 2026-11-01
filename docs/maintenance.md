@@ -29,6 +29,32 @@
 
 素材放 `image/`（PNG 或 JPG，亮且不透明的区域会变成粒子），在 `site.json` 的 `phantom.shapes` 中登记。构建时会缩到 900px 以内并压缩，原图不必预先处理。
 
+## Phantom 实验页（/phantom/）
+
+独立全屏页，`noindex`，不在导航和 sitemap 里。代码在 `src/phantom/`（原生 WebGL2，无依赖；构建时整个目录按内容取哈希输出到 `assets/phantom-<hash>/`），文案与参数在 `content/phantom.json`。
+
+| 章节 | 内容 | 数据 |
+| --- | --- | --- |
+| Ignite | 首页图案的 GPU 粒子版，指针力场、点击冲击波、长曝光快门 | `site.json` 的 `phantom.shapes` |
+| Sculpt | 图案挤出成浮雕，物理相机（焦距、光圈、薄透镜景深、九叶光斑）| 同上 |
+| Develop | 照片按深度还原成点云，等亮线 / 等深线模式 | `content/phantom/depth/<id>.bin` |
+| Atlas | 地球 → 各地 LiDAR 点云 → 在拍摄位置把照片投回场景 | `content/phantom/atlas/` |
+
+- 粒子数按实测 GPU 时间在 6.5 万到 104 万之间自动选档。
+- 照片的 EXIF（焦距、光圈、时间）手工记在 `content/phantom.json` 的 `photos` 里，因为 `Photo/` 母版不含元数据。纽约那批相机时钟比当地夏令时慢 1 小时（用 p12 日落的太阳位置验证过）。
+- 离线数据工具在 `tools/phantom-data/`，有自己的 `package.json`，CI 不安装：
+
+```powershell
+cd tools/phantom-data; npm install
+node depth.mjs p05 p09         # Depth Anything V2 Small 估计深度，模型缓存在 .models/
+node atlas.mjs globe           # Natural Earth 陆地掩膜
+node atlas.mjs lidar           # 按 phantom.json 里各站点的 clouds 下载并抽稀 LiDAR（缓存在 .cache/ept）
+node atlas.mjs frames          # 解算各 stop 的相机位置
+```
+
+- 新地点（如旧金山、田纳西）：在 `sites` 里填 `origin` 和 `lidar`（美国境内可用 NOAA / USGS 3DEP 的 EPT 地址与 UTM 分区），在 `atlas.stops` 里加 stop 和 `vantage`，然后跑 `lidar` 与 `frames`。照片 `vantage` 可以写成「目标点 + 方位 + 距离」（Liberty 那张就是由太阳方位和雕像角大小解出来的），也可以直接写位置和朝向。
+- 页面数据约 8 MiB（主要是三块点云），只在读到对应章节时才下载。
+
 ## 发布
 
 `main` 受 [pages.yml](../.github/workflows/pages.yml) 管理：

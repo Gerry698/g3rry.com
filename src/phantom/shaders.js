@@ -153,6 +153,9 @@ uniform vec3 uContourOrigin;
 uniform float uFromGain;
 uniform float uToGain;
 uniform float uDustGain;
+uniform sampler2D uPhoto;
+uniform mat4 uPhotoMatrix;
+uniform float uPhotoMix;
 out vec3 vColor;
 out float vSize;
 out vec2 vScreen;
@@ -182,6 +185,15 @@ void main() {
   float twinkle = flags < 0.0 ? 0.6 + 0.4 * sin(uTime * (0.4 + seed * 1.3) + seed * 61.0) : 1.0;
   float heat = 1.0 + 1.2 * aVel.w;
   vec3 rgb = pow(color.rgb, vec3(2.2));
+  // At an atlas stop the photograph is projected from where it was taken: points inside its frame take its colour.
+  if (uPhotoMix > 0.0) {
+    vec4 shot = uPhotoMatrix * vec4(mix(fromPos.xyz, toPos.xyz, m), 1.0);
+    vec2 uv = shot.xy / max(shot.w, 1e-4) * 0.5 + 0.5;
+    float inside = shot.w > 0.0 && uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0 ? 1.0 : 0.0;
+    vec3 photo = pow(textureLod(uPhoto, vec2(uv.x, 1.0 - uv.y), 0.0).rgb, vec3(2.2));
+    rgb = mix(rgb, photo * 1.15, uPhotoMix * inside);
+    intensity *= mix(1.0, mix(0.3, 2.4, inside), uPhotoMix);
+  }
   // Contour modes keep only points near an iso-level: equal light (isophotes) or equal distance from where the photo was taken.
   if (uContours > 0.0) {
     float luma = pow(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.45);

@@ -1,0 +1,51 @@
+{
+  "clouds": {
+    "nyc-overview": {
+      "site": "new-york",
+      "center": [
+        42.23,
+        1298.86
+      ]
+    },
+    "nyc-liberty": {
+      "site": "new-york",
+      "center": [
+        -3261.79,
+        -2608.08
+      ]
+    },
+    "nyc-times-square": {
+      "site": "new-york",
+      "center": [
+        1713.62,
+        4984.74
+      ]
+    }
+  },
+  "stops": {
+    "liberty": {
+      "camera": [
+        -2099.62,
+        -3333.72,
+        9
+      ],
+      "look": [
+        -2184.1,
+        -3280.23,
+        10.48
+      ]
+    },
+    "times-square": {
+      "camera": [
+        1675.65,
+        4912.58,
+        1.6
+      ],
+      "look": [
+        1723.11,
+        4999.98,
+        12.05
+      ]
+    }
+  }
+}

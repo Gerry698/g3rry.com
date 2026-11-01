@@ -34,40 +34,355 @@
     }
   ],
   "develop": [
-    { "photo": "p05", "depth": [7, 120] },
-    { "photo": "p09", "depth": [3, 400] },
-    { "photo": "p01", "depth": [5, 150] },
-    { "photo": "p07", "depth": [9, 400] },
-    { "photo": "p11", "depth": [1.6, 9] }
+    {
+      "photo": "p05",
+      "depth": [
+        7,
+        120
+      ]
+    },
+    {
+      "photo": "p09",
+      "depth": [
+        3,
+        400
+      ]
+    },
+    {
+      "photo": "p01",
+      "depth": [
+        5,
+        150
+      ]
+    },
+    {
+      "photo": "p07",
+      "depth": [
+        9,
+        400
+      ]
+    },
+    {
+      "photo": "p11",
+      "depth": [
+        1.6,
+        9
+      ]
+    }
   ],
   "sites": [
-    { "id": "new-york", "name": "New York", "lat": 40.7128, "lon": -74.006, "period": "June 2023", "status": "live" },
-    { "id": "san-francisco", "name": "San Francisco", "lat": 37.7749, "lon": -122.4194, "status": "soon" },
-    { "id": "tennessee", "name": "Tennessee", "lat": 35.6118, "lon": -83.4895, "status": "soon" }
+    {
+      "id": "new-york",
+      "name": "New York",
+      "lat": 40.7128,
+      "lon": -74.006,
+      "period": "June 2023",
+      "status": "live",
+      "origin": [
+        40.7128,
+        -74.006
+      ],
+      "lidar": {
+        "source": "New York City 2017 Topobathymetric LiDAR (NOAA Digital Coast, dataset 9306)",
+        "ept": "https://noaa-nos-coastal-lidar-pds.s3.amazonaws.com/entwine/geoid18/9306/",
+        "zone": 18,
+        "clouds": [
+          {
+            "id": "nyc-overview",
+            "center": [
+              40.7245,
+              -74.0055
+            ],
+            "size": [
+              6400,
+              9800
+            ],
+            "depth": 6,
+            "spacing": 7,
+            "waterCell": 60,
+            "maxPoints": 700000
+          },
+          {
+            "id": "nyc-liberty",
+            "center": [
+              40.6893,
+              -74.0446
+            ],
+            "size": [
+              640,
+              640
+            ],
+            "depth": 10,
+            "spacing": 0.7,
+            "waterCell": 6,
+            "maxPoints": 360000
+          },
+          {
+            "id": "nyc-times-square",
+            "center": [
+              40.7577,
+              -73.9857
+            ],
+            "size": [
+              700,
+              700
+            ],
+            "depth": 9,
+            "spacing": 1.1,
+            "maxPoints": 480000
+          }
+        ]
+      }
+    },
+    {
+      "id": "san-francisco",
+      "name": "San Francisco",
+      "lat": 37.7749,
+      "lon": -122.4194,
+      "status": "soon"
+    },
+    {
+      "id": "tennessee",
+      "name": "Tennessee",
+      "lat": 35.6118,
+      "lon": -83.4895,
+      "status": "soon"
+    }
   ],
   "trips": [
-    { "id": "new-york-2023", "site": "new-york", "utcOffset": "-04:00", "cameraClockBehindMinutes": 60, "note": "The camera clock was on standard time; EXIF times read one hour early. Checked against the sun on p12, which sits on the horizon only when the hour is corrected." }
+    {
+      "id": "new-york-2023",
+      "site": "new-york",
+      "utcOffset": "-04:00",
+      "cameraClockBehindMinutes": 60,
+      "note": "The camera clock was on standard time; EXIF times read one hour early. Checked against the sun on p12, which sits on the horizon only when the hour is corrected."
+    }
   ],
   "photos": {
-    "p01": { "trip": "new-york-2023", "lens": "RF70-200mm F2.8 L IS USM", "focal": 104, "aperture": 32, "shutter": "20", "iso": 100, "exif": "2023-06-06T14:58:23", "place": "Subway platform", "located": false },
-    "p02": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 24, "aperture": 3.2, "shutter": "1/500", "iso": 125, "exif": "2023-06-12T13:34:03", "place": "Chinatown", "located": false },
-    "p03": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 48, "aperture": 3.2, "shutter": "1/500", "iso": 125, "exif": "2023-06-12T13:36:36", "place": "Chinatown", "located": false },
-    "p04": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 70, "aperture": 22, "shutter": "1/13", "iso": 100, "exif": "2023-06-12T14:15:03", "place": "Chinatown", "located": false },
-    "p05": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 65, "aperture": 2.8, "shutter": "1/200", "iso": 200, "exif": "2023-06-12T19:41:37", "place": "Times Square", "located": true },
-    "p06": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 70, "aperture": 2.8, "shutter": "1/125", "iso": 200, "exif": "2023-06-12T19:38:04", "place": "Times Square", "located": true },
-    "p07": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 24, "aperture": 2.8, "shutter": "1/400", "iso": 200, "exif": "2023-06-12T19:37:12", "place": "Times Square", "located": true },
-    "p08": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 24, "aperture": 2.8, "shutter": "1/20", "iso": 100, "exif": "2023-06-12T19:25:56", "place": "Times Square", "located": true },
-    "p09": { "trip": "new-york-2023", "lens": "RF70-200mm F2.8 L IS USM", "focal": 70, "aperture": 2.8, "shutter": "1/1000", "iso": 100, "exif": "2023-06-13T19:26:27", "place": "Staten Island Ferry", "located": true },
-    "p10": { "trip": "new-york-2023", "lens": "RF70-200mm F2.8 L IS USM", "focal": 200, "aperture": 2.8, "shutter": "1/640", "iso": 1600, "exif": "2023-06-13T19:28:18", "place": "Staten Island Ferry", "located": true },
-    "p11": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 52, "aperture": 2.8, "shutter": "1/60", "iso": 1250, "exif": "2023-06-12T10:32:53", "place": "Interior", "located": false },
-    "p12": { "trip": "new-york-2023", "lens": "RF70-200mm F2.8 L IS USM", "focal": 187, "aperture": 2.8, "shutter": "1/1600", "iso": 100, "exif": "2023-06-13T19:26:44", "place": "Staten Island Ferry", "located": true },
-    "p13": { "trip": "new-york-2023", "lens": "RF24-70mm F2.8 L IS USM", "focal": 70, "aperture": 2.8, "shutter": "1/50", "iso": 2500, "exif": "2023-06-13T20:09:41", "place": "Waterfront", "located": false },
-    "p14": { "trip": "new-york-2023", "lens": "RF70-200mm F2.8 L IS USM", "focal": 70, "aperture": 32, "shutter": "15", "iso": 100, "exif": "2023-06-05T19:50:02", "place": "Midtown", "located": false },
-    "p15": { "trip": "new-york-2023", "lens": "RF70-200mm F2.8 L IS USM", "focal": 70, "aperture": 2.8, "shutter": "1/200", "iso": 800, "exif": "2023-06-05T19:28:49", "place": "Midtown", "located": false }
+    "p01": {
+      "trip": "new-york-2023",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 104,
+      "aperture": 32,
+      "shutter": "20",
+      "iso": 100,
+      "exif": "2023-06-06T14:58:23",
+      "place": "Subway platform",
+      "located": false
+    },
+    "p02": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 24,
+      "aperture": 3.2,
+      "shutter": "1/500",
+      "iso": 125,
+      "exif": "2023-06-12T13:34:03",
+      "place": "Chinatown",
+      "located": false
+    },
+    "p03": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 48,
+      "aperture": 3.2,
+      "shutter": "1/500",
+      "iso": 125,
+      "exif": "2023-06-12T13:36:36",
+      "place": "Chinatown",
+      "located": false
+    },
+    "p04": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 70,
+      "aperture": 22,
+      "shutter": "1/13",
+      "iso": 100,
+      "exif": "2023-06-12T14:15:03",
+      "place": "Chinatown",
+      "located": false
+    },
+    "p05": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 65,
+      "aperture": 2.8,
+      "shutter": "1/200",
+      "iso": 200,
+      "exif": "2023-06-12T19:41:37",
+      "place": "Times Square",
+      "located": true
+    },
+    "p06": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 70,
+      "aperture": 2.8,
+      "shutter": "1/125",
+      "iso": 200,
+      "exif": "2023-06-12T19:38:04",
+      "place": "Times Square",
+      "located": true
+    },
+    "p07": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 24,
+      "aperture": 2.8,
+      "shutter": "1/400",
+      "iso": 200,
+      "exif": "2023-06-12T19:37:12",
+      "place": "Times Square",
+      "located": true
+    },
+    "p08": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 24,
+      "aperture": 2.8,
+      "shutter": "1/20",
+      "iso": 100,
+      "exif": "2023-06-12T19:25:56",
+      "place": "Times Square",
+      "located": true
+    },
+    "p09": {
+      "trip": "new-york-2023",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 70,
+      "aperture": 2.8,
+      "shutter": "1/1000",
+      "iso": 100,
+      "exif": "2023-06-13T19:26:27",
+      "place": "Staten Island Ferry",
+      "located": true
+    },
+    "p10": {
+      "trip": "new-york-2023",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 200,
+      "aperture": 2.8,
+      "shutter": "1/640",
+      "iso": 1600,
+      "exif": "2023-06-13T19:28:18",
+      "place": "Staten Island Ferry",
+      "located": true
+    },
+    "p11": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 52,
+      "aperture": 2.8,
+      "shutter": "1/60",
+      "iso": 1250,
+      "exif": "2023-06-12T10:32:53",
+      "place": "Interior",
+      "located": false
+    },
+    "p12": {
+      "trip": "new-york-2023",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 187,
+      "aperture": 2.8,
+      "shutter": "1/1600",
+      "iso": 100,
+      "exif": "2023-06-13T19:26:44",
+      "place": "Staten Island Ferry",
+      "located": true
+    },
+    "p13": {
+      "trip": "new-york-2023",
+      "lens": "RF24-70mm F2.8 L IS USM",
+      "focal": 70,
+      "aperture": 2.8,
+      "shutter": "1/50",
+      "iso": 2500,
+      "exif": "2023-06-13T20:09:41",
+      "place": "Waterfront",
+      "located": false
+    },
+    "p14": {
+      "trip": "new-york-2023",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 70,
+      "aperture": 32,
+      "shutter": "15",
+      "iso": 100,
+      "exif": "2023-06-05T19:50:02",
+      "place": "Midtown",
+      "located": false
+    },
+    "p15": {
+      "trip": "new-york-2023",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 70,
+      "aperture": 2.8,
+      "shutter": "1/200",
+      "iso": 800,
+      "exif": "2023-06-05T19:28:49",
+      "place": "Midtown",
+      "located": false
+    }
   },
   "credits": [
     "LiDAR: New York City 2017 Topobathymetric survey, distributed by NOAA Digital Coast.",
     "Coastlines: Natural Earth.",
     "Depth estimates: Depth Anything V2 Small (Apache-2.0), computed offline."
-  ]
+  ],
+  "atlas": {
+    "stops": [
+      {
+        "id": "globe",
+        "title": "The whole planet",
+        "caption": "Every place I have photographed, on one sphere of light."
+      },
+      {
+        "id": "overview",
+        "site": "new-york",
+        "cloud": "nyc-overview",
+        "title": "New York, from above",
+        "caption": "Lower and Midtown Manhattan and the harbour: about seven hundred thousand LiDAR returns."
+      },
+      {
+        "id": "liberty",
+        "site": "new-york",
+        "cloud": "nyc-liberty",
+        "photo": "p12",
+        "title": "Liberty, from the ferry",
+        "caption": "Placed by the photograph itself: the sun sat on the horizon at a bearing of 302°, and the statue, 93 m from ground to torch, filled 3.9° of a 187 mm frame — about 1.4 km off, from the Staten Island Ferry.",
+        "vantage": {
+          "target": [
+            40.68925,
+            -74.0445,
+            46
+          ],
+          "bearing": 121.97,
+          "distance": 1360,
+          "height": 9,
+          "frame": [
+            0.37,
+            -0.71
+          ]
+        }
+      },
+      {
+        "id": "times-square",
+        "site": "new-york",
+        "cloud": "nyc-times-square",
+        "photo": "p07",
+        "title": "Times Square, in the rain",
+        "caption": "Looking north up Seventh Avenue at 24 mm. The position is my estimate from the frame, good to a few metres.",
+        "vantage": {
+          "at": [
+            40.75705,
+            -73.98615
+          ],
+          "height": 1.6,
+          "azimuth": 28.5,
+          "pitch": 6
+        }
+      }
+    ]
+  }
 }

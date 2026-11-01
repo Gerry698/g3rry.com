@@ -249,3 +249,85 @@ export function photoSet({ count, pixels, width, height, depth, depthWidth, dept
   fillDust(set, n, rand, { inner: 3, outer: 14, intensity: .25 });
   return set;
 }
+
+// The planet: land sampled evenly by area from an equirectangular mask, coasts picked out in gold, a faint graticule
+// over the oceans, and a bright cap of light at every site. Longitudes are measured from `centre` so that site faces +z.
+export function globeSet({ count, mask, maskWidth, maskHeight, sites, centre, radius = 1.6, seed = 31 }) {
+  const set = createSet(count);
+  const rand = random(seed);
+  const at = (lat, lon) => mask[Math.min(maskHeight - 1, Math.floor((90 - lat) / 180 * maskHeight)) * maskWidth + ((Math.floor((lon + 180) / 360 * maskWidth) % maskWidth) + maskWidth) % maskWidth];
+  const place = (lat, lon, r) => {
+    const phi = lat * Math.PI / 180, lambda = (lon - centre[1]) * Math.PI / 180;
+    return [r * Math.cos(phi) * Math.sin(lambda), r * Math.sin(phi), r * Math.cos(phi) * Math.cos(lambda)];
+  };
+  const dust = dustCount(count);
+  const siteShare = Math.round(count * .02);
+  const graticule = Math.round(count * .06);
+  const land = count - dust - siteShare * sites.length - graticule;
+  let n = 0;
+  const cell = 180 / maskHeight;
+  while (n < land) {
+    const lat = Math.asin(rand() * 2 - 1) * 180 / Math.PI, lon = rand() * 360 - 180;
+    if (!at(lat, lon)) continue;
+    const coast = !at(lat + cell, lon) || !at(lat - cell, lon) || !at(lat, lon + cell) || !at(lat, lon - cell);
+    const [x, y, z] = place(lat, lon, radius * (1 + (rand() - .5) * .004));
+    put(set, n++, x, y, z, 1, coast ? GOLD : WARM, coast ? 1.4 : .32 + rand() * .3);
+  }
+  for (let i = 0; i < graticule; i++) {
+    const along = rand() * 360 - 180, line = Math.round((rand() * 360 - 180) / 15) * 15;
+    const meridian = rand() < .5;
+    const lat = meridian ? along / 2 : Math.max(-75, Math.min(75, line / 2)), lon = meridian ? line : along;
+    const [x, y, z] = place(lat, lon, radius * .998);
+    put(set, n++, x, y, z, 1, DUST, .12);
+  }
+  for (const site of sites) {
+    const live = site.status === 'live';
+    for (let i = 0; i < siteShare; i++) {
+      const r = Math.pow(rand(), 2) * (live ? .9 : .6), a = rand() * Math.PI * 2;
+      const [x, y, z] = place(site.lat + r * Math.sin(a), site.lon + r * Math.cos(a) / Math.cos(site.lat * Math.PI / 180), radius * (1.002 + rand() * .01));
+      put(set, n++, x, y, z, 1, live ? GOLD : WARM, (live ? 5 : 1.2) * (1 - r));
+    }
+  }
+  fillDust(set, n, rand, { inner: 4, outer: 18, intensity: .5 });
+  return set;
+}
+
+// A LiDAR cloud (tools/phantom-data/atlas.mjs) in its site's east-north-up metres, re-centred and scaled into the scene:
+// x east, y up, z south. Buildings glow warmer the taller they stand; ground, trees and water stay low.
+export function citySet({ count, data, centre, metersPerUnit, seed = 37 }) {
+  const set = createSet(count);
+  const rand = random(seed);
+  const view = new DataView(data);
+  const length = view.getUint32(0, true);
+  const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(data, 4, length)));
+  const m = meta.count;
+  const body = new Uint8Array(data, 4 + length);
+  const planes = new DataView(body.buffer, body.byteOffset, body.byteLength);
+  const coords = [0, 1, 2].map(k => {
+    const out = new Float32Array(m);
+    let value = 0;
+    for (let j = 0; j < m; j++) { value = (value + planes.getUint16((k * m + j) * 2, true)) & 0xffff; out[j] = meta.min[k] + value / 65535 * meta.size[k]; }
+    return out;
+  });
+  const classes = body.subarray(6 * m, 7 * m), intensities = body.subarray(7 * m, 8 * m);
+  const shapes = count - dustCount(count);
+  const u = 1 / metersPerUnit;
+  const jitter = Math.sqrt(meta.size[0] * meta.size[1] / m) * .5;
+  for (let n = 0; n < shapes; n++) {
+    // Up to the cloud's own size every return is used once; beyond it, returns repeat with a small offset.
+    const j = n < m ? n : Math.floor(rand() * m);
+    const spread = n < m ? 0 : jitter;
+    const east = coords[0][j] + (rand() - .5) * spread, north = coords[1][j] + (rand() - .5) * spread, up = coords[2][j];
+    const cls = classes[j], lit = .55 + .9 * intensities[j] / 255;
+    let rgb = WARM, level;
+    if (cls === 6) { const t = Math.min(1, Math.max(0, up / 260)); rgb = t > .35 ? GOLD : WARM; level = (.5 + 1.6 * Math.sqrt(t)) * lit; }
+    else if (cls === 2) { rgb = [.62, .68, .78]; level = .26 * lit; }
+    else if (cls >= 3 && cls <= 5) { rgb = [.66, .74, .66]; level = .24 * lit; }
+    else if (cls === 9) { rgb = [.5, .64, .86]; level = .2; }
+    else if (cls === 17) { rgb = GOLD; level = 1.1 * lit; }
+    else level = (.6 + up / 60) * lit;
+    put(set, n, (east - centre[0]) * u, up * u, -(north - centre[1]) * u, 1, rgb, level);
+  }
+  fillDust(set, shapes, rand, { inner: 6, outer: 22, intensity: .4 });
+  return set;
+}

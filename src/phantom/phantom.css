@@ -134,3 +134,15 @@ html:not(.lab-gl) .lab-fallback picture img { filter: none; opacity: 1; }
   html { scroll-behavior: auto; }
   .lab-hint i, .af { animation: none; transition: none; }
 }
+
+/* Atlas: the current stop is the only one shown while WebGL drives the page; without it they read as a list. */
+.lab-stops { margin-top: 1.6rem; display: grid; gap: 1.1rem; max-width: 27em; }
+.lab-stops b { display: block; font: 400 1.05rem/1.3 var(--serif); letter-spacing: -.02em; color: var(--paper); }
+.lab-stops span { display: block; margin-top: .35rem; color: var(--muted); font-size: .78rem; line-height: 1.7; }
+html.lab-gl .lab-stops li { display: none; }
+html.lab-gl .lab-stops li.is-current { display: block; animation: lab-rise .6s ease both; }
+@keyframes lab-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.lab-print { position: fixed; left: 0; top: 0; z-index: 1; margin: 0; pointer-events: none; opacity: 0; transition: opacity .9s ease; box-shadow: 0 0 0 1px #eee9df33, 0 30px 80px #000c; }
+.lab-print img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lab-print.is-shown { opacity: 1; }
+html:not(.lab-gl) .lab-print { display: none; }

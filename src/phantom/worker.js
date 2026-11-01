@@ -1,7 +1,7 @@
 // Builds target sets off the main thread; a million samples take long enough to stutter a scroll.
-import { introSet, markSet, photoSet } from './targets.js';
+import { introSet, markSet, photoSet, globeSet, citySet } from './targets.js';
 
-const builders = { intro: introSet, mark: markSet, photo: photoSet };
+const builders = { intro: introSet, mark: markSet, photo: photoSet, globe: globeSet, city: citySet };
 
 self.onmessage = ({ data }) => {
   const { id, kind, options } = data;

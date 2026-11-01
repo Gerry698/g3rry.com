@@ -209,7 +209,13 @@ function labPhoto(id) {
 const labConfig = {
   shapes: shapes.map(({ id, label, url, width, height }) => ({ id, label, url, width, height })),
   develop: await Promise.all(lab.develop.map(async entry => ({ ...labPhoto(entry.photo), depth: entry.depth, depthUrl: await labData('depth/' + entry.photo + '.bin') }))),
-  sites: lab.sites, trips: lab.trips
+  sites: lab.sites.map(({ id, name, lat, lon, period, status, origin }) => ({ id, name, lat, lon, period, status, origin })), trips: lab.trips,
+  atlas: {
+    land: await labData('atlas/land.bin'),
+    frames: JSON.parse(await readFile(path.join(root, 'content/phantom/atlas/frames.json'), 'utf8').catch(() => '{"clouds":{},"stops":{}}')),
+    clouds: Object.fromEntries(await Promise.all(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).map(async cloud => [cloud.id, await labData('atlas/' + cloud.id + '.bin')]))),
+    stops: lab.atlas.stops.map(stop => ({ ...stop, photo: stop.photo ? labPhoto(stop.photo) : null }))
+  }
 };
 const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {
   const key = chapter.id.toUpperCase();
@@ -229,6 +235,7 @@ await output('phantom/index.html', replace(await readFile(path.join(root, 'src/p
   ATLAS_SITES: lab.sites.map(item => '<li data-site="' + item.id + '"' + (item.status === 'live' ? '' : ' class="is-soon"') + '><span>' + escape(item.name) + '</span><span>'
     + (item.status === 'live' ? escape(item.period || '') : 'Soon') + '</span></li>').join(''),
   CREDITS: lab.credits.map(line => '<li>' + escape(line) + '</li>').join(''),
+  ATLAS_STOPS: lab.atlas.stops.map(stop => '<li data-stop="' + stop.id + '"><b>' + escape(stop.title) + '</b><span>' + escape(stop.caption) + '</span></li>').join(''),
   CONFIG: JSON.stringify(labConfig).replace(/</g, '\\u003c')
 }));
 await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'

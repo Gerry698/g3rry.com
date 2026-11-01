@@ -72,6 +72,10 @@ assert(labPage.includes('name="robots" content="noindex"'), 'The lab page stays 
 const labConfig = JSON.parse(labPage.match(/<script type="application\/json" id="lab-config">([^<]*)<\/script>/)[1]);
 for (const url of JSON.stringify(labConfig).match(/\/assets\/[^"]+/g)) assert(exactFiles.has(url.slice(1)), 'Lab config points at a missing file: ' + url);
 assert(labConfig.shapes.length === site.phantom.shapes.length, 'Every Phantom shape belongs in the lab.');
+for (const stop of labConfig.atlas.stops) {
+  if (stop.vantage) assert(labConfig.atlas.frames.stops[stop.id], 'Atlas stop has no solved camera (run tools/phantom-data atlas.mjs frames): ' + stop.id);
+  if (stop.cloud) assert(labConfig.atlas.clouds[stop.cloud], 'Atlas stop has no point cloud: ' + stop.id);
+}
 assert.deepEqual(files.filter(file => file.startsWith('Photo/')), ['Photo/gallery.html'], 'Only the old gallery redirect belongs under Photo/.');
 assert.equal((await readFile(path.join(dist, 'CNAME'), 'utf8')).trim(), new URL(site.url).hostname);
 assert((await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/photos/', site.url).href));
