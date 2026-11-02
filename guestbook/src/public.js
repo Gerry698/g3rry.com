@@ -73,10 +73,10 @@ async function list(request, url, env, ctx) {
   const statement = cursor
     ? env.DB.prepare(`SELECT ${columns} FROM entries WHERE status = 'approved' AND (created_at < ?1 OR (created_at = ?1 AND id < ?2)) ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`).bind(Number(cursor[1]), cursor[2])
     : env.DB.prepare(`SELECT ${columns} FROM entries WHERE status = 'approved' ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`);
-  // Pinned notes come with the first page, and also stay in their place in `entries`, which is all a page from
-  // before pins knows how to show.
+  // Pinned notes come with the first page, the owner's own first and then pinned visitor notes, newest pin first in
+  // each tier. They also stay in their place in `entries`, which is all a page from before pins knows how to show.
   const [{ results }, pins] = await env.DB.batch(cursor ? [statement] : [statement,
-    env.DB.prepare(`SELECT ${columns} FROM entries WHERE status = 'approved' AND pinned_at IS NOT NULL ORDER BY pinned_at DESC LIMIT ${pinLimit}`)]);
+    env.DB.prepare(`SELECT ${columns} FROM entries WHERE status = 'approved' AND pinned_at IS NOT NULL ORDER BY owner DESC, pinned_at DESC LIMIT ${pinLimit}`)]);
   const page = results.slice(0, pageSize);
   const last = page.at(-1);
   const data = { entries: page.map(publicEntry), next: results.length > pageSize ? last.created_at + '_' + last.id : null };

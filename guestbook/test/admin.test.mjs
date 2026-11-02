@@ -313,4 +313,14 @@ describe('owner notes and pins', () => {
     const actions = (await f.rows('SELECT action FROM audit')).map(row => row.action);
     assert.deepEqual(actions.filter(action => action === 'pin' || action === 'unpin'), ['pin', 'pin', 'pin', 'pin', 'unpin']);
   });
+
+  test('the owner\'s pins come before pinned visitor notes', async () => {
+    const visitor = await f.insert({ name: 'Ada', status: 'approved', created_at: Date.now() - 5000 });
+    const { id } = await (await post('/api/notes', { message: 'Welcome', pinned: true })).json();
+    await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal((await post('/api/entries/' + visitor.id + '/pin', { pinned: true })).status, 200);
+    assert.deepEqual((await page()).pinned.map(entry => [entry.name, entry.owner]), [['Gerry', true], ['Ada', false]], 'a newer visitor pin still comes second');
+    const admin = await (await f.admin('/api/entries?view=approved')).json();
+    assert.deepEqual(admin.pinned.map(entry => entry.id), [id, visitor.id]);
+  });
 });

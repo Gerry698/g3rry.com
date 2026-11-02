@@ -17,7 +17,7 @@ const time = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 
 const flagNames = { link: '含链接', 'many-links': '多个链接', repeat: '大量重复字符', duplicate: '与其他留言重复' };
 const stateNames = { pending: '待审', approved: '已发布', rejected: '已隐藏', spam: '垃圾' };
 const viewNotes = {
-  approved: '按页面上的顺序显示：置顶在前，其余按时间。改动最多 1 分钟后出现在页面上。',
+  approved: '按页面上的顺序显示：我的置顶在前，访客留言的二级置顶随后，其余按时间。置顶合计最多 3 条，改动最多 1 分钟后出现在页面上。',
   hidden: '隐藏和垃圾留言会在处理 30 天后自动永久删除；在此之前可以恢复。'
 };
 const errorNames = {
@@ -79,7 +79,7 @@ function render(entry) {
   const when = item.querySelector('time');
   when.dateTime = new Date(entry.date).toISOString();
   when.textContent = time.format(entry.date);
-  item.querySelector('.state').textContent = [stateNames[entry.status], entry.owner && '站主', entry.pinned && '已置顶'].filter(Boolean).join(' · ');
+  item.querySelector('.state').textContent = [stateNames[entry.status], entry.owner && '站主', entry.pinned && (entry.owner ? '已置顶' : '二级置顶')].filter(Boolean).join(' · ');
   const where = [entry.country, entry.ip ? 'IP ' + entry.ip + '… 共 ' + entry.ipCount + ' 条' : '', entry.banned ? '已封禁' : ''].filter(Boolean);
   item.querySelector('.where').textContent = where.join(' · ');
   item.querySelector('.flags').textContent = entry.flags.map(flag => flagNames[flag] ?? flag).join(' · ');
@@ -100,7 +100,8 @@ function render(entry) {
     if (!allowed.includes(button.dataset.action)) button.remove();
     else if (button.dataset.action === 'approve' && state.view === 'hidden') button.textContent = '恢复并发布';
     else if (button.dataset.action === 'reject' && state.view === 'approved') button.textContent = '撤下';
-    else if (button.dataset.action === 'pin' && entry.pinned) button.textContent = '取消置顶';
+    // Visitor notes pin below the owner's own pinned notes.
+    else if (button.dataset.action === 'pin') button.textContent = entry.pinned ? '取消置顶' : entry.owner ? '置顶' : '二级置顶';
   });
   return item;
 }

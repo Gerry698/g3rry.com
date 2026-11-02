@@ -117,10 +117,11 @@ async function listEntries(url, env) {
     WHERE e.status IN (${placeholders}) AND (?1 IS NULL OR e.created_at < ?1 OR (e.created_at = ?1 AND e.id < ?2))
     ORDER BY e.created_at DESC, e.id DESC LIMIT ${pageSize + 1}`)
     .bind(cursor ? Number(cursor[1]) : null, cursor ? cursor[2] : '', now, ...statuses)];
-  // The published view mirrors the page: pinned notes come first and also stay in their place in `entries`.
+  // The published view mirrors the page: pinned notes come first (the owner's own, then visitor notes) and also stay
+  // in their place in `entries`.
   const withPins = view === 'approved' && !cursor;
   if (withPins) {
-    statements.push(env.DB.prepare(`SELECT ${columns('?1')} FROM entries e WHERE e.status = 'approved' AND e.pinned_at IS NOT NULL ORDER BY e.pinned_at DESC LIMIT ${pinLimit}`).bind(now));
+    statements.push(env.DB.prepare(`SELECT ${columns('?1')} FROM entries e WHERE e.status = 'approved' AND e.pinned_at IS NOT NULL ORDER BY e.owner DESC, e.pinned_at DESC LIMIT ${pinLimit}`).bind(now));
   }
   const [{ results }, pins] = await env.DB.batch(statements);
   const page = results.slice(0, pageSize);
