@@ -89,6 +89,21 @@ node atlas.mjs frames          # 解算各 stop 的相机位置
   - 镜头更低时，近处人物的脚和远处人物的脚之间的关系能同时解出地平线和镜头高度。
   - 积水里的倒影属于地面，不在地面下方。
 
+### Atlas 收件箱与发布流程
+
+新照片和新地点走"投稿 → 处理 → 上线"的流程：
+
+- **收件箱。** 私有的 claude.ai 页面 https://claude.ai/artifact/Y75neHHpPBjm9s2Z1PzwYo，源文件是 `tools/atlas-inbox/inbox.html`。改了站点或 stop 后，运行 `node tools/atlas-inbox/build.mjs` 刷新页面里的地图数据，再按同一个 URL 重新发布。
+- **一条投稿包含：**
+  - 照片；
+  - 一个 pin（来自照片 GPS、粘贴的坐标或 Google 地图链接，或地图上的粗略点选）；
+  - 地点和经过。
+- **存储。** 投稿存在页面自己的数据库里，只有所有者能读写；照片存在页面的资源存储里。超过 20 MB 的原图先在浏览器里缩到 3200 px 再上传，焦距、光圈、时间、GPS 在缩图前读出、记进投稿。
+- **处理。** 在 Claude Code 里运行 `/phantom-publish`（用户级技能 `C:\Users\16937\.claude\skills\phantom-publish`）。流程：读出待处理的投稿 → 定位、加进画廊和 Atlas、生成深度模型 → 构建并上线 → 在收件箱里回写结果和链接。拿不准的地方会在收件箱里提问，不会直接上线。
+- **配套工具：**
+  - `tools/phantom-data/resect.mjs`：后方交会，用 LiDAR 里的地标解出机位。
+  - `tools/phantom-data/grid.mjs`：带刻度的裁切图，用来读地标和地平线的像素位置。
+
 ## 发布
 
 `main` 受 [pages.yml](../.github/workflows/pages.yml) 管理：
