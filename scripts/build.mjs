@@ -137,7 +137,7 @@ async function assetFolder(source, name, extra = {}) {
 }
 // Latin subsets of two OFL fonts, self-hosted so the page needs nothing from other origins.
 const mountainFiles = await assetFolder('mountain', 'mountain', {
-  'instrument-serif.woff2': 'node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2',
+  'cormorant-garamond.woff2': 'node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-normal.woff2',
   'jetbrains-mono.woff2': 'node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2'
 });
 await copyFile(path.join(root, 'src/favicon.svg'), path.join(dist, 'favicon.svg'));

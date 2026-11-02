@@ -12,16 +12,29 @@ export function idlePose(time) {
 // summit so the camp sits low in frame with the mountain and sky above it.
 // layout 'side': the camp sits right of centre (text on the left); 'stack': camp in the upper middle (text below).
 export function stationPose(camp, summit, progress, terrain, layout) {
-  let pose, aim;
-  if (camp.summit) {
-    pose = { angle: camp.angle + .5, radius: 13, y: camp.y - 4.2 };
-    aim = [camp.x, camp.y - 1.6, camp.z];
-  } else {
-    pose = { angle: camp.angle + .22, radius: camp.r + lerp(13, 8.5, progress), y: camp.y + .9 + progress * .6 };
-    aim = mix3([camp.x, camp.y, camp.z], [summit.x, summit.y, summit.z], .3);
-  }
   const at = [camp.x, camp.y, camp.z];
-  // Raise and pull back until nothing stands between the lens and the camp.
+  const preferred = camp.summit ? .5 : .22;
+  const frame = offset => camp.summit
+    ? { pose: { angle: camp.angle + offset, radius: 13, y: camp.y - 4.2 }, aim: [camp.x, camp.y - 1.6, camp.z] }
+    : { pose: { angle: camp.angle + offset, radius: camp.r + lerp(13, 8.5, progress), y: camp.y + .9 + progress * .6 }, aim: mix3(at, [summit.x, summit.y, summit.z], .3) };
+  // A shoulder peak can stand right in front of a camp. Try bearings either side of the preferred one
+  // and keep the view that needs the least lifting, so the camera looks past the shoulder, not over it.
+  let best = null;
+  for (const offset of camp.summit ? [.5, .25, .75, 1] : [.22, .4, .05, .6, -.12, .8, -.3, 1]) {
+    const view = frame(offset);
+    const score = lift(view.pose, at, terrain) + Math.abs(offset - preferred) * 4;
+    if (!best || score < best.score) best = { ...view, score };
+  }
+  const { pose, aim } = best;
+  const eye = eyeOf(pose);
+  const forward = normalize(sub(aim, eye)), right = normalize(cross(forward, [0, 1, 0]));
+  const distance = Math.hypot(...sub(aim, eye));
+  pose.target = add(aim, layout === 'side' ? scale(right, -distance * .16) : [0, -distance * .12, 0]);
+  return pose;
+}
+
+// Raises and pulls back the pose until nothing stands between the lens and the camp; returns the steps taken.
+function lift(pose, at, terrain) {
   for (let attempt = 0; attempt < 14; attempt++) {
     const eye = eyeOf(pose);
     let blocked = terrain.height(eye[0], eye[2]) > eye[1] - .6;
@@ -29,14 +42,10 @@ export function stationPose(camp, summit, progress, terrain, layout) {
       const p = mix3(eye, at, s / 24);
       blocked = terrain.height(p[0], p[2]) > p[1] + .05 && s < 22;
     }
-    if (!blocked) break;
+    if (!blocked) return attempt;
     pose.y += .45; pose.radius += .55;
   }
-  const eye = eyeOf(pose);
-  const forward = normalize(sub(aim, eye)), right = normalize(cross(forward, [0, 1, 0]));
-  const distance = Math.hypot(...sub(aim, eye));
-  pose.target = add(aim, layout === 'side' ? scale(right, -distance * .16) : [0, -distance * .12, 0]);
-  return pose;
+  return 14;
 }
 
 // Gentle drift while resting so the scene never freezes.

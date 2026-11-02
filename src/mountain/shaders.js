@@ -245,9 +245,11 @@ in float vLit;
 in vec3 vWorld;
 out vec4 outColor;
 uniform vec3 uLantern;
+uniform float uAhead;
 void main() {
-  float a = smoothstep(1., .45, length(vCorner)) * mix(.32, 1., vLit);
-  vec3 color = mix(vec3(1., .96, .9) * .7, uLantern * 2.4, vLit);
+  // Walked dots glow; the ones still ahead show only while travelling (uAhead), so a camp at rest is calm.
+  float a = smoothstep(1., .45, length(vCorner)) * mix(.32 * uAhead, 1., vLit);
+  vec3 color = mix(vec3(1., .96, .9) * .7, uLantern * 1.5, vLit);
   float keep = 1. - clamp(length(vWorld - uCamPos) / 60., 0., 1.);
   outColor = vec4(color, 1.) * a * keep;
 }`;
@@ -310,14 +312,19 @@ void main() {
 export const propVertex = header + `
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec4 aColor;
+layout(location = 2) in vec4 aFlag;
 uniform mat4 uViewProj;
 uniform float uTime;
 out vec3 vWorld;
 out vec3 vAlbedo;
 void main() {
   vec3 p = aPosition;
-  // Alpha marks flag vertices; it is the distance from the pole, so the free end waves the most.
-  if (aColor.a < 1.) p.y += sin(uTime * 3.4 - aColor.a * 18. + aPosition.x * 5.) * aColor.a * .12;
+  // Cloth ripples sideways in waves that run from the pole to the free end and grow along the way;
+  // gusts swell and ease the motion. Everything off the cloth has aFlag.x = 0 and stays put.
+  float u = aFlag.x, phase = dot(aPosition.xz, vec2(3.1, 4.3)), t = uTime * 5.2 + phase;
+  float gust = .7 + .3 * sin(uTime * .63 + phase);
+  float wave = sin(u * 8.5 - t + aFlag.y * .9) * .7 + sin(u * 17. - t * 1.6 + phase) * .3;
+  p += vec3(aFlag.z, 0., aFlag.w) * wave * u * .17 * gust;
   vWorld = p;
   vAlbedo = aColor.rgb * aColor.rgb;
   gl_Position = uViewProj * vec4(p, 1.);
@@ -339,10 +346,21 @@ layout(location = 1) in float aSeed;
 uniform mat4 uViewProj;
 uniform vec3 uRight, uUp, uCamPos;
 uniform float uTime;
+uniform vec4 uFocus;
+uniform vec3 uSummit;
 out vec2 vCorner;
 out vec3 vWorld;
 out float vSeed;
 out float vNear;
+out float vClear;
+// How much a puff of this size at center blocks the view from the lens to target: 1 on the line of sight,
+// fading out over a cone that widens with distance, and none for puffs at or behind the target.
+float parting(vec3 center, vec3 target, float size) {
+  vec3 ray = target - uCamPos;
+  float along = clamp(dot(center - uCamPos, ray) / max(dot(ray, ray), 1e-4), 0., 1.);
+  float miss = distance(center, uCamPos + ray * along), reach = size * .8 + along * length(ray) * .1;
+  return (1. - smoothstep(reach, reach + size * 1.6, miss)) * (1. - smoothstep(.85, 1., along));
+}
 void main() {
   vec2 c = corners[gl_VertexID];
   vec3 center = aCloud.xyz + vec3(sin(uTime * .05 + aSeed * 30.), 0., cos(uTime * .04 + aSeed * 20.)) * .4;
@@ -350,6 +368,9 @@ void main() {
   vSeed = aSeed;
   // Puffs close to the lens would fill the frame with blur; they dissolve instead.
   vNear = smoothstep(aCloud.w * 1.2, aCloud.w * 3.5, distance(center, uCamPos));
+  // Puffs between the lens and the camp in view (uFocus.xyz, strength w) part so low cloud never hides it;
+  // those in front of the summit thin out too, but only partly, so the sky keeps some weather.
+  vClear = (1. - uFocus.w * parting(center, uFocus.xyz, aCloud.w)) * (1. - uFocus.w * .75 * parting(center, uSummit, aCloud.w));
   vWorld = center + (c.x * uRight * 1.5 + c.y * uUp) * aCloud.w;
   gl_Position = uViewProj * vec4(vWorld, 1.);
 }`;
@@ -359,19 +380,21 @@ in vec2 vCorner;
 in vec3 vWorld;
 in float vSeed;
 in float vNear;
+in float vClear;
 out vec4 outColor;
 uniform vec3 uKeyDir, uKeyColor, uAmbSky, uCloud;
 uniform float uTime, uCloudAmount;
 void main() {
   vec2 p = vCorner * vec2(1., 1.25);
   float n = vnoise(p * 2.1 + vSeed * 17. + uTime * .03) * .6 + vnoise(p * 4.7 - vSeed * 9.) * .4;
-  float shape = smoothstep(1., .35, length(p) + (n - .5) * .9);
+  // The noise can push the outline past the quad; the last stretch to each edge fades so no straight cut shows.
+  float shape = smoothstep(1., .35, length(p) + (n - .5) * .9) * smoothstep(1., .82, abs(vCorner.x)) * smoothstep(1., .82, abs(vCorner.y));
   float bottom = smoothstep(-.9, .4, vCorner.y);
   shape *= mix(.55, 1., bottom) * softEdge(1.2);
   float lit = clamp(.35 + vCorner.y * .45 + max(dot(uKeyDir, normalize(vec3(vCorner.x, 1., 0.))), 0.) * .3, 0., 1.);
   vec3 color = uCloud * mix(uAmbSky * 1.1, uKeyColor * .55 + uAmbSky * .6, lit);
   color = atmosphere(color, vWorld);
-  float alpha = shape * .85 * uCloudAmount * vNear;
+  float alpha = shape * .85 * uCloudAmount * vNear * vClear;
   outColor = vec4(color * alpha, alpha);
 }`;
 

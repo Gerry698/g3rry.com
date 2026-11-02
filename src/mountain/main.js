@@ -1,8 +1,8 @@
-import { createTerrain, placeCamps, buildTerrainMesh, buildTrail, scatterTrees, scatterClouds, snapSummit, QUALITY } from './terrain.js';
+import { createTerrain, placeCamps, buildTerrainMesh, meshSurface, buildTrail, scatterTrees, scatterClouds, snapCamps, QUALITY } from './terrain.js';
 import { buildProps } from './props.js';
 import { createRenderer } from './renderer.js';
 import { PALETTES, TIMES, blend } from './palettes.js';
-import { perspective, lookAt, multiply, invert, transform, clamp, lerp, easeInOut, smoothstep } from './math.js';
+import { perspective, lookAt, multiply, invert, transform, clamp, lerp, easeInOut, smoothstep, mix3 } from './math.js';
 import { eyeOf, idlePose, stationPose, sway, travelTime, interpolate, clampToGround } from './camera.js';
 
 const root = document.documentElement;
@@ -27,10 +27,11 @@ function start() {
   const terrain = createTerrain();
   const camps = placeCamps(terrain, items.length);
   const mesh = buildTerrainMesh(terrain, quality);
-  snapSummit(camps, mesh);
-  const trees = scatterTrees(terrain, camps, quality);
-  const trail = buildTrail(terrain, camps);
-  const props = buildProps(terrain, camps);
+  const surface = meshSurface(mesh, terrain);
+  snapCamps(camps, mesh, surface);
+  const trees = scatterTrees(terrain, camps, quality, surface);
+  const trail = buildTrail(camps, surface);
+  const props = buildProps(surface, camps);
   const clouds = scatterClouds(terrain, quality);
   let renderer;
   try { renderer = createRenderer(gl, { mesh, trees, trail, camps, props, clouds }, quality); }
@@ -52,7 +53,7 @@ function start() {
   const poseAt = (index, time) => index < 0 ? idlePose(reduced.matches ? 0 : time) : sway(stations[index], reduced.matches ? 0 : time, pointer);
 
   const state = { index: -1, travel: null, started: false, progress: -1, arrived: 0 };
-  let pointer = [0, 0], pointerTarget = [0, 0], current = null, clock = 0, fadeIn = params.has('debug') ? 1 : 0, debugPose = null, debugPalette = null, debugHide = null;
+  let pointer = [0, 0], pointerTarget = [0, 0], current = null, clock = 0, ahead = 1, focus = null, clearing = 0, fadeIn = params.has('debug') ? 1 : 0, debugPose = null, debugPalette = null, debugHide = null;
 
   function go(index) {
     index = clamp(index, -1, data.length - 1);
@@ -215,8 +216,16 @@ function start() {
     const viewProj = multiply(projection, view);
     const settled = state.travel || state.index < 0 ? 0 : smoothstep(0, .8, clock - state.arrived);
     const here = state.index >= 0 ? camps[state.index] : camps[0];
+    // The climber and the dots still ahead fade out once a camp is reached and come back when the climb resumes.
+    const moving = state.travel || state.index < 0 ? 1 : 0;
+    ahead = lerp(ahead, moving, Math.min(1, delta * (moving ? 4 : 1.6)));
+    // Clouds part along the line of sight to the camp being approached or visited.
+    const heading = state.travel ? state.travel.to : state.index;
+    if (heading >= 0) { const camp = camps[heading]; focus = focus ? mix3(focus, [camp.x, camp.y + .2, camp.z], Math.min(1, delta * 2.5)) : [camp.x, camp.y + .2, camp.z]; }
+    clearing = lerp(clearing, heading >= 0 ? 1 : 0, Math.min(1, delta * 1.5));
     const markers = {
-      progress: state.progress, settled, pillar: [here.x, here.y, here.z, settled], climber: trailAt(state.progress), climberPower: smoothstep(-.4, 0, state.progress)
+      progress: state.progress, settled, pillar: [here.x, here.y, here.z, settled], climber: trailAt(state.progress), climberPower: smoothstep(-.4, 0, state.progress) * ahead,
+      ahead, focus: [...(focus || [0, 0, 0]), clearing]
     };
     renderer.render({ eye, view, viewProj, invViewProj: invert(viewProj), fov, time: clock, palette, fade, markers, hide: debugHide, canvasWidth: canvas.width, canvasHeight: canvas.height });
 
@@ -279,7 +288,7 @@ function start() {
     },
     unsnap() { document.querySelector('#mountain-snap')?.remove(); },
     hide(...names) { debugHide = new Set(names); return this.settle(); },
-    station(i) { state.index = i; state.arrived = clock - 2; debugPose = stations[i]; debugPalette = paletteOf(i); return this.settle(); },
+    station(i) { state.index = i; state.arrived = clock - 2; ahead = 0; clearing = 1; focus = null; debugPose = stations[i]; debugPalette = paletteOf(i); return this.settle(); },
     // Resolves once two fresh frames have been drawn, so screenshots never catch a stale pose.
     settle() { const start = frames; return new Promise(resolve => { const check = () => frames >= start + 2 ? resolve(frames) : setTimeout(check, 16); check(); }); },
     get quality() { return { tier, ...quality, samples: renderer.samples, float: renderer.float, scaleFactor }; }

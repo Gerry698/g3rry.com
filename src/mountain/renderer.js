@@ -50,7 +50,7 @@ export function createRenderer(gl, scene, quality) {
   };
 
   const terrain = vertexArray(gl, [{ data: scene.mesh.positions, size: 3 }, { data: scene.mesh.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }]);
-  const props = vertexArray(gl, [{ data: scene.props.positions, size: 3 }, { data: scene.props.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }]);
+  const props = vertexArray(gl, [{ data: scene.props.positions, size: 3 }, { data: scene.props.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }, { data: scene.props.flags, size: 4 }]);
   const tree = treeGeometry();
   const treeCount = scene.trees.length / 6;
   const placement = new Float32Array(treeCount * 4), extra = new Float32Array(treeCount * 2);
@@ -140,7 +140,7 @@ export function createRenderer(gl, scene, quality) {
       uSunDir: p.sun, uGlow: p.glow, uZenith: p.zenith, uHorizon: p.horizon, uBelow: p.below, uFog: [p.fog, p.haze],
       uShadow: shadowMap, uLightMatrix: lightMatrix, uShadowSize: shadowSize,
       uStars: p.stars, uMoon: p.moon, uMoonDir: p.moonDir, uAurora: p.aurora, uSunDisc: p.sunDisc,
-      uLantern: LANTERN, uProgress: m.progress, uCloud: p.cloud, uCloudAmount: 1, uSnow: p.snow, uHeight: targets.height,
+      uLantern: LANTERN, uProgress: m.progress, uAhead: m.ahead, uFocus: m.focus, uSummit: [scene.camps.at(-1).x, scene.camps.at(-1).y, scene.camps.at(-1).z], uCloud: p.cloud, uCloudAmount: 1, uSnow: p.snow, uHeight: targets.height,
       uResolution: [targets.width, targets.height], uClip: [NEAR, FAR]
     };
     const sceneTarget = targets.multisampled || targets.resolved;

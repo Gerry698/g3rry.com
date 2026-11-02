@@ -1,4 +1,4 @@
-@font-face { font-family: "Instrument Serif"; src: url(instrument-serif.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Cormorant Garamond"; src: url(cormorant-garamond.woff2) format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
 @font-face { font-family: "JetBrains Mono"; src: url(jetbrains-mono.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
 :root {
   color-scheme: dark;
@@ -7,7 +7,7 @@
   --faint: #f7f3ec59;
   --lantern: #ffcf7d;
   --night: #0a1130;
-  --serif: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --serif: "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --gutter: clamp(20px, 6vw, 96px);
@@ -28,12 +28,12 @@ h1, h2, p { margin: 0; }
 
 .mountain-canvas { display: none; }
 .mountain-top { display: flex; justify-content: space-between; align-items: center; padding: 28px var(--gutter); }
-.mountain-mark { font: 1.7rem/1 var(--serif); text-decoration: none; letter-spacing: -.01em; }
+.mountain-mark { font: 500 1.9rem/1 var(--serif); text-decoration: none; }
 .mountain-mark span { color: var(--lantern); }
 .mountain-meter { font: .72rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mist); display: none; }
 .mountain-meter b { font-weight: 400; color: var(--paper); font-variant-numeric: tabular-nums; }
 .mountain-kicker { font: .72rem/1.4 var(--mono); letter-spacing: .22em; text-transform: uppercase; color: var(--lantern); }
-.mountain-intro h1 { font: 400 clamp(4.4rem, 11vw, 10rem)/.86 var(--serif); letter-spacing: -.025em; margin-top: 1.2rem; }
+.mountain-intro h1 { font: 500 clamp(3.9rem, 8.6vw, 8rem)/.92 var(--serif); letter-spacing: -.015em; margin-top: 1.1rem; }
 .mountain-lede { margin-top: 1.6rem; max-width: 27em; color: var(--mist); font-size: 1.02rem; }
 .mountain-main { padding: 12vh var(--gutter) 10vh; max-width: 980px; }
 .mountain-card { display: none; }
@@ -42,7 +42,7 @@ h1, h2, p { margin: 0; }
 .mountain-route ol { list-style: none; margin: 4rem 0 0; padding: 0; display: grid; gap: 1.6rem; }
 .mountain-route a { display: inline-flex; gap: 1.1rem; align-items: baseline; text-decoration: none; }
 .camp-number { font: .78rem/1 var(--mono); color: var(--lantern); min-width: 2.2em; letter-spacing: .08em; }
-.camp-title { font: 2.4rem/1.05 var(--serif); }
+.camp-title { font: 500 2.4rem/1.05 var(--serif); }
 .mountain-route p { color: var(--mist); margin: .45rem 0 0 3.3rem; max-width: 34em; }
 .mountain-route a[data-pending] .camp-title { color: var(--mist); }
 
@@ -57,7 +57,7 @@ h1, h2, p { margin: 0; }
 .mountain-live .mountain-meter { display: block; }
 .mountain-live .mountain-main { padding: 0; }
 .mountain-live .mountain-intro, .mountain-live .mountain-card {
-  position: fixed; left: var(--gutter); bottom: 13vh; z-index: 2; max-width: min(560px, 80vw);
+  position: fixed; left: var(--gutter); bottom: 13vh; z-index: 2; max-width: min(700px, 80vw);
   transition: opacity .8s cubic-bezier(.2, .7, .2, 1), transform .8s cubic-bezier(.2, .7, .2, 1), visibility 0s;
 }
 .mountain-live .mountain-intro { pointer-events: none; text-shadow: 0 2px 30px #05081680; }
@@ -72,7 +72,7 @@ h1, h2, p { margin: 0; }
 .mountain-begin span { color: var(--lantern); }
 .mountain-live .mountain-card { display: block; opacity: 0; transform: translateY(18px); visibility: hidden; text-shadow: 0 2px 24px #0508168c; }
 .mountain-live .mountain-card.is-visible { opacity: 1; transform: none; visibility: visible; }
-.mountain-card h2 { font: 400 clamp(3.4rem, 7vw, 6.6rem)/.9 var(--serif); letter-spacing: -.02em; margin-top: 1rem; }
+.mountain-card h2 { font: 500 clamp(3.2rem, 6.2vw, 6rem)/.95 var(--serif); letter-spacing: -.01em; margin-top: .9rem; }
 .mountain-card-text { margin-top: 1.2rem; color: var(--mist); max-width: 26em; }
 .mountain-enter, .mountain-pending { margin-top: 2rem; display: inline-flex; gap: .8rem; align-items: center; font: .74rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
 .mountain-enter { padding: .9rem 1.4rem; border-radius: 999px; background: var(--paper); color: #10142b; text-decoration: none; text-shadow: none; transition: transform .25s, background .25s; }
