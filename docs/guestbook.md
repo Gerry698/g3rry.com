@@ -15,7 +15,7 @@
 
 ## 日常审核
 
-- 打开 <https://admin.g3rry.com/>，用 Cloudflare Access 发到 QQ 邮箱的一次性验证码登录。
+- 打开 <https://admin.g3rry.com/>，在 Cloudflare Access 登录页点 "Cloudflare"，用 Cloudflare 账户（QQ 邮箱）登录，登录状态保持 24 小时。
 - **待审**：通过 / 隐藏 / 标为垃圾 / 垃圾并封禁 30 天 / 永久删除。每条显示时间、国家、网络地址哈希前 8 位和同一地址的留言数，以及可疑标记（含链接、重复字符、与其他留言重复）。
 - **已发布**：可以写回复（显示为 "Gerry replied"），或撤下。
 - **已隐藏**：隐藏和垃圾留言在处理 30 天后自动永久删除，此前可以"恢复并发布"。
@@ -77,13 +77,13 @@ npx wrangler deploy -c wrangler.admin.jsonc
 | `guestbook-admin` | `ADMIN_EMAILS` | 允许登录后台的邮箱，逗号分隔 |
 | `guestbook-admin` | `NOTIFY_TO` | 摘要邮件收件人，必须是 Email Routing 里已验证的地址 |
 
-`wrangler.admin.jsonc` 里的 `ACCESS_TEAM_DOMAIN` 和 `ACCESS_AUD` 来自 Zero Trust → Access → 应用 "Guestbook admin"。这两项不是密钥，留空时后台一律拒绝访问。
+`wrangler.admin.jsonc` 里的 `ACCESS_TEAM_DOMAIN`（Zero Trust 团队域名）和 `ACCESS_AUD`（Zero Trust → Access controls → Applications → "Guestbook admin" → Additional settings → AUD tag）不是密钥。留空时后台一律拒绝访问；改团队名或重建应用后要同步更新并重新部署后台。
 
 Cloudflare 后台的相关设置：
 
 - Turnstile 组件 "g3rry.com guestbook"，域名只有 `g3rry.com`。
 - WAF 限流规则 "Guestbook API flood guard"。
-- Zero Trust Access 应用 "Guestbook admin"，保护 `admin.g3rry.com`。
+- Zero Trust Free，团队 `young-bonus-b4b8`。Access 应用 "Guestbook admin" 保护 `admin.g3rry.com`：策略 "Guestbook owner only" 只放行 QQ 邮箱；登录方式是 Cloudflare 账户（账户里有身份提供方时不显示一次性验证码）；Cookie 设为 HttpOnly、绑定 Cookie、SameSite=Lax。
 - Email Routing 收件地址：QQ 邮箱。
 
 ## 应急

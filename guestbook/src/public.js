@@ -55,7 +55,12 @@ async function list(request, url, env, ctx) {
   // but well-formed cursor still reaches D1; that costs one indexed range read and is covered by the rate limits.
   const cacheKey = new Request(env.SITE_ORIGIN + path + (cursor ? '?cursor=' + cursorText : ''));
   const cached = await caches.default.match(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    // A cache hit comes back with the zone's Browser Cache TTL (4 hours by default) in place of our max-age.
+    const hit = new Response(cached.body, cached);
+    hit.headers.set('Cache-Control', 'public, max-age=' + listMaxAge);
+    return hit;
+  }
 
   const statement = cursor
     ? env.DB.prepare(`SELECT id, created_at, name, body, reply, reply_at FROM entries WHERE status = 'approved' AND (created_at < ?1 OR (created_at = ?1 AND id < ?2)) ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`).bind(Number(cursor[1]), cursor[2])
