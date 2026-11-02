@@ -71,6 +71,7 @@ figcaption { display: flex; justify-content: space-between; font-size: .75rem; l
 .phantom-copy h2 { margin-top: 1.25rem; }
 .phantom-copy .intro { margin-top: 1.5rem; max-width: 29em; }
 .phantom-controls { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; }
+.phantom-lab-link { margin-top: 1.6rem; }
 .phantom-controls label { flex-basis: 100%; font-size: .75rem; color: var(--muted); letter-spacing: .06em; }
 .phantom-controls select { width: 190px; background: var(--surface); color: var(--paper); padding: .75rem; border: 1px solid #ffffff26; border-radius: 0; font-size: .75rem; }
 .quiet-button { color: var(--muted); border: 1px solid #ffffff26; background: none; padding: .75rem; font-size: .75rem; }

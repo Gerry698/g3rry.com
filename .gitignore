@@ -20,3 +20,11 @@ Desktop.ini
 /guestbook/node_modules/
 /guestbook/build/
 /guestbook/.wrangler/
+
+# Local task state and editor launch configs
+/work/
+/.claude/
+
+# Offline data tools keep their own dependencies
+node_modules/
+/tools/phantom-data/.models/
