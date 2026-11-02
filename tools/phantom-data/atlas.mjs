@@ -1,8 +1,8 @@
 // Atlas data for the lab, built once on this machine and committed to content/phantom/atlas/.
 //   node atlas.mjs globe            Natural Earth land (public domain) -> land.bin, an equirectangular land mask
 //   node atlas.mjs lidar [cloud]    airborne LiDAR for each cloud listed under a site in content/phantom.json
-//   node atlas.mjs vantages         prints solved camera positions for photos (see solveFerry)
-// LiDAR comes from Entwine Point Tiles (EPT) published on NOAA's open data bucket: only the octree nodes that cover a
+//   node atlas.mjs frames           camera stations for the atlas stops -> frames.json
+// LiDAR comes from Entwine Point Tiles (EPT) on NOAA's and USGS's open data buckets: only the octree nodes that cover a
 // cloud's box are downloaded (cached in .cache/ept), decoded with laz-perf, thinned on a voxel grid, and stored in a
 // local east-north-up frame around the site origin.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -53,10 +53,34 @@ export function frame(origin, zone) {
   const [e0, n0] = utmForward(origin[0], origin[1], zone);
   const gamma = Math.atan(Math.tan((origin[1] - (zone * 6 - 183)) * rad) * Math.sin(origin[0] * rad));
   const cg = Math.cos(gamma), sg = Math.sin(gamma);
+  const fromLatLon = (lat, lon) => { const [e, n] = utmForward(lat, lon, zone); return [(e - e0) * cg + (n - n0) * sg, -(e - e0) * sg + (n - n0) * cg]; };
   return {
     fromGrid: (e, n) => [(e - e0) * cg + (n - n0) * sg, -(e - e0) * sg + (n - n0) * cg],
     toGrid: (east, north) => [e0 + east * cg - north * sg, n0 + east * sg + north * cg],
-    fromLatLon: (lat, lon) => { const [e, n] = utmForward(lat, lon, zone); return [(e - e0) * cg + (n - n0) * sg, -(e - e0) * sg + (n - n0) * cg]; }
+    fromLatLon,
+    // Inverse by a few Newton steps; the frame is so close to a plane that three are plenty.
+    toLatLon(east, north) {
+      let lat = origin[0] + north / 111132, lon = origin[1] + east / (111320 * Math.cos(origin[0] * rad));
+      for (let i = 0; i < 4; i++) {
+        const [e, n] = fromLatLon(lat, lon);
+        lat += (north - n) / 111132;
+        lon += (east - e) / (111320 * Math.cos(lat * rad));
+      }
+      return [lat, lon];
+    }
+  };
+}
+// Web Mercator (EPSG:3857), which USGS 3DEP's EPT copies use, on the WGS84 sphere radius.
+const mercator = {
+  toLatLon: (x, y) => [(2 * Math.atan(Math.exp(y / A)) - Math.PI / 2) / rad, x / A / rad],
+  fromLatLon: (lat, lon) => [A * lon * rad, A * Math.log(Math.tan(Math.PI / 4 + lat * rad / 2))]
+};
+// The source grid of a site's EPT, mapped onto the site's local frame (always a UTM-based east-north-up frame).
+function sourceGrid(site, local) {
+  if (site.lidar.srs !== 'EPSG:3857') return { fromGrid: local.fromGrid, toGrid: local.toGrid };
+  return {
+    fromGrid: (x, y) => local.fromLatLon(...mercator.toLatLon(x, y)),
+    toGrid: (east, north) => mercator.fromLatLon(...local.toLatLon(east, north))
   };
 }
 
@@ -103,6 +127,7 @@ async function lidar(only) {
     const [bx0, by0, bz0, bx1] = ept.bounds;
     const cube = bx1 - bx0;
     const local = frame(site.origin, zone);
+    const grid = sourceGrid(site, local);
     const hierarchy = {};
     async function loadHierarchy(key) {
       const part = JSON.parse(await cached(base + 'ept-hierarchy/' + key + '.json', path.join(cacheDir, 'ept', site.id, 'hierarchy', key + '.json')));
@@ -114,7 +139,7 @@ async function lidar(only) {
       // The cloud's box in the local frame, then in grid coordinates for node selection.
       const [cx, cy] = local.fromLatLon(cloud.center[0], cloud.center[1]);
       const half = [cloud.size[0] / 2, cloud.size[1] / 2];
-      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => local.toGrid(cx + sx * half[0], cy + sy * half[1]));
+      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].map(([sx, sy]) => grid.toGrid(cx + sx * half[0], cy + sy * half[1]));
       const gx0 = Math.min(...corners.map(c => c[0])), gx1 = Math.max(...corners.map(c => c[0]));
       const gy0 = Math.min(...corners.map(c => c[1])), gy1 = Math.max(...corners.map(c => c[1]));
       const wanted = [];
@@ -134,7 +159,18 @@ async function lidar(only) {
       // Voxel thinning keeps one point per cell, so dense and sparse flight lines end up even.
       const cell = cloud.spacing;
       const voxels = new Map();
+      const classes = {};
       let seen = 0;
+      // Some surveys file a structure under the wrong class (the 2010 Golden Gate survey puts the bridge in medium
+      // vegetation). A site can name a corridor whose returns above a height are re-filed, and kept at a finer spacing.
+      const structures = (site.lidar.structures || []).map(item => {
+        const a = local.fromLatLon(...item.from), b = local.fromLatLon(...item.to), length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        return { ...item, a, length, u: [(b[0] - a[0]) / length, (b[1] - a[1]) / length] };
+      });
+      const structureAt = (east, north, z) => structures.find(item => {
+        const de = east - item.a[0], dn = north - item.a[1], s = de * item.u[0] + dn * item.u[1];
+        return z >= item.above && s >= 0 && s <= item.length && Math.abs(de * item.u[1] - dn * item.u[0]) <= item.width / 2;
+      });
       for (const [index, key] of wanted.entries()) {
         const file = await cached(base + 'ept-data/' + key + '.laz', path.join(cacheDir, 'ept', site.id, 'data', key + '.laz'));
         const header = Las.Header.parse(file);
@@ -147,22 +183,32 @@ async function lidar(only) {
           const gy = view.getInt32(o + 4, true) * header.scale[1] + header.offset[1];
           if (gx < gx0 || gx > gx1 || gy < gy0 || gy > gy1) continue;
           const z = view.getInt32(o + 8, true) * header.scale[2] + header.offset[2];
-          const cls = extended ? view.getUint8(o + 16) : view.getUint8(o + 15) & 31;
-          if (cls === 7 || cls === 18 || z < -5 || z > 600) continue;
-          const [east, north] = local.fromGrid(gx, gy);
+          let cls = extended ? view.getUint8(o + 16) : view.getUint8(o + 15) & 31;
+          const [east, north] = grid.fromGrid(gx, gy);
           if (Math.abs(east - cx) > half[0] || Math.abs(north - cy) > half[1]) continue;
+          const tally = classes[cls] || (classes[cls] = [0, -Infinity]);
+          tally[0]++;
+          tally[1] = Math.max(tally[1], z);
+          if (cls === 7 || cls === 18 || z < -5 || z > 600) continue;
+          const structure = structures.length && structureAt(east, north, z);
+          if (structure) cls = structure.class;
           // Water returns are thinned harder: enough to show the surface, not enough to drown the city.
-          const thin = cls === 9 ? cloud.waterCell || cell * 3 : cell;
-          const k = Math.floor(east / thin) + ',' + Math.floor(north / thin) + ',' + Math.floor(z / thin) + (cls === 9 ? 'w' : '');
+          const thin = structure ? structure.spacing || cell : cls === 9 ? cloud.waterCell || cell * 3 : cell;
+          const k = Math.floor(east / thin) + ',' + Math.floor(north / thin) + ',' + Math.floor(z / thin) + (structure ? 's' : cls === 9 ? 'w' : '');
           seen++;
           if (!voxels.has(k)) voxels.set(k, [east, north, z, cls, view.getUint16(o + 12, true)]);
         }
         if (index % 25 === 0) console.log('  ' + (index + 1) + '/' + wanted.length + ' nodes, ' + voxels.size + ' kept of ' + seen);
       }
+      console.log('  classes (count, highest z):', Object.entries(classes).map(([cls, [n, top]]) => cls + ': ' + n + ', ' + top.toFixed(1)).join(' | '));
       let points = [...voxels.values()];
       if (points.length > cloud.maxPoints) {
-        for (let i = points.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [points[i], points[j]] = [points[j], points[i]]; }
-        points = points.slice(0, cloud.maxPoints);
+        // Named structures survive the cut whole; everything else is sampled at random to fill the rest.
+        const kept = structures.length ? points.filter(p => structures.some(item => item.class === p[3])) : [];
+        const rest = kept.length ? points.filter(p => !structures.some(item => item.class === p[3])) : points;
+        for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+        points = kept.concat(rest.slice(0, cloud.maxPoints - kept.length));
+        if (kept.length) console.log('  kept', kept.length, 'structure points whole');
       }
       await writeCloud(cloud.id, points);
     }
@@ -204,7 +250,7 @@ async function writeCloud(id, points) {
 
 // Camera stations for the atlas stops, solved in each site's local frame so they line up with the clouds exactly.
 // A vantage is either a target seen from a bearing and distance (the ferry, placed from the photograph's own geometry)
-// or a position with an azimuth and pitch.
+// or a position with an azimuth and pitch. The look point sits at the subject's distance, which is where the lens focuses.
 async function frames() {
   const result = { clouds: {}, stops: {} };
   for (const site of lab.sites) {
@@ -220,13 +266,13 @@ async function frames() {
         camera = [te + v.distance * Math.sin(b), tn + v.distance * Math.cos(b), v.height];
         // The subject is rarely centred: `frame` gives the optical axis relative to the line toward it, in degrees right and up.
         const [right, up] = v.frame || [0, 0];
-        const a = b + Math.PI + right * rad, p = Math.atan2(v.target[2] - v.height, v.distance) + up * rad;
-        look = [camera[0] + 100 * Math.sin(a) * Math.cos(p), camera[1] + 100 * Math.cos(a) * Math.cos(p), camera[2] + 100 * Math.sin(p)];
+        const a = b + Math.PI + right * rad, p = Math.atan2(v.target[2] - v.height, v.distance) + up * rad, d = v.distance;
+        look = [camera[0] + d * Math.sin(a) * Math.cos(p), camera[1] + d * Math.cos(a) * Math.cos(p), camera[2] + d * Math.sin(p)];
       } else {
         const [e, n] = local.fromLatLon(v.at[0], v.at[1]);
-        const a = v.azimuth * rad, p = v.pitch * rad;
+        const a = v.azimuth * rad, p = v.pitch * rad, d = v.subject || 100;
         camera = [e, n, v.height];
-        look = [e + 100 * Math.sin(a) * Math.cos(p), n + 100 * Math.cos(a) * Math.cos(p), v.height + 100 * Math.sin(p)];
+        look = [e + d * Math.sin(a) * Math.cos(p), n + d * Math.cos(a) * Math.cos(p), v.height + d * Math.sin(p)];
       }
       result.stops[stop.id] = { camera: camera.map(x => +x.toFixed(2)), look: look.map(x => +x.toFixed(2)) };
     }

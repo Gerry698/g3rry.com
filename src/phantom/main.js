@@ -2,7 +2,7 @@ import { createContext, imageTexture, texture } from './gl.js';
 import { Particles, ROW } from './particles.js';
 import { Post } from './post.js';
 import { Camera, orbit, framingDistance } from './camera.js';
-import { clamp, lerp, smoothstep, catmull, project, sub, dot, add, scale, length, mix3, perspective, lookAt, multiply } from './math.js';
+import { clamp, lerp, smoothstep, catmull, project, sub, dot, add, scale, length, normalize, mix3, perspective, lookAt, multiply } from './math.js';
 import { dustCount } from './targets.js';
 
 const config = JSON.parse(document.getElementById('lab-config').textContent);
@@ -152,7 +152,7 @@ function start({ gl, hdr }) {
   // ---- Chapters -------------------------------------------------------------------------------
   const state = {
     shape: config.shapes[0], shutter: 0, focal: null, aperture: null, photo: 0, mode: 'photo', contours: 0,
-    dragAzimuth: 0, dragElevation: 0, paused: false
+    dragAzimuth: 0, dragElevation: 0, paused: false, ev: 0
   };
   const developPhotos = config.develop.map(photo => ({ ...photo, unit: 6 / Math.sqrt(photo.depth[0] * photo.depth[1]) }));
 
@@ -231,15 +231,18 @@ function start({ gl, hdr }) {
     }
   };
 
-  // ---- Atlas: a globe, then each site's LiDAR clouds, scaled so a stop always fits the scene ----------------
+  // ---- Atlas: globes, then each site's LiDAR clouds; a stop's scale is how many metres one scene unit spans -------
   const atlas = config.atlas;
   const stops = atlas.stops;
-  const home = config.sites.find(item => item.status === 'live') || config.sites[0];
+  const siteOf = id => config.sites.find(item => item.id === id);
+  const home = siteOf(stops.find(stop => stop.kind === 'globe')?.site) || config.sites[0];
   const GLOBE = 1.6;
   const rad = Math.PI / 180;
   const stopAt = p => stops[Math.min(stops.length - 1, Math.floor(clamp(p, 0, .9999) * stops.length))];
   const stopProgress = p => clamp(p * stops.length - stops.indexOf(stopAt(p)), 0, 1);
-  const metersOf = stop => stop.id === 'overview' ? 1250 : 100;
+  const metersOf = stop => stop.scale || 100;
+  const atlasSection = $('#atlas');
+  atlasSection.style.minHeight = stops.length * 70 + 'vh';
   const inflate = async url => new Response((await fetch(url)).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
   let land = null;
   function globeTargets() {
@@ -254,11 +257,12 @@ function start({ gl, hdr }) {
     });
   }
   const clouds = new Map();
+  // Stops on the same cloud at the same scale share one set, so the camera flies between them without a morph.
   function cityTargets(stop) {
-    return setFor('city:' + stop.id, async () => {
+    return setFor('city:' + stop.cloud + ':' + metersOf(stop), async () => {
       if (!clouds.has(stop.cloud)) clouds.set(stop.cloud, inflate(atlas.clouds[stop.cloud]));
       const data = (await clouds.get(stop.cloud)).slice(0);
-      const set = await build('city', { count: count(), data, centre: atlas.frames.clouds[stop.cloud].center, metersPerUnit: metersOf(stop) }, [data]);
+      const set = await build('city', { count: count(), data, centre: atlas.frames.clouds[stop.cloud].center, metersPerUnit: metersOf(stop), terrain: atlas.terrain?.[stop.cloud] || 1 }, [data]);
       set.gain = markGain(set.count) * 2.6;
       return set;
     });
@@ -268,6 +272,10 @@ function start({ gl, hdr }) {
     const centre = atlas.frames.clouds[stop.cloud].center, u = 1 / metersOf(stop);
     return [(east - centre[0]) * u, up * u, -(north - centre[1]) * u];
   }
+  const enu = (stop, [x, y, z]) => {
+    const centre = atlas.frames.clouds[stop.cloud].center, m = metersOf(stop);
+    return [x * m + centre[0], -z * m + centre[1], y * m];
+  };
   const photoTextures = new Map();
   const blank = texture(gl, { width: 1, height: 1, internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE, data: new Uint8Array(4) });
   function photoTexture(photo) {
@@ -277,57 +285,124 @@ function start({ gl, hdr }) {
     }
     return photoTextures.get(photo.id) || blank;
   }
-  // Where the stop's photograph was taken, in scene units, with the matrix that projects it.
+  // Where the stop's photograph was taken, in scene units, with the matrix that projects it. A stop that shows a strip
+  // of prints instead of one photograph is framed like a 35 mm view.
   function station(stop) {
     const solved = atlas.frames.stops[stop.id];
-    if (!solved || !stop.photo) return null;
+    if (!solved) return null;
     const pos = world(stop, solved.camera), look = world(stop, solved.look);
-    const fit = photoFit(stop.photo);
+    const fit = photoFit(stop.photo || { width: 3, height: 2, focal: 35 });
     const matrix = multiply(perspective(2 * Math.atan(fit.tanY), fit.tanX / fit.tanY, .01, 4000), lookAt(pos, look));
     return { pos, look, fit, matrix };
   }
+  // The globe turns so a site faces the camera: its longitude relative to the globe's centre, its latitude as elevation.
+  const facing = site => [(site.lon - home.lon) * rad, site.lat * rad];
   let atlasPhoto = null;
   function atlasCamera(stop, t, time) {
-    const shift = subjectShift();
-    atlasPhoto = null;
-    if (stop.id === 'globe') {
+    const { view, photo } = stopView(stop, t, time);
+    atlasPhoto = photo;
+    return view;
+  }
+  function stopView(stop, t, time) {
+    const shift = subjectShift(), index = stops.indexOf(stop);
+    if (stop.kind === 'globe') {
+      const [azimuth, elevation] = facing(siteOf(stop.site) || home);
+      // The first globe swings in from space; a later one carries the camera from the previous site to this one.
+      const before = stops.slice(0, index).reverse().find(item => item.site && item.site !== stop.site);
       const k = smoothstep(0, .85, t);
-      const distance = lerp(8.6, 5.4, smoothstep(0, 1, t));
-      const pos = orbit([0, 0, 0], lerp(-1.2, 0, k) + Math.sin(time * .05) * .04 + state.dragAzimuth, lerp(.12, home.lat * rad, k) + state.dragElevation, distance);
-      return { pos, look: [0, 0, 0], focal: 50, aperture: 4, focus: distance - GLOBE, shift, metersPerUnit: 6371000 / GLOBE };
+      const [fromAzimuth, fromElevation] = before ? facing(siteOf(before.site)) : [azimuth - 1.2, .12];
+      const distance = before ? 5.4 + Math.sin(Math.PI * k) * 2.6 : lerp(8.6, 5.4, smoothstep(0, 1, t));
+      const pos = orbit([0, 0, 0], lerp(fromAzimuth, azimuth, k) + Math.sin(time * .05) * .04 + state.dragAzimuth, lerp(fromElevation, elevation, k) + state.dragElevation, distance);
+      return { view: { pos, look: [0, 0, 0], focal: 50, aperture: 4, focus: distance - GLOBE, shift, metersPerUnit: 6371000 / GLOBE }, photo: null };
     }
-    if (stop.id === 'overview') {
-      const liberty = atlas.frames.stops.liberty ? world(stop, atlas.frames.stops.liberty.look) : [0, 0, 0];
+    const m = metersOf(stop);
+    if (stop.kind === 'overview') {
+      // Drift over the site toward the next stop's subject; the orbit is azimuth, elevation and distance in metres.
       const k = smoothstep(0, 1, t);
-      const look = mix3([0, 0, -.6], [liberty[0] * .6, 0, liberty[2] * .6], k);
-      const pos = add(look, orbit([0, 0, 0], lerp(-.35, -.9, k) + state.dragAzimuth, lerp(.62, .42, k) + state.dragElevation, lerp(8.2, 5.2, k)));
-      return { pos, look, focal: lerp(35, 45, k), aperture: 5.6, focus: length(sub(pos, look)), shift, metersPerUnit: metersOf(stop) };
+      const next = stops[index + 1];
+      const start = stop.look ? world(stop, stop.look) : [0, 0, -.6];
+      const target = next && atlas.frames.stops[next.id] ? world(stop, atlas.frames.stops[next.id].look) : start;
+      const look = mix3(start, [lerp(start[0], target[0], .6), start[1], lerp(start[2], target[2], .6)], k);
+      const path = stop.orbit || { from: [-.35, .62, 10250], to: [-.9, .42, 6500] };
+      const pos = add(look, orbit([0, 0, 0], lerp(path.from[0], path.to[0], k) + state.dragAzimuth, lerp(path.from[1], path.to[1], k) + state.dragElevation, lerp(path.from[2], path.to[2], k) / m));
+      return { view: { pos, look, focal: lerp(35, 45, k), aperture: 5.6, focus: length(sub(pos, look)), shift, metersPerUnit: m }, photo: null };
     }
     const at = station(stop);
-    if (!at) return { pos: [0, 3, 6], look: [0, 0, 0], focal: 35, aperture: 5.6, focus: 6.7, shift, metersPerUnit: metersOf(stop) };
-    // Arrive from a close orbit of the subject (Liberty) or from above (Times Square), then settle exactly at the station.
-    const approach = smoothstep(.12, .78, t);
-    const start = stop.id === 'liberty'
-      ? add(at.look, orbit([0, 0, 0], 2.3 + t * 1.6 + state.dragAzimuth, .32 + state.dragElevation, 2.4))
-      : add(at.pos, [0, 3.4 - t, 2.2]);
-    const startLook = stop.id === 'liberty' ? at.look : mix3(at.pos, at.look, .04);
-    const pos = mix3(start, at.pos, approach), look = mix3(startLook, at.look, approach);
-    atlasPhoto = { stop, at, mix: smoothstep(.72, .9, t), print: t > .9 };
-    return { pos, look, focal: Math.exp(lerp(Math.log(35), Math.log(at.fit.focal), approach)), aperture: 8, focus: Math.max(.2, length(sub(at.look, pos))), shift, metersPerUnit: metersOf(stop) };
-  }
-  const print = $('#lab-print'), printImage = $('#lab-print-image');
-  function showPrint(view) {
-    const shown = active === 'atlas' && atlasPhoto && atlasPhoto.print && length(sub(view.pos, atlasPhoto.at.pos)) < .02;
-    if (shown) {
-      const { stop, at } = atlasPhoto;
-      if (printImage.dataset.photo !== stop.photo.id) { printImage.src = stop.photo.url; printImage.dataset.photo = stop.photo.id; }
-      const w = at.fit.tanX / at.fit.viewTanX * innerWidth, h = at.fit.tanY / at.fit.viewTanY * innerHeight;
-      const cx = (.5 + view.shift[0] / 2) * innerWidth, cy = (.5 - view.shift[1] / 2) * innerHeight;
-      print.style.cssText = 'width:' + w.toFixed(1) + 'px;height:' + h.toFixed(1) + 'px;transform:translate(' + (cx - w / 2).toFixed(1) + 'px,' + (cy - h / 2).toFixed(1) + 'px)';
+    if (!at) return { view: { pos: [0, 3, 6], look: [0, 0, 0], focal: 35, aperture: 5.6, focus: 6.7, shift, metersPerUnit: m }, photo: null };
+    // Arrive at the station from an orbit of the subject, from above, down through the street (for what LiDAR cannot see),
+    // or straight on from the previous stop's camera, then settle exactly where the photograph was taken.
+    const k = smoothstep(.08, .62, t);
+    const previous = stop.approach === 'previous' && stops[index - 1]?.cloud ? stopView(stops[index - 1], 1, time).view : null;
+    let pos, look, focal = Math.exp(lerp(Math.log(35), Math.log(at.fit.focal), k)), aperture = 8, ev = lerp(0, stop.exposure || 0, k);
+    if (previous) {
+      const before = stops[index - 1];
+      const from = p => before.cloud === stop.cloud && metersOf(before) === m ? p : world(stop, enu(before, p));
+      const p0 = from(previous.pos), l0 = from(previous.look);
+      // A long hop rises in an arc, like a drone crossing the strait, instead of skimming the terrain.
+      pos = add(mix3(p0, at.pos, k), [0, Math.sin(Math.PI * k) * (stop.arc || 0) / m, 0]);
+      const reach = Math.exp(lerp(Math.log(length(sub(l0, p0))), Math.log(length(sub(at.look, at.pos))), k));
+      look = add(pos, scale(normalize(mix3(normalize(sub(l0, p0)), normalize(sub(at.look, at.pos)), k)), reach));
+      focal = Math.exp(lerp(Math.log(previous.focal), Math.log(at.fit.focal), k));
+      aperture = lerp(previous.aperture, 8, k);
+      ev = lerp(previous.ev || 0, stop.exposure || 0, k);
+    } else {
+      const [start, startLook] = stop.approach === 'orbit'
+        ? [add(at.look, orbit([0, 0, 0], 2.3 + t * 1.6 + state.dragAzimuth, .32 + state.dragElevation, 2.4)), at.look]
+        : stop.approach === 'below'
+          ? [add(at.pos, [0, 2.4 - t * .6, 1.4]), add(at.pos, [0, 0, -.3])]
+          : [add(at.pos, [0, 3.4 - t, 2.2]), mix3(at.pos, at.look, .04)];
+      pos = mix3(start, at.pos, k);
+      look = mix3(startLook, at.look, k);
     }
-    print.classList.toggle('is-shown', Boolean(shown));
-    const current = active === 'atlas' ? stopAt(progress).id : null;
-    for (const item of document.querySelectorAll('[data-stop]')) item.classList.toggle('is-current', item.dataset.stop === current);
+    const photo = { stop, at, mix: stop.project === false ? 0 : smoothstep(.58, .76, t), print: t > .8 };
+    return { view: { pos, look, focal, aperture, focus: Math.max(.2, length(sub(look, pos))), shift, metersPerUnit: m, ev }, photo };
+  }
+
+  // Prints fade in over the scene once the camera has settled: one photograph exactly over its projection, or a strip.
+  const prints = $('#lab-prints');
+  const printImages = new Map();
+  function printOf(photo) {
+    if (!printImages.has(photo.id)) {
+      const image = document.createElement('img');
+      Object.assign(image, { alt: '', decoding: 'async', className: 'lab-print', width: photo.width, height: photo.height, src: photo.url });
+      prints.append(image);
+      printImages.set(photo.id, image);
+    }
+    return printImages.get(photo.id);
+  }
+  const place = (image, x, y, w, h, delay) => {
+    Object.assign(image.style, { width: w.toFixed(1) + 'px', height: h.toFixed(1) + 'px', transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)', transitionDelay: delay + 's' });
+  };
+  function showPrint(view) {
+    const shown = new Set();
+    const settled = active === 'atlas' && atlasPhoto && atlasPhoto.print && length(sub(view.pos, atlasPhoto.at.pos)) < .02;
+    if (settled) {
+      const { stop, at } = atlasPhoto;
+      const cx = (.5 + view.shift[0] / 2) * innerWidth, cy = (.5 - view.shift[1] / 2) * innerHeight;
+      if (stop.photo) {
+        const w = at.fit.tanX / at.fit.viewTanX * innerWidth, h = at.fit.tanY / at.fit.viewTanY * innerHeight;
+        place(printOf(stop.photo), cx - w / 2, cy - h / 2, w, h, 0);
+        shown.add(stop.photo.id);
+      } else if (stop.photos) {
+        // Side by side beside the text on wide screens, stacked above it on narrow ones.
+        const row = wide(), gap = Math.min(innerWidth, innerHeight) * .025, n = stop.photos.length;
+        const [roomW, roomH] = row ? [innerWidth * .56, innerHeight * .46] : [innerWidth * .9, innerHeight * .54];
+        const aspects = stop.photos.map(photo => photo.width / photo.height);
+        const h = row ? Math.min(roomH, (roomW - gap * (n - 1)) / aspects.reduce((s, a) => s + a, 0)) : Math.min((roomH - gap * (n - 1)) / n, roomW / Math.max(...aspects));
+        let x = cx - (row ? aspects.reduce((s, a) => s + a * h, 0) + gap * (n - 1) : 0) / 2, y = cy - (row ? h : n * h + gap * (n - 1)) / 2;
+        stop.photos.forEach((photo, i) => {
+          const w = aspects[i] * h;
+          place(printOf(photo), row ? x : cx - w / 2, y, w, h, i * .18);
+          if (row) x += w + gap; else y += h + gap;
+          shown.add(photo.id);
+        });
+      }
+    }
+    for (const [id, image] of printImages) image.classList.toggle('is-shown', shown.has(id));
+    const current = active === 'atlas' ? stopAt(progress) : null;
+    for (const item of document.querySelectorAll('[data-stop]')) item.classList.toggle('is-current', item.dataset.stop === current?.id);
+    for (const item of document.querySelectorAll('[data-site]')) item.classList.toggle('is-current', item.dataset.site === current?.site);
+    atlasSection.classList.toggle('is-travelling', stops.indexOf(current) > 0);
   }
   const order = ['intro', 'ignite', 'sculpt', 'develop', 'atlas'];
   const sections = order.map(id => ({ id, element: document.querySelector('[data-chapter="' + id + '"]') }));
@@ -364,7 +439,7 @@ function start({ gl, hdr }) {
     const next = order[order.indexOf(active) + 1];
     if (next) chapters[next].targets(0).catch(() => {});
     const following = active === 'atlas' && stops[stops.indexOf(stopAt(progress)) + 1];
-    if (following && following.cloud) cityTargets(following).catch(() => {});
+    if (following) (following.cloud ? cityTargets(following) : globeTargets()).catch(() => {});
   }
 
   // ---- Input ----------------------------------------------------------------------------------
@@ -565,6 +640,8 @@ function start({ gl, hdr }) {
     const chapter = chapters[active];
     const desired = chapter.camera(progress, time);
     const view = camera.follow(desired, dt, reduced.matches ? 30 : 3.2);
+    // Exposure compensation: a close view of a sparse cloud spreads few points over the frame, so it is opened up, like a lens.
+    state.ev += ((desired.ev || 0) - state.ev) * Math.min(1, dt * (reduced.matches ? 30 : 3.2));
     frame = camera.matrices(viewWidth, viewHeight);
 
     // Pointer as a cylinder of force around the ray under the cursor.
@@ -591,10 +668,10 @@ function start({ gl, hdr }) {
     post.begin();
     particles.draw({
       uView: frame.view, uProjection: frame.projection, uCoc: frame.coc, uFocus: view.focus, uBase: base(), uMaxSize: Math.min(64, 26 * dpr),
-      uGain: 1, uDustGain: .8, uTime: time, uNear: .05, uBlades: 9, uRoundness: smoothstep(5.6, 2, view.aperture) * .85, uCatEye: .32 * smoothstep(8, 2, view.aperture),
+      uGain: 2 ** state.ev, uDustGain: .8 / 2 ** state.ev, uTime: time, uNear: .05, uBlades: 9, uRoundness: smoothstep(5.6, 2, view.aperture) * .85, uCatEye: .32 * smoothstep(8, 2, view.aperture),
       uMode: state.mode === 'depth' ? 2 : 1, uContours: state.contours, uContourOrigin: [0, 0, 0],
-      uPhoto: atlasPhoto ? photoTexture(atlasPhoto.stop.photo) : blank, uPhotoMatrix: atlasPhoto ? atlasPhoto.at.matrix : frame.viewProjection,
-      uPhotoMix: active === 'atlas' && atlasPhoto && particles.morph >= 1 ? atlasPhoto.mix : 0
+      uPhoto: atlasPhoto && atlasPhoto.stop.photo ? photoTexture(atlasPhoto.stop.photo) : blank, uPhotoMatrix: atlasPhoto ? atlasPhoto.at.matrix : frame.viewProjection,
+      uPhotoMix: active === 'atlas' && atlasPhoto && atlasPhoto.stop.photo && particles.morph >= 1 ? atlasPhoto.mix : 0
     });
     showPrint(view);
     post.finish({

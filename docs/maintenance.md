@@ -41,7 +41,7 @@
 | Atlas | 地球 → 各地 LiDAR 点云 → 在拍摄位置把照片投回场景 | `content/phantom/atlas/` |
 
 - 粒子数按实测 GPU 时间在 6.5 万到 104 万之间自动选档。
-- 照片的 EXIF（焦距、光圈、时间）手工记在 `content/phantom.json` 的 `photos` 里，因为 `Photo/` 母版不含元数据。纽约那批相机时钟比当地夏令时慢 1 小时（用 p12 日落的太阳位置验证过）。
+- 照片的 EXIF（焦距、光圈、时间）手工记在 `content/phantom.json` 的 `photos` 里，因为 `Photo/` 母版不含元数据。相机时钟一直停在美东标准时间（UTC−5）：纽约那批比当地夏令时慢 1 小时（p12 日落验证），旧金山那批比太平洋时间快 3 小时（p16 太阳高度 0.8° 验证）。
 - 离线数据工具在 `tools/phantom-data/`，有自己的 `package.json`，CI 不安装：
 
 ```powershell
@@ -52,8 +52,21 @@ node atlas.mjs lidar           # 按 phantom.json 里各站点的 clouds 下载�
 node atlas.mjs frames          # 解算各 stop 的相机位置
 ```
 
-- 新地点（如旧金山、田纳西）：在 `sites` 里填 `origin` 和 `lidar`（美国境内可用 NOAA / USGS 3DEP 的 EPT 地址与 UTM 分区），在 `atlas.stops` 里加 stop 和 `vantage`，然后跑 `lidar` 与 `frames`。照片 `vantage` 可以写成「目标点 + 方位 + 距离」（Liberty 那张就是由太阳方位和雕像角大小解出来的），也可以直接写位置和朝向。
-- 页面数据约 8 MiB（主要是三块点云），只在读到对应章节时才下载。
+- 新地点（如田纳西）：先用 `npm run photos -- add` 把照片加进画廊，在 `photos` 里补 EXIF；再在 `sites` 里填 `origin` 和 `lidar`，在 `atlas.stops` 里加 stop，然后跑 `lidar` 与 `frames`。
+  - LiDAR 来源：NOAA 的 EPT 是 UTM 坐标（填 `zone`）；USGS 3DEP 的 EPT 是 Web Mercator，另加 `"srs": "EPSG:3857"`，本地坐标系仍按 `zone` 建。
+  - 分类错了的结构用 `structures` 走廊改正：2010 年金门测量把大桥归成了植被，走廊内 40 m 以上的点改成桥（class 17，金色），抽稀时整体保留。
+  - 以山地为主的点云用 `terrain` 提亮地面和植被。
+- stop 的写法：
+  - `kind: "globe"` 让地球转到该地点。
+  - `kind: "overview"` 是俯瞰，`orbit` 用米写方位、仰角和距离。
+  - 其余是照片 stop。`approach` 决定镜头怎么到达机位：`orbit` 绕主体，`above` 从上方，`below` 穿过街面（LiDAR 看不到的地下），`previous` 从上一站直接飞来（`arc` 是航线拱起的高度）。
+  - `exposure` 是曝光补偿（EV），用于点稀疏的长焦近景。
+  - `project: false` 表示只显示照片、不投影。
+  - `photos: [...]` 显示一排照片，用于记不清具体位置的那组。
+- 机位 `vantage` 有两种写法：「目标点 + 方位 + 距离」，或「位置 + 方位角 + 俯仰」，`subject` 是主体距离，也是对焦距离。
+  - Liberty 由太阳方位和雕像的角大小解出。
+  - 金门三张用后方交会解出：从点云里取塔顶、Salesforce 和 Transamerica 塔顶的三维位置，配上照片里的像素位置求相机位姿。p16 的解落在 Marshall's Beach 沙面上，p17、p18 落在 Conzelman Road。
+- 页面数据约 15 MiB（六块点云），每块只在读到对应 stop 时才下载。
 
 ## 发布
 

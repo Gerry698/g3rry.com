@@ -75,6 +75,7 @@ assert(labConfig.shapes.length === site.phantom.shapes.length, 'Every Phantom sh
 for (const stop of labConfig.atlas.stops) {
   if (stop.vantage) assert(labConfig.atlas.frames.stops[stop.id], 'Atlas stop has no solved camera (run tools/phantom-data atlas.mjs frames): ' + stop.id);
   if (stop.cloud) assert(labConfig.atlas.clouds[stop.cloud], 'Atlas stop has no point cloud: ' + stop.id);
+  if (stop.photos) assert(stop.photos.every(photo => photo && photo.url), 'Atlas strip has a missing print: ' + stop.id);
 }
 assert.deepEqual(files.filter(file => file.startsWith('Photo/')), ['Photo/gallery.html'], 'Only the old gallery redirect belongs under Photo/.');
 assert.equal((await readFile(path.join(dist, 'CNAME'), 'utf8')).trim(), new URL(site.url).hostname);

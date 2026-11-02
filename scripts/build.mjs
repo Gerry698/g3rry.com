@@ -45,6 +45,12 @@ for (const entry of lab.develop) {
 for (const site of lab.sites) {
   if (!/^[a-z][a-z0-9-]*$/.test(site.id) || Math.abs(site.lat) > 90 || Math.abs(site.lon) > 180) throw new Error('Invalid atlas site: ' + site.id);
 }
+for (const stop of lab.atlas.stops) {
+  if (stop.site && !lab.sites.some(site => site.id === stop.site)) throw new Error('Atlas stop names an unknown site: ' + stop.id);
+  for (const id of [stop.photo, ...(stop.photos || [])].filter(Boolean)) {
+    if (!photos.some(photo => photo.id === id) || !lab.photos[id]) throw new Error('Atlas photo needs a manifest entry and lab metadata: ' + id);
+  }
+}
 
 // Delete only this project's generated dist directory.
 if (path.dirname(dist) !== root || path.basename(dist) !== 'dist') throw new Error('Unsafe output directory.');
@@ -214,7 +220,8 @@ const labConfig = {
     land: await labData('atlas/land.bin'),
     frames: JSON.parse(await readFile(path.join(root, 'content/phantom/atlas/frames.json'), 'utf8').catch(() => '{"clouds":{},"stops":{}}')),
     clouds: Object.fromEntries(await Promise.all(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).map(async cloud => [cloud.id, await labData('atlas/' + cloud.id + '.bin')]))),
-    stops: lab.atlas.stops.map(stop => ({ ...stop, photo: stop.photo ? labPhoto(stop.photo) : null }))
+    terrain: Object.fromEntries(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).filter(cloud => cloud.terrain).map(cloud => [cloud.id, cloud.terrain])),
+    stops: lab.atlas.stops.map(stop => ({ ...stop, photo: stop.photo ? labPhoto(stop.photo) : null, photos: stop.photos ? stop.photos.map(labPhoto) : null }))
   }
 };
 const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {

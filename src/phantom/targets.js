@@ -293,8 +293,9 @@ export function globeSet({ count, mask, maskWidth, maskHeight, sites, centre, ra
 }
 
 // A LiDAR cloud (tools/phantom-data/atlas.mjs) in its site's east-north-up metres, re-centred and scaled into the scene:
-// x east, y up, z south. Buildings glow warmer the taller they stand; ground, trees and water stay low.
-export function citySet({ count, data, centre, metersPerUnit, seed = 37 }) {
+// x east, y up, z south. Buildings glow warmer the taller they stand; ground, trees and water stay low, raised by `terrain`
+// where the land itself is the subject (headlands rather than streets).
+export function citySet({ count, data, centre, metersPerUnit, terrain = 1, seed = 37 }) {
   const set = createSet(count);
   const rand = random(seed);
   const view = new DataView(data);
@@ -321,8 +322,8 @@ export function citySet({ count, data, centre, metersPerUnit, seed = 37 }) {
     const cls = classes[j], lit = .55 + .9 * intensities[j] / 255;
     let rgb = WARM, level;
     if (cls === 6) { const t = Math.min(1, Math.max(0, up / 260)); rgb = t > .35 ? GOLD : WARM; level = (.5 + 1.6 * Math.sqrt(t)) * lit; }
-    else if (cls === 2) { rgb = [.62, .68, .78]; level = .26 * lit; }
-    else if (cls >= 3 && cls <= 5) { rgb = [.66, .74, .66]; level = .24 * lit; }
+    else if (cls === 2) { rgb = [.62, .68, .78]; level = .26 * lit * terrain; }
+    else if (cls >= 3 && cls <= 5) { rgb = [.66, .74, .66]; level = .24 * lit * terrain; }
     else if (cls === 9) { rgb = [.5, .64, .86]; level = .2; }
     else if (cls === 17) { rgb = GOLD; level = 1.1 * lit; }
     else level = (.6 + up / 60) * lit;

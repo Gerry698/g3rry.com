@@ -30,7 +30,7 @@
       "id": "atlas",
       "kicker": "03 / Atlas",
       "title": "Where the light\nwas.",
-      "text": "Every frame was taken somewhere. The atlas starts from the whole planet and descends to the places I photographed, rebuilt from public airborne LiDAR. New York first; more places will follow."
+      "text": "Every frame was taken somewhere. The atlas starts from the whole planet and descends to the places I photographed, rebuilt from public airborne LiDAR. New York and San Francisco so far; more places will follow."
     }
   ],
   "develop": [
@@ -130,6 +130,34 @@
             "depth": 9,
             "spacing": 1.1,
             "maxPoints": 480000
+          },
+          {
+            "id": "nyc-columbus-circle",
+            "center": [
+              40.7681,
+              -73.9819
+            ],
+            "size": [
+              620,
+              620
+            ],
+            "depth": 9,
+            "spacing": 1.1,
+            "maxPoints": 320000
+          },
+          {
+            "id": "nyc-flushing",
+            "center": [
+              40.759,
+              -73.83
+            ],
+            "size": [
+              700,
+              700
+            ],
+            "depth": 9,
+            "spacing": 1.2,
+            "maxPoints": 340000
           }
         ]
       }
@@ -137,9 +165,55 @@
     {
       "id": "san-francisco",
       "name": "San Francisco",
-      "lat": 37.7749,
-      "lon": -122.4194,
-      "status": "soon"
+      "lat": 37.8199,
+      "lon": -122.4783,
+      "period": "December 2025",
+      "status": "live",
+      "origin": [
+        37.8199,
+        -122.4783
+      ],
+      "lidar": {
+        "source": "Golden Gate LiDAR Project 2010 (USGS 3D Elevation Program, ARRA-CA_GoldenGate_2010)",
+        "ept": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/ARRA-CA_GoldenGate_2010/",
+        "srs": "EPSG:3857",
+        "zone": 10,
+        "clouds": [
+          {
+            "id": "sf-golden-gate",
+            "center": [
+              37.8148,
+              -122.4868
+            ],
+            "size": [
+              3400,
+              4400
+            ],
+            "depth": 8,
+            "spacing": 3.5,
+            "waterCell": 40,
+            "maxPoints": 700000,
+            "terrain": 2.4
+          }
+        ],
+        "structures": [
+          {
+            "name": "Golden Gate Bridge",
+            "from": [
+              37.810786,
+              -122.477486
+            ],
+            "to": [
+              37.828723,
+              -122.479602
+            ],
+            "width": 44,
+            "above": 40,
+            "class": 17,
+            "spacing": 1.5
+          }
+        ]
+      }
     },
     {
       "id": "tennessee",
@@ -156,6 +230,13 @@
       "utcOffset": "-04:00",
       "cameraClockBehindMinutes": 60,
       "note": "The camera clock was on standard time; EXIF times read one hour early. Checked against the sun on p12, which sits on the horizon only when the hour is corrected."
+    },
+    {
+      "id": "san-francisco-2025",
+      "site": "san-francisco",
+      "utcOffset": "-08:00",
+      "cameraClockAheadMinutes": 180,
+      "note": "The camera clock was still on US Eastern standard time, the same setting as in New York; EXIF times read three hours ahead of Pacific time. Checked against the sun on p16, which stands 0.8 degrees above the horizon only at the corrected time."
     }
   ],
   "photos": {
@@ -167,8 +248,8 @@
       "shutter": "20",
       "iso": 100,
       "exif": "2023-06-06T14:58:23",
-      "place": "Subway platform",
-      "located": false
+      "place": "Columbus Circle",
+      "located": true
     },
     "p02": {
       "trip": "new-york-2023",
@@ -178,8 +259,8 @@
       "shutter": "1/500",
       "iso": 125,
       "exif": "2023-06-12T13:34:03",
-      "place": "Chinatown",
-      "located": false
+      "place": "Flushing",
+      "located": true
     },
     "p03": {
       "trip": "new-york-2023",
@@ -189,8 +270,8 @@
       "shutter": "1/500",
       "iso": 125,
       "exif": "2023-06-12T13:36:36",
-      "place": "Chinatown",
-      "located": false
+      "place": "Flushing",
+      "located": true
     },
     "p04": {
       "trip": "new-york-2023",
@@ -200,8 +281,8 @@
       "shutter": "1/13",
       "iso": 100,
       "exif": "2023-06-12T14:15:03",
-      "place": "Chinatown",
-      "located": false
+      "place": "Flushing",
+      "located": true
     },
     "p05": {
       "trip": "new-york-2023",
@@ -323,10 +404,44 @@
       "exif": "2023-06-05T19:28:49",
       "place": "Midtown",
       "located": false
+    },
+    "p16": {
+      "trip": "san-francisco-2025",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 70,
+      "aperture": 4,
+      "shutter": "1/640",
+      "iso": 200,
+      "exif": "2025-12-27T19:48:54",
+      "place": "Marshall's Beach",
+      "located": true
+    },
+    "p17": {
+      "trip": "san-francisco-2025",
+      "lens": "RF70-200mm F2.8 L IS USM",
+      "focal": 142,
+      "aperture": 3.5,
+      "shutter": "1/400",
+      "iso": 800,
+      "exif": "2025-12-29T20:27:16",
+      "place": "Conzelman Road",
+      "located": true
+    },
+    "p18": {
+      "trip": "san-francisco-2025",
+      "lens": "RF200-800mm F6.3-9 IS USM",
+      "focal": 481,
+      "aperture": 9,
+      "shutter": "1/200",
+      "iso": 6400,
+      "exif": "2025-12-29T20:40:57",
+      "place": "Conzelman Road",
+      "located": true
     }
   },
   "credits": [
     "LiDAR: New York City 2017 Topobathymetric survey, distributed by NOAA Digital Coast.",
+    "LiDAR: Golden Gate LiDAR Project 2010, from the USGS 3D Elevation Program; downtown San Francisco heights from USGS CA_SanFrancisco_1_B23.",
     "Coastlines: Natural Earth.",
     "Depth estimates: Depth Anything V2 Small (Apache-2.0), computed offline."
   ],
@@ -335,14 +450,18 @@
       {
         "id": "globe",
         "title": "The whole planet",
-        "caption": "Every place I have photographed, on one sphere of light."
+        "caption": "Every place I have photographed, on one sphere of light.",
+        "kind": "globe",
+        "site": "new-york"
       },
       {
         "id": "overview",
         "site": "new-york",
         "cloud": "nyc-overview",
         "title": "New York, from above",
-        "caption": "Lower and Midtown Manhattan and the harbour: about seven hundred thousand LiDAR returns."
+        "caption": "Lower and Midtown Manhattan and the harbour: about seven hundred thousand LiDAR returns.",
+        "kind": "overview",
+        "scale": 1250
       },
       {
         "id": "liberty",
@@ -364,7 +483,8 @@
             0.37,
             -0.71
           ]
-        }
+        },
+        "approach": "orbit"
       },
       {
         "id": "times-square",
@@ -381,7 +501,148 @@
           "height": 1.6,
           "azimuth": 28.5,
           "pitch": 6
+        },
+        "approach": "above"
+      },
+      {
+        "id": "columbus-circle",
+        "site": "new-york",
+        "cloud": "nyc-columbus-circle",
+        "photo": "p01",
+        "approach": "below",
+        "project": false,
+        "title": "Columbus Circle, underground",
+        "caption": "LiDAR stops at the pavement, so the camera keeps going. Somewhere under the circle a train became a line of light: twenty seconds at ƒ/32. The spot on the platform is approximate.",
+        "vantage": {
+          "at": [
+            40.7676,
+            -73.9822
+          ],
+          "height": 14.5,
+          "azimuth": 29,
+          "pitch": 0,
+          "subject": 40
+        },
+        "exposure": 2
+      },
+      {
+        "id": "flushing",
+        "site": "new-york",
+        "cloud": "nyc-flushing",
+        "photos": [
+          "p02",
+          "p03",
+          "p04"
+        ],
+        "approach": "above",
+        "project": false,
+        "title": "Flushing, Main Street",
+        "caption": "Three frames from one afternoon. I no longer know where on the street each was made, so they stay prints rather than places.",
+        "vantage": {
+          "at": [
+            40.7586,
+            -73.83
+          ],
+          "height": 11.4,
+          "azimuth": 18,
+          "pitch": 2,
+          "subject": 60
         }
+      },
+      {
+        "id": "crossing",
+        "kind": "globe",
+        "site": "san-francisco",
+        "title": "West, 4,130 km",
+        "caption": "Across the continent, and two and a half years later."
+      },
+      {
+        "id": "golden-gate",
+        "kind": "overview",
+        "site": "san-francisco",
+        "cloud": "sf-golden-gate",
+        "scale": 100,
+        "look": [
+          -20,
+          -100,
+          90
+        ],
+        "orbit": {
+          "from": [
+            -1.5,
+            0.34,
+            5600
+          ],
+          "to": [
+            -0.66,
+            0.13,
+            2700
+          ]
+        },
+        "title": "The Golden Gate",
+        "caption": "Both towers, the headlands and the strait: seven hundred thousand returns from the 2010 Golden Gate LiDAR survey."
+      },
+      {
+        "id": "marshalls-beach",
+        "site": "san-francisco",
+        "cloud": "sf-golden-gate",
+        "photo": "p16",
+        "approach": "previous",
+        "arc": 260,
+        "title": "Marshall's Beach, at sunset",
+        "caption": "Placed by the photograph: the two towers, 1,280 m apart, line up like this from one spot on the sand, 1.47 km from the south tower with the lens near the ground. 16:48 on 27 December, the sun 0.8° above the sea.",
+        "vantage": {
+          "at": [
+            37.800888,
+            -122.48035
+          ],
+          "height": 1.5,
+          "azimuth": 5.8,
+          "pitch": 2.72,
+          "subject": 1470
+        },
+        "exposure": 1
+      },
+      {
+        "id": "conzelman",
+        "site": "san-francisco",
+        "cloud": "sf-golden-gate",
+        "photo": "p17",
+        "approach": "previous",
+        "arc": 420,
+        "title": "Conzelman Road, after sunset",
+        "caption": "The north tower’s two tops, with the Salesforce and Transamerica towers behind them, fix the spot: 680 m from the tower and 140 m above the water. Twenty-eight minutes after sunset, 142 mm.",
+        "vantage": {
+          "at": [
+            37.828642,
+            -122.48584
+          ],
+          "height": 140,
+          "azimuth": 120.95,
+          "pitch": 3.82,
+          "subject": 680
+        },
+        "exposure": 5
+      },
+      {
+        "id": "deck",
+        "site": "san-francisco",
+        "cloud": "sf-golden-gate",
+        "photo": "p18",
+        "approach": "previous",
+        "title": "The deck, at 481 mm",
+        "caption": "Same place, thirteen minutes later. Solved from the two railings: 800 m away, a forty-metre slice of the deck 180 m south of the north tower. The ferry is newer than the survey.",
+        "vantage": {
+          "at": [
+            37.828642,
+            -122.48584
+          ],
+          "height": 140,
+          "azimuth": 132.25,
+          "pitch": -5,
+          "subject": 800
+        },
+        "exposure": 7
       }
     ]
   }
