@@ -285,7 +285,7 @@ const printColors = await Promise.all(featured.map(async photo => {
 const campExtras = {
   photography: () => '<div class="camp-extra camp-photos">' + featured.map(photo => {
     const version = photo.versions[0];
-    return '<a href="/photos/#photo-' + photo.id + '"><img src="' + version.webp + '" alt="' + escape(photo.alt) + '" width="' + version.width + '" height="' + Math.round(photo.height * version.width / photo.width) + '" loading="lazy" decoding="async"></a>';
+    return '<a href="/photos/' + photo.id + '/"><img src="' + version.webp + '" alt="' + escape(photo.alt) + '" width="' + version.width + '" height="' + Math.round(photo.height * version.width / photo.width) + '" loading="lazy" decoding="async"></a>';
   }).join('') + '</div>'
 };
 const campData = {
