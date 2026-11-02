@@ -34,13 +34,14 @@
 
 ## 山（/mountain/）
 
-一个用 WebGL2 画的雪山目录页：打开时镜头绕山缓慢旋转，滚轮、点击、方向键或手机上下滑动，镜头沿螺旋小径一站一站爬到峰顶，时辰随海拔从拂晓走到星夜。主导航里的 "The Ascent" 指向它，也在 sitemap 里；分享链接时的预览图是 `src/mountain/social.jpg`（1200×630，用 `?debug&clean` 渲染截取），山形或配色大改后重截一张。
+一个用 WebGL2 画的雪山目录页（目标是以后当主页）：打开时镜头绕山缓慢旋转，滚轮、点击、方向键或手机上下滑动，镜头沿螺旋小径一站一站爬到峰顶，时辰随海拔从拂晓走到星夜。主导航里的 "The Ascent" 指向它，也在 sitemap 里；分享链接时的预览图是 `src/mountain/social.jpg`（1200×630，用 `?debug&clean` 渲染截取），山形或配色大改后重截一张。
 
-- 文案和营地在 `content/mountain.json`：`intro` 是标题屏，`camps` 按山脚到峰顶排列（3–9 个，最后一个是峰顶）。每个营地有 `id`（也是 `#id` 深链接）、`title`、`description`，可选 `kicker`、`href`（站内路径，缺省时显示 "Trail under construction"）、`time`（`dawn` / `morning` / `noon` / `golden` / `dusk` / `night`）。
-- 代码在 `src/mountain/`，原生 ES module，无运行时依赖：`terrain.js` 生成山体、营地位置、小径、树和云；`camera.js` 定每站机位和转场；`renderer.js` + `shaders.js` 负责渲染（阴影、雾、天空、云、泛光）；`palettes.js` 是各时辰配色；`props.js` 是帐篷、旗和石堆；`main.js` 管交互和状态。
+- 文案和营地在 `content/mountain.json`：`intro` 是标题屏，`camps` 按山脚到峰顶排列（3–9 个，最后一个是峰顶）。每个营地有 `id`（也是 `#id` 深链接）、`title`、`description`，可选 `kicker`、`href`（站内路径或 `https://*.g3rry.com/`，缺省时显示 "Trail under construction"）、`time`（`dawn` / `morning` / `noon` / `golden` / `dusk` / `night`）、`model`（营地的主题模型，见下）。
+- 主题模型（`props.js`）：`trailhead` 路标、背包和篝火；`photography` 三脚架相机和一排晾着的照片，颜色取自精选照片里最鲜艳的色调（构建时算）；`phantom` 一圈立石，上方的光点平时散着飘，到站时聚成 `site.json` 第一个 Phantom 图案（构建时从 `image/` 取点），鼠标划过会被冲散；`mailboxes` 一排信箱和一盏灯；`summit` 峰顶旗、发光的登顶簿和一串三角旗，旗数等于留言板已公开的留言数（运行时读 `/api/guestbook`，最多 12 面）。峰顶卡片同时显示最新一条留言，Photography 卡片显示三张精选照片。
+- 代码在 `src/mountain/`，原生 ES module，无运行时依赖：`terrain.js` 生成山体、营地位置、小径、树和云；`camera.js` 定每站机位和转场；`renderer.js` + `shaders.js` 负责渲染（阴影、雾、天空、云、泛光）；`palettes.js` 是各时辰配色；`props.js` 是帐篷、旗和各营地的主题模型；`scene.js` 把这些组装起来，`worker.js` 在后台线程里跑它（不支持模块 Worker 时退回主线程）；`main.js` 管交互和状态。没有多重采样的低画质档（手机）在合成时做 FXAA 抗锯齿。不支持 WebGL2 时页面显示营地列表，背后铺分享图。
 - 构建把整个目录连同两款 OFL 字体（`@fontsource` 的 Cormorant Garamond、JetBrains Mono 拉丁子集）按内容哈希发布到 `/assets/mountain-<hash>/`，所以模块之间的相对 import 不用改。
 - 山的形状是确定的：同一份代码每次生成同一座山。改 `terrain.js` 里的 `PEAKS` 和噪声参数会整体改变山形和营地位置；远景里那几座独立的远山在 `FAR_PEAKS`。小径是在山体网格上按坡度寻路得出的，陡处自动走之字形，营地之间改了位置会自己重新找路。
-- 调试参数：`?debug` 暴露 `window.mountain`（`station(i)` 跳到第 i 站、`pose()`、`time('dusk')`、`bench()` 测每帧耗时、`hide('bloom')`）；`?clean` 隐藏文字层；`?timer` 用定时器驱动渲染（后台标签页不跑 requestAnimationFrame 时用）；`?quality=low|high`；`?motion=reduce`。
+- 调试参数：`?debug` 暴露 `window.mountain`（`station(i)` 跳到第 i 站、`pose()`、`time('dusk')`、`bench()` 测每帧耗时、`hide('bloom')`、`notes(n, note)` 模拟留言板数据、`pointer(x, y)` 模拟指针）；`?clean` 隐藏文字层；`?timer` 用定时器驱动渲染（后台标签页不跑 requestAnimationFrame 时用）；`?quality=low|high`；`?motion=reduce`。
 ## Phantom 实验页（/phantom/）
 
 独立全屏页，`noindex`，不在导航和 sitemap 里。代码在 `src/phantom/`（原生 WebGL2，无依赖；构建时整个目录按内容取哈希输出到 `assets/phantom-<hash>/`），文案与参数在 `content/phantom.json`。

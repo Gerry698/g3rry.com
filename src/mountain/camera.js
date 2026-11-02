@@ -15,8 +15,8 @@ export function stationPose(camp, summit, progress, terrain, layout) {
   const at = [camp.x, camp.y, camp.z];
   const preferred = camp.summit ? .5 : .22;
   const frame = offset => camp.summit
-    ? { pose: { angle: camp.angle + offset, radius: 13, y: camp.y - 4.2 }, aim: [camp.x, camp.y - 1.6, camp.z] }
-    : { pose: { angle: camp.angle + offset, radius: camp.r + lerp(13, 8.5, progress), y: camp.y + .9 + progress * .6 }, aim: mix3(at, [summit.x, summit.y, summit.z], .3) };
+    ? { pose: { angle: camp.angle + offset, radius: 9, y: camp.y - 2.6 }, aim: [camp.x, camp.y - .9, camp.z] }
+    : { pose: { angle: camp.angle + offset, radius: camp.r + lerp(8.5, 6.5, progress), y: camp.y + .75 + progress * .45 }, aim: mix3(at, [summit.x, summit.y, summit.z], .3) };
   // A shoulder peak can stand right in front of a camp. Try bearings either side of the preferred one
   // and keep the view that needs the least lifting, so the camera looks past the shoulder, not over it.
   let best = null;

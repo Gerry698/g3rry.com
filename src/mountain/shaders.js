@@ -314,30 +314,85 @@ layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec4 aColor;
 layout(location = 2) in vec4 aFlag;
 uniform mat4 uViewProj;
-uniform float uTime;
+uniform float uTime, uPennants;
 out vec3 vWorld;
 out vec3 vAlbedo;
+out float vGlow;
 void main() {
   vec3 p = aPosition;
   // Cloth ripples sideways in waves that run from the pole to the free end and grow along the way;
   // gusts swell and ease the motion. Everything off the cloth has aFlag.x = 0 and stays put.
+  float pennant = floor(aFlag.y * .5), v = aFlag.y - pennant * 2.;
   float u = aFlag.x, phase = dot(aPosition.xz, vec2(3.1, 4.3)), t = uTime * 5.2 + phase;
   float gust = .7 + .3 * sin(uTime * .63 + phase);
-  float wave = sin(u * 8.5 - t + aFlag.y * .9) * .7 + sin(u * 17. - t * 1.6 + phase) * .3;
+  float wave = sin(u * 8.5 - t + v * .9) * .7 + sin(u * 17. - t * 1.6 + phase) * .3;
   p += vec3(aFlag.z, 0., aFlag.w) * wave * u * .17 * gust;
+  // Summit pennants beyond the number of guestbook notes collapse to nothing.
+  if (pennant > uPennants) p = vec3(0., -1e4, 0.);
   vWorld = p;
   vAlbedo = aColor.rgb * aColor.rgb;
+  vGlow = 1. - aColor.a;
   gl_Position = uViewProj * vec4(p, 1.);
 }`;
 
 export const propFragment = header + atmosphere + lighting + `
 in vec3 vWorld;
 in vec3 vAlbedo;
+in float vGlow;
 out vec4 outColor;
+uniform float uTime;
 void main() {
   vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
   vec3 color = light(vAlbedo, n, 1., .4, shadowAt(vWorld, n));
+  // Emissive faces (fire, lamps, the lit register) glow on their own; flames flicker.
+  float flicker = 1. + (sin(uTime * 11. + vWorld.x * 37.) * .18 + sin(uTime * 17.3 + vWorld.z * 23.) * .12) * smoothstep(.9, 1., vGlow);
+  color = mix(color, vAlbedo * 7. * flicker, vGlow);
   outColor = vec4(atmosphere(color, vWorld), 1.);
+}`;
+
+// The Phantom camp's points of light: a loose, drifting swarm that gathers into the Phantom mark facing the camera
+// (uSpark.xyz centre, w half-size) while the camp is visited (uForm), and shies away from the pointer.
+export const sparkVertex = header + noise + `
+layout(location = 0) in vec2 aShape;
+uniform mat4 uViewProj;
+uniform vec4 uSpark;
+uniform vec3 uRight, uUp;
+uniform float uTime, uForm, uHeight, uAspect;
+uniform vec3 uPointer;
+out float vAlpha;
+out float vHeat;
+void main() {
+  float id = float(gl_VertexID);
+  vec3 seed = vec3(hash12(vec2(id, 1.7)), hash12(vec2(id, 5.3)), hash12(vec2(id, 9.1))) - .5;
+  vec3 drift = vec3(sin(uTime * .37 + id * .71), sin(uTime * .29 + id * 1.3) * .7, cos(uTime * .33 + id * .53)) * .22;
+  vec3 loose = uSpark.xyz + (seed * vec3(2.4, 1.5, 2.4) + drift) * uSpark.w;
+  vec3 formed = uSpark.xyz + (aShape.x * uRight + aShape.y * uUp) * uSpark.w + (seed.x * uRight + seed.y * uUp) * .006 * sin(uTime * 2. + id);
+  float form = smoothstep(0., 1., clamp(uForm * 1.7 - (seed.z + .5) * .7, 0., 1.));
+  vec3 p = mix(loose, formed, form);
+  vec4 clip = uViewProj * vec4(p, 1.);
+  // The pointer (uPointer.xy in clip space, z its strength) pushes nearby points aside in the screen plane.
+  vec2 d = clip.xy / clip.w - uPointer.xy;
+  d.x *= uAspect;
+  float push = exp(-dot(d, d) * 90.) * uPointer.z;
+  p += (normalize(d.x * uRight + d.y * uUp + 1e-5) * .35 + (seed.x * uRight + seed.y * uUp) * .3) * push * uSpark.w;
+  clip = uViewProj * vec4(p, 1.);
+  vAlpha = mix(.55, 1., form) * (.6 + (seed.y + .5) * .4);
+  vHeat = form;
+  gl_Position = clip;
+  gl_PointSize = clamp(uHeight * (.0055 + (seed.z + .5) * .0035) / max(clip.w, .1), 1.5, 8.);
+}`;
+
+export const sparkFragment = header + `
+in float vAlpha;
+in float vHeat;
+out vec4 outColor;
+uniform vec3 uLantern;
+uniform float uSparkPower;
+void main() {
+  float d = length(gl_PointCoord - .5);
+  float a = smoothstep(.5, 0., d);
+  vec3 color = mix(vec3(.62, .7, 1.), uLantern * 1.5, vHeat * .85) * (1. + smoothstep(.2, 0., d) * 2.);
+  outColor = vec4(color * a * vAlpha * uSparkPower, 0.);
 }`;
 
 export const cloudVertex = header + corners + `
@@ -464,12 +519,27 @@ export const compositeFragment = header + noise + `
 in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uScene, uBloom;
-uniform float uExposure, uSaturation, uTime, uFade, uBloomStrength;
+uniform float uExposure, uSaturation, uTime, uFade, uBloomStrength, uFxaa;
 uniform vec3 uTint;
+uniform vec2 uTexel;
 vec3 aces(vec3 x) { return clamp(x * (2.51 * x + .03) / (x * (2.43 * x + .59) + .14), 0., 1.); }
+vec3 graded(vec2 uv) { return aces((texture(uScene, uv).rgb + texture(uBloom, uv).rgb * uBloomStrength) * uExposure * uTint); }
+float lum(vec3 c) { return dot(c, vec3(.299, .587, .114)); }
 void main() {
-  vec3 color = (texture(uScene, vUv).rgb + texture(uBloom, vUv).rgb * uBloomStrength) * uExposure * uTint;
-  color = aces(color);
+  vec3 color = graded(vUv);
+  // Without multisampling (the low tier), a light FXAA pass smooths stair-stepped edges along their direction.
+  if (uFxaa > 0.) {
+    float nw = lum(graded(vUv + uTexel * vec2(-1, -1))), ne = lum(graded(vUv + uTexel * vec2(1, -1)));
+    float sw = lum(graded(vUv + uTexel * vec2(-1, 1))), se = lum(graded(vUv + uTexel * vec2(1, 1))), m = lum(color);
+    float low = min(m, min(min(nw, ne), min(sw, se))), high = max(m, max(max(nw, ne), max(sw, se)));
+    vec2 dir = vec2(-((nw + ne) - (sw + se)), (nw + sw) - (ne + se));
+    float reduce = max((nw + ne + sw + se) * .03125, 1. / 128.);
+    dir = clamp(dir / (min(abs(dir.x), abs(dir.y)) + reduce), -8., 8.) * uTexel;
+    vec3 a = .5 * (graded(vUv - dir / 6.) + graded(vUv + dir / 6.));
+    vec3 b = a * .5 + .25 * (graded(vUv - dir * .5) + graded(vUv + dir * .5));
+    float lb = lum(b);
+    color = lb < low || lb > high ? a : b;
+  }
   float luma = dot(color, vec3(.2126, .7152, .0722));
   color = mix(vec3(luma), color, uSaturation);
   vec2 q = vUv - .5;

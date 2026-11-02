@@ -106,7 +106,7 @@ export function createTerrain(seed = 11) {
     return Math.hypot(sample(x + e, z) - sample(x - e, z), sample(x, z + e) - sample(x, z - e)) / (2 * e);
   }
 
-  return { base, height, radiusAt, slope, setLedges(list) { ledges = list; } };
+  return { base, height, radiusAt, slope, get ledges() { return ledges; }, setLedges(list) { ledges = list; } };
 }
 
 // Camps spiral upward, one revolution from trailhead to the last camp below the summit.

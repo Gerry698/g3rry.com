@@ -32,7 +32,8 @@ if (!Array.isArray(mountain.camps) || mountain.camps.length < 3 || mountain.camp
 const campIds = new Set();
 for (const camp of mountain.camps) {
   if (!/^[a-z][a-z0-9-]*$/.test(camp.id) || campIds.has(camp.id) || !camp.title || !camp.description) throw new Error('Invalid mountain camp: ' + camp.id);
-  if (camp.href !== undefined && !/^\/(?!\/)/.test(camp.href)) throw new Error('Camp links must be site paths: ' + camp.id);
+  if (camp.href !== undefined && !/^\/(?!\/)|^https:\/\/[a-z0-9.-]+\.g3rry\.com\//.test(camp.href)) throw new Error('Camp links must be site paths or g3rry.com subdomains: ' + camp.id);
+  if (camp.model !== undefined && !['trailhead', 'photography', 'phantom', 'mailboxes', 'summit'].includes(camp.model)) throw new Error('Unknown camp model: ' + camp.model);
   if (camp.time !== undefined && !times.includes(camp.time)) throw new Error('Unknown camp time "' + camp.time + '"; use one of ' + times.join(', '));
   campIds.add(camp.id);
 }
@@ -157,9 +158,11 @@ async function assetFolder(source, name, extra = {}) {
 // Latin subsets of two OFL fonts, self-hosted so the page needs nothing from other origins.
 const mountainFiles = await assetFolder('mountain', 'mountain', {
   'cormorant-garamond.woff2': 'node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-normal.woff2',
-  'jetbrains-mono.woff2': 'node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2'
+  'jetbrains-mono.woff2': 'node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2',
+  // Shared preview image; the page also shows it behind the camp list when WebGL is unavailable.
+  'social.jpg': 'src/mountain/social.jpg'
 });
-const mountainSocial = await asset('mountain/social.jpg', 'mountain-social');
+const mountainSocial = mountainFiles.find(file => file.endsWith('/social.jpg'));
 const labFiles = await assetFolder('phantom', 'phantom');
 // Lab data (depth maps, point clouds) is optional per item until it has been generated with tools/phantom-data.
 async function labData(relative) {
@@ -250,16 +253,53 @@ await output('404.html', render(
   { title: 'Page not found — ' + site.name, description: 'Find your way back to the photographs.', route: '/404.html', pageClass: 'error-page', noindex: true }));
 // The full-screen pages (mountain, lab) have their own shells but share the site's Content-Security-Policy.
 const mountainScript = mountainFiles.find(file => file.endsWith('/main.js'));
-const camps = mountain.camps.map((camp, index) => '<li id="' + camp.id + '" data-kicker="' + escape(camp.kicker || 'Camp ' + numerals[index]) + '"' + (camp.time ? ' data-time="' + camp.time + '"' : '') + '>'
+// The Phantom camp floats the first Phantom mark as a cloud of points: its bright, opaque pixels, sampled once here.
+async function phantomPoints(source, count = 2600) {
+  const { data, info } = await sharp(path.join(root, source)).resize({ width: 120, height: 120, fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const lit = [], half = Math.max(info.width, info.height) / 2;
+  for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
+    const i = (y * info.width + x) * 4, luma = (data[i] * .2126 + data[i + 1] * .7152 + data[i + 2] * .0722) / 255;
+    if (data[i + 3] > 128 && luma > .35) lit.push([(x + .5 - info.width / 2) / half, (info.height / 2 - y - .5) / half]);
+  }
+  let seed = 7;
+  const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const points = Array.from({ length: Math.min(count, lit.length * 4) }, () => { const [x, y] = lit[Math.floor(next() * lit.length)]; return [x + (next() - .5) / half, y + (next() - .5) / half]; });
+  const bytes = Buffer.from(JSON.stringify(points.flat().map(value => Math.round(value * 1000) / 1000)));
+  const url = '/assets/mountain-phantom-' + digest(bytes) + '.json';
+  await output(url.slice(1), bytes);
+  return url;
+}
+const featured = generated.filter(photo => photo.featured);
+// Each print on the Photography camp's line takes the most vivid tone of one featured photograph (the brightest,
+// most saturated twentieth of its pixels), since night photographs are dominated by near-black.
+const printColors = await Promise.all(featured.map(async photo => {
+  const { data } = await sharp(path.join(dist, photo.large.slice(1))).resize(48, 48, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixels = [];
+  for (let i = 0; i < data.length; i += 3) pixels.push([data[i], data[i + 1], data[i + 2]]);
+  const vivid = pixels.map(p => ({ p, score: (Math.max(...p) - Math.min(...p)) * Math.max(...p) })).sort((a, b) => b.score - a.score).slice(0, Math.ceil(pixels.length / 20));
+  return '#' + [0, 1, 2].map(c => Math.round(vivid.reduce((sum, { p }) => sum + p[c], 0) / vivid.length).toString(16).padStart(2, '0')).join('');
+}));
+const campExtras = {
+  photography: () => '<div class="camp-extra camp-photos">' + featured.map(photo => {
+    const version = photo.versions[0];
+    return '<a href="/photos/#photo-' + photo.id + '"><img src="' + version.webp + '" alt="' + escape(photo.alt) + '" width="' + version.width + '" height="' + Math.round(photo.height * version.width / photo.width) + '" loading="lazy" decoding="async"></a>';
+  }).join('') + '</div>'
+};
+const campData = {
+  photography: () => ' data-prints="' + printColors.join(',') + '"',
+  phantom: async () => ' data-shape="' + await phantomPoints(site.phantom.shapes[0].source) + '"'
+};
+const camps = await Promise.all(mountain.camps.map(async (camp, index) => '<li id="' + camp.id + '" data-kicker="' + escape(camp.kicker || 'Camp ' + numerals[index]) + '"' + (camp.time ? ' data-time="' + camp.time + '"' : '')
+  + (camp.model ? ' data-model="' + camp.model + '"' + (campData[camp.model] ? await campData[camp.model]() : '') : '') + '>'
   + '<a href="' + escape(camp.href || '#' + camp.id) + '"' + (camp.href ? '' : ' data-pending') + '><span class="camp-number">' + numerals[index] + '</span><span class="camp-title">' + escape(camp.title) + '</span></a>'
-  + '<p>' + escape(camp.description) + '</p></li>');
+  + '<p>' + escape(camp.description) + '</p>' + (campExtras[camp.model] ? campExtras[camp.model]() : '') + '</li>'));
 await output('mountain/index.html', replace(await readFile(path.join(root, 'src/mountain/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(mountain.title), DESCRIPTION: escape(mountain.description),
   CANONICAL: escape(new URL('/mountain/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
   SOCIAL_IMAGE: escape(new URL(mountainSocial, origin).href), STYLES: mountainFiles.find(file => file.endsWith('.css')), SCRIPT: mountainScript,
   PRELOADS: [...mountainFiles.filter(file => file.endsWith('.woff2')).map(file => '<link rel="preload" href="' + file + '" as="font" type="font/woff2" crossorigin>'),
-    ...mountainFiles.filter(file => file.endsWith('.js') && file !== mountainScript).map(file => '<link rel="modulepreload" href="' + file + '">')].join('\n  '),
-  INTRO_KICKER: escape(mountain.intro.kicker), INTRO_TITLE: escape(mountain.intro.title), INTRO_DESCRIPTION: escape(mountain.intro.description),
+    ...mountainFiles.filter(file => file.endsWith('.js') && file !== mountainScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">')].join('\n  '),
+  INTRO_KICKER: escape(mountain.intro.kicker), INTRO_TITLE: lines(mountain.intro.title), INTRO_DESCRIPTION: escape(mountain.intro.description),
   INTRO_HINT: escape(mountain.intro.hint), CAMPS: camps.join('\n        ')
 }));
 const labScript = labFiles.find(file => file.endsWith('/main.js'));

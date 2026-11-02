@@ -44,6 +44,7 @@ export function createRenderer(gl, scene, quality) {
     pillar: build('pillar', 'pillarVertex', 'pillarFragment'),
     cloud: build('clouds', 'cloudVertex', 'cloudFragment'),
     snow: build('snow', 'snowVertex', 'snowFragment'),
+    spark: build('spark', 'sparkVertex', 'sparkFragment'),
     down: build('bloom down', 'fullscreenVertex', 'downsampleFragment'),
     up: build('bloom up', 'fullscreenVertex', 'upsampleFragment'),
     composite: build('composite', 'fullscreenVertex', 'compositeFragment')
@@ -60,7 +61,9 @@ export function createRenderer(gl, scene, quality) {
   }
   const trees = vertexArray(gl, [{ data: tree.positions, size: 3 }, { data: tree.parts, size: 1 }, { data: placement, size: 4, divisor: 1 }, { data: extra, size: 2, divisor: 1 }]);
   const trail = vertexArray(gl, [{ data: new Float32Array(scene.trail.flat()), size: 4, divisor: 1 }]);
-  const glowCount = scene.camps.length + 1;
+  // One glow per camp, one for the climber, then the props' own lights (fire, lamps).
+  const lights = scene.props.lights, lightCount = lights.length / 8;
+  const glowCount = scene.camps.length + 1 + lightCount;
   const glowData = new Float32Array(glowCount * 4), glowColors = new Float32Array(glowCount * 4);
   const glows = vertexArray(gl, [{ data: glowData, size: 4, divisor: 1, usage: gl.DYNAMIC_DRAW }, { data: glowColors, size: 4, divisor: 1, usage: gl.DYNAMIC_DRAW }]);
   const cloudCount = scene.clouds.length / 5;
@@ -68,6 +71,11 @@ export function createRenderer(gl, scene, quality) {
   const cloudData = new Float32Array(cloudCount * 4), cloudSeeds = new Float32Array(cloudCount);
   const clouds = vertexArray(gl, [{ data: cloudData, size: 4, divisor: 1, usage: gl.DYNAMIC_DRAW }, { data: cloudSeeds, size: 1, divisor: 1, usage: gl.DYNAMIC_DRAW }]);
   const empty = gl.createVertexArray();
+  // The Phantom mark arrives after start-up; until then the camp has no points.
+  let spark = null;
+  function setSparkShape(points) {
+    spark = { array: vertexArray(gl, [{ data: points, size: 2 }]), count: points.length / 2 };
+  }
   const black = texture(gl, 1, 1, { data: new Uint8Array(4) });
   const dummyDepth = texture(gl, 1, 1, { internal: gl.DEPTH_COMPONENT24, format: gl.DEPTH_COMPONENT, type: gl.UNSIGNED_INT, filter: gl.NEAREST });
 
@@ -89,8 +97,7 @@ export function createRenderer(gl, scene, quality) {
     programs.terrainDepth.use().set({ uLightViewProj: lightMatrix });
     gl.bindVertexArray(terrain.vao);
     gl.drawArrays(gl.TRIANGLES, 0, scene.mesh.count);
-    gl.bindVertexArray(props.vao);
-    gl.drawArrays(gl.TRIANGLES, 0, scene.props.count);
+    // Props are too small for this shadow map: their shadows would land on the slopes behind as soft dark blots.
     programs.treeDepth.use().set({ uLightViewProj: lightMatrix });
     gl.bindVertexArray(trees.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, tree.count, treeCount);
@@ -140,7 +147,7 @@ export function createRenderer(gl, scene, quality) {
       uSunDir: p.sun, uGlow: p.glow, uZenith: p.zenith, uHorizon: p.horizon, uBelow: p.below, uFog: [p.fog, p.haze],
       uShadow: shadowMap, uLightMatrix: lightMatrix, uShadowSize: shadowSize,
       uStars: p.stars, uMoon: p.moon, uMoonDir: p.moonDir, uAurora: p.aurora, uSunDisc: p.sunDisc,
-      uLantern: LANTERN, uProgress: m.progress, uAhead: m.ahead, uFocus: m.focus, uSummit: [scene.camps.at(-1).x, scene.camps.at(-1).y, scene.camps.at(-1).z], uCloud: p.cloud, uCloudAmount: 1, uSnow: p.snow, uHeight: targets.height,
+      uLantern: LANTERN, uPennants: m.pennants, uProgress: m.progress, uAhead: m.ahead, uFocus: m.focus, uSummit: [scene.camps.at(-1).x, scene.camps.at(-1).y, scene.camps.at(-1).z], uCloud: p.cloud, uCloudAmount: 1, uSnow: p.snow, uHeight: targets.height,
       uResolution: [targets.width, targets.height], uClip: [NEAR, FAR]
     };
     const sceneTarget = targets.multisampled || targets.resolved;
@@ -209,12 +216,24 @@ export function createRenderer(gl, scene, quality) {
     });
     glowData.set([...m.climber, .07], scene.camps.length * 4);
     glowColors.set([5 * m.climberPower, 4.4 * m.climberPower, 3.6 * m.climberPower, 0], scene.camps.length * 4);
+    for (let i = 0; i < lightCount; i++) {
+      const at = (scene.camps.length + 1 + i) * 4, l = lights.subarray(i * 8, i * 8 + 8);
+      const power = 1.4 * (1 + l[7] * (Math.sin(frame.time * 9.3 + i * 2.1) * .2 + Math.sin(frame.time * 14.7 + i) * .12));
+      glowData.set([l[0], l[1], l[2], l[3]], at);
+      glowColors.set([l[4] * power, l[5] * power, l[6] * power, 0], at);
+    }
     glows.update(0, glowData);
     glows.update(1, glowColors);
     if (show('glow')) {
       programs.glow.use().set(common);
       gl.bindVertexArray(glows.vao);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, glowCount);
+    }
+
+    if (spark && scene.props.spark && show('spark')) {
+      programs.spark.use().set({ ...common, uSpark: scene.props.spark, uForm: m.form, uPointer: m.pointer, uAspect: targets.width / targets.height, uSparkPower: 1 + m.form * 2.4 });
+      gl.bindVertexArray(spark.array.vao);
+      gl.drawArrays(gl.POINTS, 0, spark.count);
     }
 
     if (p.snow > .01) {
@@ -258,10 +277,11 @@ export function createRenderer(gl, scene, quality) {
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, frame.canvasWidth, frame.canvasHeight);
-    programs.composite.use().set({ uScene: targets.color, uBloom: bloomTexture, uBloomStrength: targets.bloom.length ? .14 : 0, uExposure: p.exposure, uSaturation: p.saturation, uTint: p.tint, uTime: frame.time, uFade: frame.fade });
+    programs.composite.use().set({ uScene: targets.color, uBloom: bloomTexture, uBloomStrength: targets.bloom.length ? .14 : 0, uExposure: p.exposure, uSaturation: p.saturation, uTint: p.tint, uTime: frame.time, uFade: frame.fade,
+      uFxaa: targets.multisampled ? 0 : 1, uTexel: [1 / targets.width, 1 / targets.height] });
     fullscreen();
   }
   const fullscreen6 = () => { gl.bindVertexArray(empty); gl.drawArrays(gl.TRIANGLES, 0, 6); };
 
-  return { resize, render, float, samples, near: NEAR, far: FAR };
+  return { resize, render, setSparkShape, float, samples, near: NEAR, far: FAR };
 }
