@@ -23,12 +23,21 @@
   <p class="closed-banner" id="closed-banner" hidden>投稿已关闭：访客现在无法提交新留言。</p>
   <nav class="tabs" aria-label="留言分类">
     <button type="button" data-view="pending" aria-pressed="true">待审 <span data-count="pending"></span></button>
-    <button type="button" data-view="approved" aria-pressed="false">已发布 <span data-count="approved"></span></button>
+    <button type="button" data-view="approved" aria-pressed="false">已发布 · 页面预览 <span data-count="approved"></span></button>
     <button type="button" data-view="hidden" aria-pressed="false">已隐藏 <span data-count="hidden"></span></button>
   </nav>
   <main>
     <p class="view-note" id="view-note" hidden></p>
     <div class="bulk" id="bulk" hidden><button type="button" class="danger" id="spam-all">全部待审标为垃圾</button></div>
+    <section class="compose" id="compose" aria-labelledby="compose-title" hidden>
+      <h2 id="compose-title">以 Gerry 身份留言</h2>
+      <p class="muted">直接公开，不经审核；页面上带 “Site owner” 标记，访客无法冒用。</p>
+      <textarea id="compose-text" rows="4" maxlength="1000" aria-label="留言内容"></textarea>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="compose-pin"> 置顶</label>
+        <button type="button" class="primary" id="compose-send">发布</button>
+      </div>
+    </section>
     <p id="status" class="status" role="status" aria-live="polite"></p>
     <ol id="entries" class="entries"></ol>
     <button type="button" id="more" class="ghost more" hidden>加载更多</button>
@@ -39,6 +48,11 @@
       <p class="flags"></p>
       <h2 class="name"></h2>
       <p class="message"></p>
+      <details class="edit-editor">
+        <summary>编辑留言</summary>
+        <textarea rows="4" maxlength="1000" aria-label="留言内容"></textarea>
+        <div class="row"><button type="button" data-action="edit">保存修改</button></div>
+      </details>
       <div class="reply" hidden>
         <p class="reply-label">我的回复</p>
         <p class="reply-text"></p>
@@ -53,6 +67,7 @@
       </details>
       <div class="actions">
         <button type="button" class="primary" data-action="approve">通过</button>
+        <button type="button" data-action="pin">置顶</button>
         <button type="button" data-action="reject">隐藏</button>
         <button type="button" data-action="spam">标为垃圾</button>
         <button type="button" class="danger" data-action="spam-ban">垃圾并封禁 30 天</button>

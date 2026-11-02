@@ -17,7 +17,9 @@ describe('reading notes', () => {
     assert.equal(response.status, 200);
     const data = await response.json();
     assert.deepEqual(data.entries.map(entry => entry.name), ['Approved']);
-    assert.deepEqual(Object.keys(data.entries[0]).sort(), ['date', 'id', 'message', 'name', 'reply']);
+    assert.deepEqual(Object.keys(data.entries[0]).sort(), ['date', 'id', 'message', 'name', 'owner', 'reply']);
+    assert.equal(data.entries[0].owner, false);
+    assert.deepEqual(data.pinned, []);
     assert.deepEqual(data.entries[0].reply, { message: 'Thanks!', date: 5 });
     assert.equal(data.open, true);
     assert.equal(data.next, null);

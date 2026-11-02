@@ -16,7 +16,15 @@ const senderPendingLimit = 3;
 // Beyond this many unreviewed notes, new ones are refused, so a spam wave cannot bury real notes or fill the database.
 const pendingLimit = 200;
 const listMaxAge = 60;
+const pinLimit = 3;
 const cursorPattern = /^(\d{1,15})_([0-9a-f]{32})$/;
+const columns = 'id, created_at, name, body, reply, reply_at, owner';
+// Only public fields leave the database: never the address hash, country, flags or review state. `owner` is set
+// only for notes written from the admin page, so a visitor cannot earn the owner mark by choosing a name.
+const publicEntry = row => ({
+  id: row.id, name: row.name, message: row.body, date: row.created_at, owner: row.owner === 1,
+  reply: row.reply ? { message: row.reply, date: row.reply_at } : null
+});
 
 export default {
   async fetch(request, env, ctx) {
@@ -63,20 +71,19 @@ async function list(request, url, env, ctx) {
   }
 
   const statement = cursor
-    ? env.DB.prepare(`SELECT id, created_at, name, body, reply, reply_at FROM entries WHERE status = 'approved' AND (created_at < ?1 OR (created_at = ?1 AND id < ?2)) ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`).bind(Number(cursor[1]), cursor[2])
-    : env.DB.prepare(`SELECT id, created_at, name, body, reply, reply_at FROM entries WHERE status = 'approved' ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`);
-  const { results } = await statement.all();
+    ? env.DB.prepare(`SELECT ${columns} FROM entries WHERE status = 'approved' AND (created_at < ?1 OR (created_at = ?1 AND id < ?2)) ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`).bind(Number(cursor[1]), cursor[2])
+    : env.DB.prepare(`SELECT ${columns} FROM entries WHERE status = 'approved' ORDER BY created_at DESC, id DESC LIMIT ${pageSize + 1}`);
+  // Pinned notes come with the first page, and also stay in their place in `entries`, which is all a page from
+  // before pins knows how to show.
+  const [{ results }, pins] = await env.DB.batch(cursor ? [statement] : [statement,
+    env.DB.prepare(`SELECT ${columns} FROM entries WHERE status = 'approved' AND pinned_at IS NOT NULL ORDER BY pinned_at DESC LIMIT ${pinLimit}`)]);
   const page = results.slice(0, pageSize);
   const last = page.at(-1);
-  const data = {
-    // Only public fields leave the database: never the address hash, country, flags or review state.
-    entries: page.map(row => ({
-      id: row.id, name: row.name, message: row.body, date: row.created_at,
-      reply: row.reply ? { message: row.reply, date: row.reply_at } : null
-    })),
-    next: results.length > pageSize ? last.created_at + '_' + last.id : null
-  };
-  if (!cursor) data.open = await submissionsOpen(env);
+  const data = { entries: page.map(publicEntry), next: results.length > pageSize ? last.created_at + '_' + last.id : null };
+  if (!cursor) {
+    data.pinned = pins.results.map(publicEntry);
+    data.open = await submissionsOpen(env);
+  }
   const response = json(data, 200, { 'Cache-Control': 'public, max-age=' + listMaxAge });
   ctx.waitUntil(caches.default.put(cacheKey, response.clone()));
   return response;

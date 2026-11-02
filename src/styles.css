@@ -158,6 +158,8 @@ body:has(.photo-dialog[open]) { overflow: hidden; }
 .note-name { font: 400 1.55rem/1.2 var(--serif); letter-spacing: -.03em; margin: 0; overflow-wrap: anywhere; }
 .note-date { color: var(--muted); font-size: .75rem; letter-spacing: .05em; white-space: nowrap; }
 .note-message { color: #d8d3c9; font-size: .9rem; line-height: 1.85; white-space: pre-line; overflow-wrap: anywhere; }
+.note-tags { display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin: -.4rem 0 .8rem; color: var(--gold); font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; }
+.note-owner .note-message { color: var(--paper); }
 .note-reply { margin-top: 1.3rem; padding-left: 1.2rem; border-left: 1px solid var(--gold); }
 .note-reply-label { color: var(--gold); font-size: .75rem; letter-spacing: .08em; margin-bottom: .3rem; }
 .notes-status { color: var(--muted); font-size: .8rem; padding-top: 1.2rem; }
