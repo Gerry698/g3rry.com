@@ -117,7 +117,7 @@ node atlas.mjs frames          # 解算各 stop 的相机位置
 新照片和新地点走"投稿 → 处理 → 上线"的流程：
 
 - **收件箱。** 私有的 claude.ai 页面 https://claude.ai/artifact/Y75neHHpPBjm9s2Z1PzwYo，源文件是 `tools/atlas-inbox/inbox.html`。改了站点或 stop 后，运行 `node tools/atlas-inbox/build.mjs` 刷新页面里的地图数据，再按同一个 URL 重新发布。
-- **本机收件箱。** 同一个页面由 `tools/atlas-inbox/local.mjs` 在 http://127.0.0.1:4190/ 提供（桌面快捷方式「Atlas Inbox」运行 `open-inbox.cmd`，关掉窗口即停止）。照片原样存进 `D:Claudeg3rry.com-inboxlobs`（保留 EXIF/GPS，不缩图、无 20 MB 上限），投稿存为 `submissions/<id>.json`。只接受本机页面的请求；目录可用 `ATLAS_INBOX_DIR` 改。手机仍用上面的 claude.ai 页面；`/phantom-publish` 两边都读。
+- **本机收件箱。** 同一个页面由 `tools/atlas-inbox/local.mjs` 在 http://127.0.0.1:4190/ 提供（桌面快捷方式「Atlas Inbox」运行 `open-inbox.cmd`，关掉窗口即停止）。照片原样存进 `D:\Claude\g3rry.com-inbox\blobs`（保留 EXIF/GPS，不缩图、无 20 MB 上限），投稿存为 `submissions/<id>.json`。只接受本机页面的请求；目录可用 `ATLAS_INBOX_DIR` 改。手机仍用上面的 claude.ai 页面；`/phantom-publish` 两边都读。
 - **一条投稿包含：**
   - 照片；
   - 一个 pin（来自照片 GPS、粘贴的坐标或 Google 地图链接，或地图上的粗略点选）；
