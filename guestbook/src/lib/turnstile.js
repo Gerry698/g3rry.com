@@ -7,11 +7,13 @@ const tokenErrors = new Set(['missing-input-response', 'invalid-input-response',
 // and expire after five minutes. Network, configuration or service errors throw so the caller fails closed.
 export async function verifyTurnstile(token, ip, env) {
   if (typeof token !== 'string' || !token || token.length > 2048) return { ok: false, reason: 'missing' };
-  if (!env.TURNSTILE_SECRET_KEY) throw new Error('TURNSTILE_SECRET_KEY is not configured.');
+  // Trimmed, because a secret pasted into the dashboard can carry a stray space or line break.
+  const secret = env.TURNSTILE_SECRET_KEY?.trim();
+  if (!secret) throw new Error('TURNSTILE_SECRET_KEY is not configured.');
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: env.TURNSTILE_SECRET_KEY, response: token, remoteip: ip || undefined, idempotency_key: crypto.randomUUID() }),
+    body: JSON.stringify({ secret, response: token, remoteip: ip || undefined, idempotency_key: crypto.randomUUID() }),
     signal: AbortSignal.timeout(5000)
   });
   const result = await response.json().catch(() => null);
