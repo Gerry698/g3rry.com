@@ -69,7 +69,7 @@ npx wrangler deploy -c wrangler.admin.jsonc
 
 ## 密钥与配置
 
-密钥只用 `npx wrangler secret put <名字> -c <配置文件>` 设置，不进仓库（仓库是公开的）。
+密钥用 `npx wrangler secret put <名字> -c <配置文件>` 设置，或者在 Cloudflare 控制台 Workers & Pages → 对应 Worker → Settings → Variables and secrets 里添加（勾选 Secret，已有的点 Edit → Rotate 替换），不进仓库（仓库是公开的）。`TURNSTILE_SECRET_KEY` 要复制 Turnstile 组件的 Secret Key，不是页面上直接显示的 Site Key；填错时提交一律返回 503，日志里是 `invalid-input-secret`。
 
 | Worker | 密钥 | 内容 |
 | --- | --- | --- |
