@@ -185,7 +185,8 @@ body:has(.photo-dialog[open]) { overflow: hidden; }
   .site-header { min-height: 88px; gap: 1rem; }
   .wordmark { font-size: 1.4rem; }
   .site-header nav { gap: 1.15rem; font-size: .75rem; }
-  .site-header nav a:last-child { display: none; }
+  /* The wordmark already leads home, so phones drop Home and the Phantom anchor to keep the rest on one line. */
+  .site-header nav a:first-child, .site-header nav a:last-child { display: none; }
   .hero { grid-template-columns: 1fr; padding-top: 50px; gap: 30px; }
   .hero h1 { font-size: clamp(2.45rem, 10.3vw, 5.5rem); margin-top: 22px; white-space: normal; }
   .hero .intro { max-width: 32em; margin-top: 23px; }
@@ -222,6 +223,10 @@ body:has(.photo-dialog[open]) { overflow: hidden; }
   .note { padding-block: 24px 26px; }
   .note-header { flex-direction: column; gap: .2rem; }
   .note-name { font-size: 1.35rem; }
+}
+@media (max-width: 400px) {
+  .wordmark { font-size: 1.25rem; }
+  .site-header nav { gap: .85rem; font-size: .7rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

@@ -159,6 +159,7 @@ const mountainFiles = await assetFolder('mountain', 'mountain', {
   'cormorant-garamond.woff2': 'node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-normal.woff2',
   'jetbrains-mono.woff2': 'node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2'
 });
+const mountainSocial = await asset('mountain/social.jpg', 'mountain-social');
 const labFiles = await assetFolder('phantom', 'phantom');
 // Lab data (depth maps, point clouds) is optional per item until it has been generated with tools/phantom-data.
 async function labData(relative) {
@@ -255,7 +256,7 @@ const camps = mountain.camps.map((camp, index) => '<li id="' + camp.id + '" data
 await output('mountain/index.html', replace(await readFile(path.join(root, 'src/mountain/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(mountain.title), DESCRIPTION: escape(mountain.description),
   CANONICAL: escape(new URL('/mountain/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
-  STYLES: mountainFiles.find(file => file.endsWith('.css')), SCRIPT: mountainScript,
+  SOCIAL_IMAGE: escape(new URL(mountainSocial, origin).href), STYLES: mountainFiles.find(file => file.endsWith('.css')), SCRIPT: mountainScript,
   PRELOADS: [...mountainFiles.filter(file => file.endsWith('.woff2')).map(file => '<link rel="preload" href="' + file + '" as="font" type="font/woff2" crossorigin>'),
     ...mountainFiles.filter(file => file.endsWith('.js') && file !== mountainScript).map(file => '<link rel="modulepreload" href="' + file + '">')].join('\n  '),
   INTRO_KICKER: escape(mountain.intro.kicker), INTRO_TITLE: escape(mountain.intro.title), INTRO_DESCRIPTION: escape(mountain.intro.description),
@@ -320,7 +321,7 @@ await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta c
   + '<meta http-equiv="refresh" content="0;url=/photos/"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(new URL('/photos/', origin).href) + '">'
   + '<title>Photography — ' + escape(site.name) + '</title></head><body><h1>The gallery has moved.</h1><p><a href="/photos/">Explore the photography collection</a></p></body></html>');
 await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/sitemap.xml', origin).href + '\n');
-await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url></urlset>\n');
+await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/mountain/', origin).href) + '</loc></url></urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');
 

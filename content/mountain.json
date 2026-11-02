@@ -10,9 +10,9 @@
   "camps": [
     { "id": "about", "kicker": "Trailhead", "title": "About", "description": "Who is climbing, and why the mountain.", "time": "dawn" },
     { "id": "photography", "kicker": "Camp II", "title": "Photography", "description": "Fleeting light, familiar strangers, and the small scenes worth keeping.", "href": "/photos/", "time": "morning" },
-    { "id": "phantom", "kicker": "Camp III", "title": "The Phantom", "description": "A small experiment in light and motion, made of a thousand little points.", "href": "/#phantom", "time": "noon" },
+    { "id": "phantom", "kicker": "Camp III", "title": "The Phantom", "description": "A small experiment in light and motion, made of a thousand little points.", "href": "/phantom/", "time": "noon" },
     { "id": "projects", "kicker": "Camp IV", "title": "Projects", "description": "Things built along the way, from lab control code to this page.", "time": "golden" },
     { "id": "notes", "kicker": "Camp V", "title": "Notes", "description": "Physics, field notes, and half-formed thoughts.", "time": "dusk" },
-    { "id": "summit", "kicker": "Summit", "title": "Say hello", "description": "The view from the top. A good place to leave a note.", "time": "night" }
+    { "id": "summit", "kicker": "Summit", "title": "Say hello", "description": "The view from the top. A good place to leave a note.", "href": "/guestbook/", "time": "night" }
   ]
 }

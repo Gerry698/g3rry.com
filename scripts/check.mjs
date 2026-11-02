@@ -69,7 +69,10 @@ assert(htmlByFile.get('Photo/gallery.html').includes('http-equiv="refresh"'), 'O
 assert(htmlByFile.get('404.html').includes('name="robots" content="noindex"'), 'The 404 page must not be indexed.');
 const mountainPage = htmlByFile.get('mountain/index.html');
 const mountainCamps = JSON.parse(await readFile(path.join(root, 'content/mountain.json'), 'utf8')).camps;
-assert(mountainPage.includes('name="robots" content="noindex"'), 'The mountain page stays out of search until it launches.');
+assert(!mountainPage.includes('noindex') && (await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/mountain/', site.url).href), 'The mountain page is public: indexed and in the sitemap.');
+assert(home.includes('href="/mountain/"'), 'The site navigation links to the mountain.');
+const mountainImage = /property="og:image" content="https?:\/\/[^/]+\/([^"]+)"/.exec(mountainPage)?.[1];
+assert(mountainImage && exactFiles.has(mountainImage), 'The mountain page needs its share image.');
 assert.equal([...mountainPage.matchAll(/<li id="/g)].length, mountainCamps.length, 'Every camp needs a plain link for readers without WebGL.');
 const labPage = htmlByFile.get('phantom/index.html');
 assert(!labPage.includes('noindex') && (await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/phantom/', site.url).href), 'The lab page is public: indexed and in the sitemap.');
