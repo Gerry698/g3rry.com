@@ -24,7 +24,7 @@
       "id": "develop",
       "kicker": "02 / Develop",
       "title": "Photographs,\nwith depth.",
-      "text": "Each photograph is developed into points and given back its third dimension. From the spot where it was taken it looks exactly like the print; step aside and the scene opens up. Switch to contours to read the picture as a map of equal light."
+      "text": "Each photograph is rebuilt with its own depth. A depth network gives the shapes; the distances come from reading the frame: where the horizon sits, how tall a walker stands, what the LiDAR saw from the same spot. From where it was taken it matches the print, blur included; step aside and the scene opens up. Contours read it as a map of equal light, or of equal distance."
     },
     {
       "id": "atlas",
@@ -34,41 +34,24 @@
     }
   ],
   "develop": [
-    {
-      "photo": "p05",
-      "depth": [
-        7,
-        120
-      ]
-    },
-    {
-      "photo": "p09",
-      "depth": [
-        3,
-        400
-      ]
-    },
-    {
-      "photo": "p01",
-      "depth": [
-        5,
-        150
-      ]
-    },
-    {
-      "photo": "p07",
-      "depth": [
-        9,
-        400
-      ]
-    },
-    {
-      "photo": "p11",
-      "depth": [
-        1.6,
-        9
-      ]
-    }
+    "p05",
+    "p16",
+    "p07",
+    "p12",
+    "p02",
+    "p13",
+    "p01",
+    "p11",
+    "p17",
+    "p03",
+    "p08",
+    "p09",
+    "p04",
+    "p06",
+    "p10",
+    "p14",
+    "p15",
+    "p18"
   ],
   "sites": [
     {
@@ -492,15 +475,16 @@
         "cloud": "nyc-times-square",
         "photo": "p07",
         "title": "Times Square, in the rain",
-        "caption": "Looking north up Seventh Avenue at 24 mm. The position is my estimate from the frame, good to a few metres.",
+        "caption": "Looking north up Seventh Avenue at 24 mm, the lens at head height: every walker’s head sits on the horizon, 70% of the way down the frame. The spot on the street is my estimate, good to a few metres.",
         "vantage": {
           "at": [
             40.75705,
             -73.98615
           ],
-          "height": 1.6,
+          "height": 17.3,
           "azimuth": 28.5,
-          "pitch": 6
+          "pitch": 16.7,
+          "subject": 18
         },
         "approach": "above"
       },

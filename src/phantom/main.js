@@ -2,7 +2,7 @@ import { createContext, imageTexture, texture } from './gl.js';
 import { Particles, ROW } from './particles.js';
 import { Post } from './post.js';
 import { Camera, orbit, framingDistance } from './camera.js';
-import { clamp, lerp, smoothstep, catmull, project, sub, dot, add, scale, length, normalize, mix3, perspective, lookAt, multiply } from './math.js';
+import { clamp, lerp, smoothstep, catmull, project, sub, dot, add, scale, length, normalize, cross, mix3, perspective, lookAt, multiply } from './math.js';
 import { dustCount } from './targets.js';
 
 const config = JSON.parse(document.getElementById('lab-config').textContent);
@@ -55,16 +55,18 @@ function start({ gl, hdr }) {
     context2d.drawImage(image, 0, 0, width, height);
     return { pixels: new Uint8Array(context2d.getImageData(0, 0, width, height).data.buffer), width, height };
   }
-  // Depth maps (tools/phantom-data/depth.mjs): gzip of a width/height header and row-delta uint16 disparities.
-  async function loadDepth(url) {
+  // Metric depth for a photograph (tools/phantom-data/depth.mjs): gzip of a JSON header and row-delta uint16 log depths
+  // spaced evenly between the header's near and far, in metres.
+  async function loadScene(url) {
     const response = await fetch(url);
     const buffer = await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-    const header = new DataView(buffer);
-    const width = header.getUint16(0, true), height = header.getUint16(2, true);
-    const deltas = new Uint16Array(buffer, 4, width * height);
+    const length = new DataView(buffer).getUint32(0, true);
+    const { width, height, near, far } = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 4, length)));
+    const deltas = new Uint16Array(buffer.slice(4 + length, 4 + length + width * height * 2));
     const values = new Uint16Array(width * height);
     for (let i = 0; i < deltas.length; i++) values[i] = (i % width ? values[i - 1] : i >= width ? values[i - width] : 0) + deltas[i];
-    return { depth: Float32Array.from(values, value => value / 65535), depthWidth: width, depthHeight: height };
+    const span = Math.log(far / near) / 65520;
+    return { depth: Float32Array.from(values, value => near * Math.exp(value * span)), depthWidth: width, depthHeight: height };
   }
 
   // ---- Quality: particle count follows what the device sustains ---------------------------------
@@ -77,10 +79,15 @@ function start({ gl, hdr }) {
 
   const cache = new Map();
   const shapeImages = new Map();
+  // Built target sets are kept for reuse, the most recent ten only: at a million points each holds about 20 MB, and with
+  // eighteen photographs, their atlas placements and the clouds, keeping every one would run to gigabytes.
   function setFor(key, make) {
     const full = key + '@' + count();
-    if (!cache.has(full)) cache.set(full, make().catch(error => { cache.delete(full); throw error; }));
-    return cache.get(full);
+    const found = cache.get(full) || make().catch(error => { cache.delete(full); throw error; });
+    cache.delete(full);
+    cache.set(full, found);
+    while (cache.size > 10) cache.delete(cache.keys().next().value);
+    return found;
   }
   const markGain = n => 262144 / n * .2;
   function markTargets(shape, relief) {
@@ -113,19 +120,20 @@ function start({ gl, hdr }) {
     const focal = 18 / (aspect >= 1 ? viewTanX : viewTanY);
     return { tanX, tanY, focal, viewTanX, viewTanY, screenArea: viewWidth * viewHeight * (tanX / viewTanX) * (tanY / viewTanY) };
   }
-  function photoTargets(photo) {
-    return setFor('photo:' + photo.id, async () => {
-      const image = await loadImage(photo.url);
+  // In Develop a photograph stands in its own camera space at its own scale; at an atlas stop the same points are placed
+  // at the solved station, in the stop's scale and orientation, so they line up with the LiDAR around them.
+  function photoTargets(photo, placement = null) {
+    return setFor('photo:' + photo.id + (placement ? '@' + placement.key : ''), async () => {
+      const [image, scene] = await Promise.all([loadImage(photo.url), loadScene(photo.scene)]);
       const points = count() - dustCount(count());
       const side = Math.min(1280, Math.round(Math.sqrt(points * Math.max(photo.width / photo.height, photo.height / photo.width))));
       const sample = pixelsOf(image, side);
-      const depth = photo.depthUrl ? await loadDepth(photo.depthUrl) : fallbackDepth(sample);
       const fit = photoFit(photo);
       const spacing = Math.sqrt(fit.screenArea / Math.min(points, sample.width * sample.height));
       const sizeFlag = Math.max(1, spacing * 1.15 / base());
-      const unit = photo.unit;
+      const unit = placement ? placement.unit : photo.unit;
       const set = await build('photo', {
-        count: count(), ...sample, ...depth, near: photo.depth[0], far: photo.depth[1], tanX: fit.tanX, tanY: fit.tanY, unit, sizeFlag
+        count: count(), ...sample, ...scene, tanX: fit.tanX, tanY: fit.tanY, unit, sizeFlag, frame: placement && placement.frame
       }, [sample.pixels.buffer]);
       set.points = Math.min(points, sample.width * sample.height);
       set.sizeFlag = sizeFlag;
@@ -136,12 +144,6 @@ function start({ gl, hdr }) {
   function photoGain(set, photo) {
     const spacing2 = photoFit(photo).screenArea / set.points;
     return spacing2 / (.19 * (base() * set.sizeFlag) ** 2) * .9;
-  }
-  // Until a depth map has been generated: nearer toward the bottom of the frame, as the ground usually is.
-  function fallbackDepth({ width, height }) {
-    const depth = new Float32Array(width * height);
-    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) depth[y * width + x] = .15 + .7 * Math.pow(y / height, 1.6);
-    return { depth, depthWidth: width, depthHeight: height };
   }
 
   // ---- Layout ---------------------------------------------------------------------------------
@@ -154,7 +156,13 @@ function start({ gl, hdr }) {
     shape: config.shapes[0], shutter: 0, focal: null, aperture: null, photo: 0, mode: 'photo', contours: 0,
     dragAzimuth: 0, dragElevation: 0, paused: false, ev: 0
   };
-  const developPhotos = config.develop.map(photo => ({ ...photo, unit: 6 / Math.sqrt(photo.depth[0] * photo.depth[1]) }));
+  // Each photograph keeps its own metric scale. The subject sits at least 6 scene units out, and the nearest content at least
+  // .3, clear of the lens's near plane; a beach 3 m away under a bridge 1.5 km off needs the second rule.
+  // `sway` limits how far the camera steps aside to a fraction of the nearest distance, so near things shift, not fly.
+  const developPhotos = config.develop.map(photo => {
+    const unit = Math.max(6 / photo.subject, .3 / photo.nearest);
+    return { ...photo, unit, pivot: photo.subject * unit, sway: Math.min(1, .15 * photo.nearest / (.11 * photo.subject)) };
+  });
 
   function rail(keys, p) {
     const n = keys.length - 1;
@@ -212,18 +220,25 @@ function start({ gl, hdr }) {
       camera(p) {
         const photo = developPhotos[state.photo];
         const fit = photoFit(photo);
-        const pivot = [0, 0, -6];
-        // At the start the camera stands exactly where the photograph was taken; then it steps aside.
+        const pivot = [0, 0, -photo.pivot];
+        // At the start the camera stands exactly where the photograph was taken; then it steps aside, around the subject.
         const away = smoothstep(.12, .7, p);
-        const azimuth = Math.sin(p * Math.PI * 1.5) * .11 * away + state.dragAzimuth;
-        const elevation = .045 * away + state.dragElevation;
-        const pos = orbit(pivot, azimuth, elevation, 6 - away * .4);
-        return { pos, look: pivot, focal: fit.focal, aperture: 8, focus: 6, shift: subjectShift(), metersPerUnit: 1 / photo.unit };
+        const azimuth = (Math.sin(p * Math.PI * 1.5) * .11 * away + state.dragAzimuth) * photo.sway;
+        const elevation = (.045 * away + state.dragElevation) * photo.sway;
+        const pos = orbit(pivot, azimuth, elevation, photo.pivot * (1 - away * .067 * photo.sway));
+        // The same entrance pupil as the real lens (f-number scaled with focal length), focused where it was: the blur
+        // in the scene matches the blur in the print, and changes the same way as the camera moves.
+        const aperture = clamp(photo.aperture * fit.focal / photo.focal, 1.2, 32);
+        return { pos, look: pivot, focal: fit.focal, aperture, focus: length(sub(pos, pivot)), shift: subjectShift(), metersPerUnit: 1 / photo.unit };
       }
     },
     atlas: {
-      phase: p => stopAt(p).id,
-      targets: (p = progress) => { const stop = stopAt(p); return stop.cloud ? cityTargets(stop) : globeTargets(); },
+      phase: p => stopAt(p).id + (developed(stopAt(p), stopProgress(p)) ? ':photo' : ''),
+      targets: (p = progress) => {
+        const stop = stopAt(p);
+        if (developed(stop, stopProgress(p))) return placedPhotoTargets(stop);
+        return stop.cloud ? cityTargets(stop) : globeTargets();
+      },
       sim: { stiffness: 10, damping: .9, turbulence: 0, flight: 2.6, noiseScale: .3 },
       pointer: false,
       drag: true,
@@ -295,6 +310,14 @@ function start({ gl, hdr }) {
     const matrix = multiply(perspective(2 * Math.atan(fit.tanY), fit.tanX / fit.tanY, .01, 4000), lookAt(pos, look));
     return { pos, look, fit, matrix };
   }
+  // Stops whose photograph has a depth model (Develop) can become that photograph, set at the station.
+  const sceneOf = stop => stop.photo && developPhotos.find(item => item.id === stop.photo.id);
+  const developed = (stop, t) => Boolean(sceneOf(stop)) && atlas.frames.stops[stop.id] && t >= .6;
+  function placedPhotoTargets(stop) {
+    const at = station(stop);
+    const forward = normalize(sub(at.look, at.pos)), right = normalize(cross(forward, [0, 1, 0])), up = cross(right, forward);
+    return photoTargets(sceneOf(stop), { key: stop.id, unit: 1 / metersOf(stop), frame: { pos: at.pos, right, up, forward } });
+  }
   // The globe turns so a site faces the camera: its longitude relative to the globe's centre, its latitude as elevation.
   const facing = site => [(site.lon - home.lon) * rad, site.lat * rad];
   let atlasPhoto = null;
@@ -331,7 +354,10 @@ function start({ gl, hdr }) {
     if (!at) return { view: { pos: [0, 3, 6], look: [0, 0, 0], focal: 35, aperture: 5.6, focus: 6.7, shift, metersPerUnit: m }, photo: null };
     // Arrive at the station from an orbit of the subject, from above, down through the street (for what LiDAR cannot see),
     // or straight on from the previous stop's camera, then settle exactly where the photograph was taken.
-    const k = smoothstep(.08, .62, t);
+    // With a depth model the stop goes one step further: once the camera has arrived and the photograph has been projected
+    // onto the LiDAR, the cloud condenses into the photograph's own points, placed in the world, before the print.
+    const own = sceneOf(stop);
+    const k = smoothstep(.08, own ? .5 : .62, t);
     const previous = stop.approach === 'previous' && stops[index - 1]?.cloud ? stopView(stops[index - 1], 1, time).view : null;
     let pos, look, focal = Math.exp(lerp(Math.log(35), Math.log(at.fit.focal), k)), aperture = 8, ev = lerp(0, stop.exposure || 0, k);
     if (previous) {
@@ -354,7 +380,16 @@ function start({ gl, hdr }) {
       pos = mix3(start, at.pos, k);
       look = mix3(startLook, at.look, k);
     }
-    const photo = { stop, at, mix: stop.project === false ? 0 : smoothstep(.58, .76, t), print: t > .8 };
+    let mix = stop.project === false ? 0 : smoothstep(.58, .76, t), print = t > .8;
+    if (own) {
+      const settle = smoothstep(.58, .66, t);
+      mix = stop.project === false ? 0 : smoothstep(.44, .56, t) * (1 - settle);
+      ev *= 1 - settle;
+      // The real lens's entrance pupil, as in Develop, so the condensed photograph carries the photograph's own blur.
+      aperture = lerp(aperture, clamp(own.aperture * at.fit.focal / own.focal, 1.2, 32), settle);
+      print = t > .86;
+    }
+    const photo = { stop, at, mix, print };
     return { view: { pos, look, focal, aperture, focus: Math.max(.2, length(sub(look, pos))), shift, metersPerUnit: m, ev }, photo };
   }
 
@@ -511,10 +546,11 @@ function start({ gl, hdr }) {
       for (const other of document.querySelectorAll('[data-focal]')) other.setAttribute('aria-pressed', String(Number(other.dataset.focal) === state.focal));
     });
   }
-  const photoLabel = $('#lab-photo-label');
+  const photoLabel = $('#lab-photo-label'), depthNote = $('#lab-depth-note');
   const showPhoto = () => {
     const photo = developPhotos[state.photo];
     photoLabel.textContent = 'Frame ' + photo.frame + ' · ' + photo.place;
+    depthNote.textContent = photo.note;
   };
   showPhoto();
   const stepPhoto = delta => {
@@ -668,8 +704,8 @@ function start({ gl, hdr }) {
     post.begin();
     particles.draw({
       uView: frame.view, uProjection: frame.projection, uCoc: frame.coc, uFocus: view.focus, uBase: base(), uMaxSize: Math.min(64, 26 * dpr),
-      uGain: 2 ** state.ev, uDustGain: .8 / 2 ** state.ev, uTime: time, uNear: .05, uBlades: 9, uRoundness: smoothstep(5.6, 2, view.aperture) * .85, uCatEye: .32 * smoothstep(8, 2, view.aperture),
-      uMode: state.mode === 'depth' ? 2 : 1, uContours: state.contours, uContourOrigin: [0, 0, 0],
+      uGain: 2 ** state.ev, uDustGain: .8 / 2 ** state.ev, uTime: time, uNear: Math.min(.05, .3 / view.metersPerUnit), uBlades: 9, uRoundness: smoothstep(5.6, 2, view.aperture) * .85, uCatEye: .32 * smoothstep(8, 2, view.aperture),
+      uMode: state.mode === 'depth' ? 2 : 1, uContours: state.contours, uContourOrigin: [0, 0, 0], uContourUnit: view.metersPerUnit,
       uPhoto: atlasPhoto && atlasPhoto.stop.photo ? photoTexture(atlasPhoto.stop.photo) : blank, uPhotoMatrix: atlasPhoto ? atlasPhoto.at.matrix : frame.viewProjection,
       uPhotoMix: active === 'atlas' && atlasPhoto && atlasPhoto.stop.photo && particles.morph >= 1 ? atlasPhoto.mix : 0
     });

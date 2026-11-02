@@ -31,7 +31,9 @@ export class Camera {
     const tanLong = SENSOR_LONG / 2 / focal;
     // The sensor's long side follows the screen's long side, as if the camera were turned for a portrait frame.
     const tanY = aspect >= 1 ? tanLong / aspect : tanLong;
-    const projection = perspective(2 * Math.atan(tanY), aspect, .02, 4000);
+    // Points are blended without a depth buffer, so the near plane costs no precision: it sits close enough for a beach
+    // 3 m from the lens to survive at the atlas's 100 m per unit.
+    const projection = perspective(2 * Math.atan(tanY), aspect, .001, 4000);
     // Lens shift (as on a tilt-shift lens) moves the subject off centre without turning the camera, so verticals stay parallel.
     projection[8] = -shift[0];
     projection[9] = -shift[1];

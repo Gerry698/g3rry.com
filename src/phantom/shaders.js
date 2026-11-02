@@ -150,6 +150,7 @@ uniform float uNear;
 uniform float uMode;
 uniform float uContours;
 uniform vec3 uContourOrigin;
+uniform float uContourUnit;
 uniform float uFromGain;
 uniform float uToGain;
 uniform float uDustGain;
@@ -197,7 +198,7 @@ void main() {
   // Contour modes keep only points near an iso-level: equal light (isophotes) or equal distance from where the photo was taken.
   if (uContours > 0.0) {
     float luma = pow(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.45);
-    float level = uMode < 1.5 ? smoothLight * 16.0 : log2(max(distance(mix(fromPos.xyz, toPos.xyz, m), uContourOrigin), 1e-3)) * 5.0;
+    float level = uMode < 1.5 ? smoothLight * 16.0 : log2(max(distance(mix(fromPos.xyz, toPos.xyz, m), uContourOrigin) * uContourUnit, 1e-3)) * 5.0;
     float keep = smoothstep(0.8, 0.96, abs(fract(level) - 0.5) * 2.0);
     rgb = mix(rgb, vec3(1.0, 0.8, 0.5) * (0.35 + luma), uContours * 0.8);
     intensity *= mix(1.0, keep * 2.4, uContours);

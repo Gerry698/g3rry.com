@@ -37,8 +37,8 @@
 | --- | --- | --- |
 | Ignite | 首页图案的 GPU 粒子版，指针力场、点击冲击波、长曝光快门 | `site.json` 的 `phantom.shapes` |
 | Sculpt | 图案挤出成浮雕，物理相机（焦距、光圈、薄透镜景深、九叶光斑）| 同上 |
-| Develop | 照片按深度还原成点云，等亮线 / 等深线模式 | `content/phantom/depth/<id>.bin` |
-| Atlas | 地球 → 各地 LiDAR 点云 → 在拍摄位置把照片投回场景 | `content/phantom/atlas/` |
+| Develop | 每张照片单独的度量深度模型还原成点云；景深按原片的光圈和对焦距离；等亮线 / 等深线（以米计）模式 | `content/phantom/scenes.json`、`content/phantom/scenes/<id>.bin` |
+| Atlas | 地球 → 各地 LiDAR 点云 → 在拍摄位置把照片投回场景，再收拢成照片自己的深度点云 | `content/phantom/atlas/` |
 
 - 粒子数按实测 GPU 时间在 6.5 万到 104 万之间自动选档。
 - 照片的 EXIF（焦距、光圈、时间）手工记在 `content/phantom.json` 的 `photos` 里，因为 `Photo/` 母版不含元数据。相机时钟一直停在美东标准时间（UTC−5）：纽约那批比当地夏令时慢 1 小时（p12 日落验证），旧金山那批比太平洋时间快 3 小时（p16 太阳高度 0.8° 验证）。
@@ -46,7 +46,7 @@
 
 ```powershell
 cd tools/phantom-data; npm install
-node depth.mjs p05 p09         # Depth Anything V2 Small 估计深度，模型缓存在 .models/
+node depth.mjs p05 p07         # 按场景模型生成度量深度（Depth Anything V2 Small，模型缓存在 .models/）
 node atlas.mjs globe           # Natural Earth 陆地掩膜
 node atlas.mjs lidar           # 按 phantom.json 里各站点的 clouds 下载并抽稀 LiDAR（缓存在 .cache/ept）
 node atlas.mjs frames          # 解算各 stop 的相机位置
@@ -66,7 +66,28 @@ node atlas.mjs frames          # 解算各 stop 的相机位置
 - 机位 `vantage` 有两种写法：「目标点 + 方位 + 距离」，或「位置 + 方位角 + 俯仰」，`subject` 是主体距离，也是对焦距离。
   - Liberty 由太阳方位和雕像的角大小解出。
   - 金门三张用后方交会解出：从点云里取塔顶、Salesforce 和 Transamerica 塔顶的三维位置，配上照片里的像素位置求相机位姿。p16 的解落在 Marshall's Beach 沙面上，p17、p18 落在 Conzelman Road。
-- 页面数据约 15 MiB（六块点云），每块只在读到对应 stop 时才下载。
+- 页面数据：点云约 15 MiB（六块），深度图约 4 MiB（18 张）；每块只在用到时才下载。
+
+### 照片的深度模型（scenes.json）
+
+网络只给相对深度，形状对，但没有尺度，远近之间还会弯曲。每张照片的深度模型由三部分锚点定出真实距离：
+
+- 读照片写下的场景模型：
+  - `subject` 是对焦距离。
+  - `anchors` 是已知距离的点或框，例如一个 1.7 m 的人在画面里占多高。
+  - `ground` 是地平面：地平线在画面两侧的位置，镜头离地多高，取样区域。
+  - `far` 是天空所在的远限。
+  - `note` 显示在 Develop 里。
+- 解出机位的照片另有 `lidar`（atlas stop 的 id）：从机位看 LiDAR 得到的距离。`lidarRegion` 限定可信区域（沙滩和水会变，桥不会）。
+- 拟合方法：
+  - 先用单调曲线把相对深度映射到对数深度。
+  - 再解一个边缘感知的最小二乘修正：沿颜色和深度的边缘断开，所以悬崖和沙滩各自按各自的锚点修正。
+  - 最后把深度边缘对齐到照片的颜色边缘。
+- 改了场景模型就重跑 `node depth.mjs <id>`。工具会报告各锚点的误差，并在 `.cache/phantom-scenes/<id>.jpg` 写出带锚点的深度预览，靠这张图判断模型是否合理。
+- 地平线和镜头高度的读法：
+  - 镜头在人眼高度时，行人的头都落在地平线上。
+  - 镜头更低时，近处人物的脚和远处人物的脚之间的关系能同时解出地平线和镜头高度。
+  - 积水里的倒影属于地面，不在地面下方。
 
 ## 发布
 

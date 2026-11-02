@@ -211,7 +211,8 @@ function blurredLuminance(pixels, width, height, radius) {
 
 // A photograph becomes one point per sample, pushed back to its estimated distance along the ray it was taken through.
 // From the camera position at the origin it projects to exactly the original frame; anywhere else the depth shows.
-export function photoSet({ count, pixels, width, height, depth, depthWidth, depthHeight, near, far, tanX, tanY, unit, sizeFlag, seed = 23 }) {
+// `frame` (optional) places the camera: { pos, right, up, forward } in scene units, for a photograph set into the atlas.
+export function photoSet({ count, pixels, width, height, depth, depthWidth, depthHeight, tanX, tanY, unit, sizeFlag, frame = null, seed = 23 }) {
   const set = createSet(count);
   const rand = random(seed);
   const shapes = Math.min(width * height, count - dustCount(count));
@@ -231,18 +232,22 @@ export function photoSet({ count, pixels, width, height, depth, depthWidth, dept
       const x1 = Math.min(depthWidth - 1, x0 + 1), y1 = Math.min(depthHeight - 1, y0 + 1);
       const fx = Math.max(0, Math.min(1, dx - x0)), fy = Math.max(0, Math.min(1, dy - y0));
       const d00 = depth[y0 * depthWidth + x0], d10 = depth[y0 * depthWidth + x1], d01 = depth[y1 * depthWidth + x0], d11 = depth[y1 * depthWidth + x1];
-      // Across a depth edge, interpolating would hang points in the empty air between subject and background;
-      // there each point takes its nearest neighbour instead, so it lands on one side or the other.
-      const edge = Math.max(d00, d10, d01, d11) - Math.min(d00, d10, d01, d11) > .035;
-      const disparity = edge ? (fy < .5 ? (fx < .5 ? d00 : d10) : (fx < .5 ? d01 : d11))
-        : (d00 * (1 - fx) + d10 * fx) * (1 - fy) + (d01 * (1 - fx) + d11 * fx) * fy;
-      // The network predicts relative inverse depth; map it onto the chosen near/far range in inverse-depth space.
-      const z = 1 / (1 / far + (1 / near - 1 / far) * disparity);
+      // Across a depth edge (neighbours more than 12% apart), interpolating would hang points in the empty air between
+      // subject and background; there each point takes its nearest neighbour instead, so it lands on one side or the other.
+      // Elsewhere depth is interpolated geometrically, as metric depth varies.
+      const edge = Math.max(d00, d10, d01, d11) > 1.12 * Math.min(d00, d10, d01, d11);
+      const z = edge ? (fy < .5 ? (fx < .5 ? d00 : d10) : (fx < .5 ? d01 : d11))
+        : Math.exp((Math.log(d00) * (1 - fx) + Math.log(d10) * fx) * (1 - fy) + (Math.log(d01) * (1 - fx) + Math.log(d11) * fx) * fy);
       const r = pixels[i] / 255, g = pixels[i + 1] / 255, b = pixels[i + 2] / 255;
       const luma = .2126 * r + .7152 * g + .0722 * b;
       // Lift highlights back above white so neon, lamps and the sun bloom as they did in the scene.
       const lift = 1 + 7 * Math.pow(Math.max(0, (luma - .72) / .28), 2);
-      put(set, n, (2 * u - 1) * tanX * z * unit, (1 - 2 * v) * tanY * z * unit, -z * unit, packFlag(sizeFlag, smooth[y * width + x]), [r, g, b], lift);
+      const cx = (2 * u - 1) * tanX * z * unit, cy = (1 - 2 * v) * tanY * z * unit, cz = z * unit;
+      if (frame) {
+        const { pos, right, up, forward } = frame;
+        put(set, n, pos[0] + right[0] * cx + up[0] * cy + forward[0] * cz, pos[1] + right[1] * cx + up[1] * cy + forward[1] * cz,
+          pos[2] + right[2] * cx + up[2] * cy + forward[2] * cz, packFlag(sizeFlag, smooth[y * width + x]), [r, g, b], lift);
+      } else put(set, n, cx, cy, -cz, packFlag(sizeFlag, smooth[y * width + x]), [r, g, b], lift);
       n++;
     }
   }

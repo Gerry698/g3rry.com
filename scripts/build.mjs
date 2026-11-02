@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import { readFile, writeFile, mkdir, rm, copyFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,9 +39,10 @@ for (const shape of site.phantom.shapes) {
 const lab = JSON.parse(await readFile(path.join(root, 'content/phantom.json'), 'utf8'));
 const labChapters = ['ignite', 'sculpt', 'develop', 'atlas'];
 if (!Array.isArray(lab.chapters) || lab.chapters.map(chapter => chapter.id).join() !== labChapters.join()) throw new Error('phantom.json chapters must be ' + labChapters.join(', ') + ' in that order.');
-for (const entry of lab.develop) {
-  if (!photos.some(photo => photo.id === entry.photo) || !lab.photos[entry.photo]) throw new Error('Develop photo needs a manifest entry and lab metadata: ' + entry.photo);
-  if (!(entry.depth[0] > 0 && entry.depth[1] > entry.depth[0])) throw new Error('Develop depth range must be near < far: ' + entry.photo);
+const scenes = JSON.parse(await readFile(path.join(root, 'content/phantom/scenes.json'), 'utf8'));
+for (const id of lab.develop) {
+  if (!photos.some(photo => photo.id === id) || !lab.photos[id]) throw new Error('Develop photo needs a manifest entry and lab metadata: ' + id);
+  if (!scenes[id] || !(scenes[id].subject > 0) || !scenes[id].note) throw new Error('Develop photo needs a scene model with a subject distance and a note: ' + id);
 }
 for (const site of lab.sites) {
   if (!/^[a-z][a-z0-9-]*$/.test(site.id) || Math.abs(site.lat) > 90 || Math.abs(site.lon) > 180) throw new Error('Invalid atlas site: ' + site.id);
@@ -214,7 +216,10 @@ function labPhoto(id) {
 }
 const labConfig = {
   shapes: shapes.map(({ id, label, url, width, height }) => ({ id, label, url, width, height })),
-  develop: await Promise.all(lab.develop.map(async entry => ({ ...labPhoto(entry.photo), depth: entry.depth, depthUrl: await labData('depth/' + entry.photo + '.bin') }))),
+  develop: await Promise.all(lab.develop.map(async id => {
+    const header = await readFile(path.join(root, 'content/phantom/scenes', id + '.bin')).then(file => { const raw = gunzipSync(file); return JSON.parse(raw.subarray(4, 4 + raw.readUInt32LE(0))); });
+    return { ...labPhoto(id), scene: await labData('scenes/' + id + '.bin'), subject: scenes[id].subject, nearest: header.nearest, note: scenes[id].note };
+  })),
   sites: lab.sites.map(({ id, name, lat, lon, period, status, origin }) => ({ id, name, lat, lon, period, status, origin })), trips: lab.trips,
   atlas: {
     land: await labData('atlas/land.bin'),
@@ -228,7 +233,7 @@ const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {
   const key = chapter.id.toUpperCase();
   return [[key + '_KICKER', escape(chapter.kicker)], [key + '_TITLE', lines(chapter.title)], [key + '_TEXT', escape(chapter.text)]];
 }));
-const developHero = generated.find(photo => photo.id === lab.develop[0].photo);
+const developHero = generated.find(photo => photo.id === lab.develop[0]);
 await output('phantom/index.html', replace(await readFile(path.join(root, 'src/phantom/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(lab.title), DESCRIPTION: escape(lab.description),
   CANONICAL: escape(new URL('/phantom/', origin).href), CSP: layout.match(/<meta http-equiv="Content-Security-Policy"[^>]*>/)[0],
