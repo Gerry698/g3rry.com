@@ -45,6 +45,8 @@ ol, ul { padding: 0; list-style: none; }
 .readout-exposure b + b { margin-left: 1.4em; }
 .readout small { font-size: inherit; color: #eee9df80; margin-left: .15em; }
 .readout-chapter { color: var(--gold); }
+.readout-sun { color: #e6d3a3; margin-right: auto; }
+.readout-sun:empty { display: none; }
 
 .lab-top { position: fixed; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem;
   padding: 26px var(--edge) 22px; background: linear-gradient(#06080bcc, #06080b00); }

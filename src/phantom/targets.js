@@ -335,5 +335,11 @@ export function citySet({ count, data, centre, metersPerUnit, terrain = 1, seed 
     put(set, n, (east - centre[0]) * u, up * u, -(north - centre[1]) * u, 1, rgb, level);
   }
   fillDust(set, shapes, rand, { inner: 6, outer: 22, intensity: .4 });
+  // Where the cloud sits in the scene and how far apart its returns are: the sun's shadow map is fitted to this.
+  set.bounds = {
+    center: [(meta.min[0] + meta.size[0] / 2 - centre[0]) * u, (meta.min[2] + meta.size[2] / 2) * u, -(meta.min[1] + meta.size[1] / 2 - centre[1]) * u],
+    radius: Math.hypot(...meta.size) / 2 * u,
+    spacing: Math.sqrt(meta.size[0] * meta.size[1] / m) * u
+  };
   return set;
 }

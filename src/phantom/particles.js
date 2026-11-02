@@ -1,5 +1,5 @@
 import { program, use, texture } from './gl.js';
-import { simVertex, simFragment, pointVertex, pointFragment } from './shaders.js';
+import { simVertex, simFragment, pointVertex, pointFragment, shadowVertex, shadowFragment } from './shaders.js';
 
 export const ROW = 1024;
 
@@ -9,6 +9,7 @@ export class Particles {
     this.gl = gl;
     this.sim = program(gl, simVertex, simFragment, ['vPos', 'vVel']);
     this.points = program(gl, pointVertex, pointFragment);
+    this.shadows = program(gl, shadowVertex, shadowFragment);
     this.count = 0;
     this.side = 0;
     this.morph = 1;
@@ -120,6 +121,15 @@ export class Particles {
     gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
     gl.bindVertexArray(null);
     this.side = 1 - this.side;
+  }
+
+  // The sun's depth map: the same points, drawn from the sun into whatever depth target is bound.
+  shadow(values) {
+    const { gl } = this;
+    use(this.shadows, { ...this.morphUniforms(), ...values });
+    gl.bindVertexArray(this.vaos[this.side]);
+    gl.drawArrays(gl.POINTS, 0, this.count);
+    gl.bindVertexArray(null);
   }
 
   draw(values) {

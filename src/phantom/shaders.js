@@ -151,6 +151,11 @@ uniform float uMode;
 uniform float uContours;
 uniform vec3 uContourOrigin;
 uniform float uContourUnit;
+uniform sampler2D uShadow;
+uniform mat4 uSunMatrix;
+uniform float uSun;
+uniform vec3 uSunColor;
+uniform float uShadowBias;
 uniform float uFromGain;
 uniform float uToGain;
 uniform float uDustGain;
@@ -186,6 +191,22 @@ void main() {
   float twinkle = flags < 0.0 ? 0.6 + 0.4 * sin(uTime * (0.4 + seed * 1.3) + seed * 61.0) : 1.0;
   float heat = 1.0 + 1.2 * aVel.w;
   vec3 rgb = pow(color.rgb, vec3(2.2));
+  // The sun at the moment of exposure: a point the sun's depth map sees first is lit, warm; one behind something is in
+  // shadow, lit only by the blue sky. Nine taps soften the edge of the map's texels.
+  if (uSun > 0.0 && flags >= 0.0) {
+    vec4 ls = uSunMatrix * vec4(aPos.xyz, 1.0);
+    vec3 p = ls.xyz / ls.w * 0.5 + 0.5;
+    float lit = 1.0;
+    if (p.x > 0.0 && p.x < 1.0 && p.y > 0.0 && p.y < 1.0 && p.z < 1.0) {
+      ivec2 size = textureSize(uShadow, 0), c = ivec2(p.xy * vec2(size));
+      float sum = 0.0;
+      for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++)
+        sum += p.z - uShadowBias <= texelFetch(uShadow, clamp(c + ivec2(dx, dy), ivec2(0), size - 1), 0).r ? 1.0 : 0.0;
+      lit = sum / 9.0;
+    }
+    rgb = mix(rgb, mix(rgb * vec3(0.5, 0.6, 0.85), rgb * uSunColor, lit), uSun);
+    intensity *= mix(1.0, mix(0.3, 2.6, lit), uSun);
+  }
   // At an atlas stop the photograph is projected from where it was taken: points inside its frame take its colour.
   if (uPhotoMix > 0.0) {
     vec4 shot = uPhotoMatrix * vec4(mix(fromPos.xyz, toPos.xyz, m), 1.0);
@@ -349,5 +370,47 @@ void main() {
   uvec3 seed = uvec3(gl_FragCoord.xy, uint(uFrame));
   float n = rand(seed) + rand(seed + uvec3(7u, 13u, 101u)) - 1.0;
   color = vec4(c + n * uGrain, 1.0);
+}
+`;
+
+// The sun's view of the scene: the same points, drawn as small squares into a depth map. Dust drifts near the lens and
+// casts no shadow.
+export const shadowVertex = header + morph + `
+layout(location = 0) in vec4 aPos;
+uniform mat4 uSunMatrix;
+uniform float uSplat;
+void main() {
+  ivec2 cell = cellOf(gl_VertexID);
+  if (texelFetch(uToPos, cell, 0).w < 0.0 || texelFetch(uFromPos, cell, 0).w < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+  gl_Position = uSunMatrix * vec4(aPos.xyz, 1.0);
+  gl_PointSize = uSplat;
+}
+`;
+export const shadowFragment = header + `
+out vec4 color;
+void main() { color = vec4(0.0); }
+`;
+
+// The sun itself, a disc half a degree across in its true direction, with a glow the bloom carries further.
+export const sunVertex = header + `
+uniform mat4 uViewProjection;
+uniform vec3 uEye;
+uniform vec3 uDir;
+uniform float uDistance;
+uniform float uSize;
+void main() {
+  gl_Position = uViewProjection * vec4(uEye + uDir * uDistance, 1.0);
+  gl_PointSize = uSize;
+}
+`;
+export const sunFragment = header + `
+uniform vec3 uColor;
+uniform float uDisc;
+out vec4 color;
+void main() {
+  float r = length(gl_PointCoord * 2.0 - 1.0);
+  float disc = 1.0 - smoothstep(uDisc * 0.85, uDisc, r);
+  float glow = exp(-r * r * 9.0) * 0.25 + exp(-r * 3.0) * 0.04;
+  color = vec4(uColor * (disc * 60.0 + glow * 6.0), 1.0);
 }
 `;

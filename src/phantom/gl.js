@@ -92,6 +92,18 @@ export function renderTarget(gl, width, height, hdr) {
   return { fbo, texture: tex, width, height };
 }
 
+// A depth-only target: the sun's shadow map. Read back through a plain sampler with nearest filtering and compared by hand.
+export function depthTarget(gl, size) {
+  const tex = texture(gl, { width: size, height: size, internal: gl.DEPTH_COMPONENT24, format: gl.DEPTH_COMPONENT, type: gl.UNSIGNED_INT, filter: gl.NEAREST });
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, tex, 0);
+  gl.drawBuffers([gl.NONE]);
+  gl.readBuffer(gl.NONE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { fbo, texture: tex, width: size, height: size };
+}
+
 export function freeTarget(gl, target) {
   if (!target) return;
   gl.deleteFramebuffer(target.fbo);

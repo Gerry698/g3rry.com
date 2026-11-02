@@ -214,6 +214,15 @@ function labPhoto(id) {
   const version = photo.versions.filter(item => item.width <= 1280).at(-1);
   return { id, alt: photo.alt, frame: frame(generated.indexOf(photo)), url: version.webp, width: version.width, height: Math.round(photo.height * version.width / photo.width), ...lab.photos[id] };
 }
+// When a photograph was taken, in UTC: EXIF records camera-clock time, which each trip corrects to local time.
+function capturedAt(id) {
+  const meta = lab.photos[id], trip = meta && lab.trips.find(item => item.id === meta.trip);
+  if (!meta || !meta.exif || !trip) return null;
+  const [, sign, hours, minutes] = trip.utcOffset.match(/^([+-])(\d\d):(\d\d)$/);
+  const offset = (sign === '-' ? -1 : 1) * (+hours * 60 + +minutes);
+  const correction = (trip.cameraClockBehindMinutes || 0) - (trip.cameraClockAheadMinutes || 0);
+  return { when: new Date(Date.parse(meta.exif + 'Z') + (correction - offset) * 60000).toISOString(), utcOffset: trip.utcOffset };
+}
 const labConfig = {
   shapes: shapes.map(({ id, label, url, width, height }) => ({ id, label, url, width, height })),
   develop: await Promise.all(lab.develop.map(async id => {
@@ -226,7 +235,11 @@ const labConfig = {
     frames: JSON.parse(await readFile(path.join(root, 'content/phantom/atlas/frames.json'), 'utf8').catch(() => '{"clouds":{},"stops":{}}')),
     clouds: Object.fromEntries(await Promise.all(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).map(async cloud => [cloud.id, await labData('atlas/' + cloud.id + '.bin')]))),
     terrain: Object.fromEntries(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).filter(cloud => cloud.terrain).map(cloud => [cloud.id, cloud.terrain])),
-    stops: lab.atlas.stops.map(stop => ({ ...stop, photo: stop.photo ? labPhoto(stop.photo) : null, photos: stop.photos ? stop.photos.map(labPhoto) : null }))
+    stops: lab.atlas.stops.map(stop => ({
+      ...stop, photo: stop.photo ? labPhoto(stop.photo) : null, photos: stop.photos ? stop.photos.map(labPhoto) : null,
+      // The sun as it stood when the stop's photograph was taken, seen from where it was taken.
+      light: stop.vantage && (stop.photo || stop.photos) ? { ...capturedAt(stop.photo || stop.photos[0]), where: (stop.vantage.at || stop.vantage.target).slice(0, 2) } : null
+    }))
   }
 };
 const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {

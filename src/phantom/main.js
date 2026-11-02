@@ -1,9 +1,10 @@
-import { createContext, imageTexture, texture } from './gl.js';
+import { createContext, imageTexture, texture, program, use, depthTarget, bindTarget } from './gl.js';
 import { Particles, ROW } from './particles.js';
 import { Post } from './post.js';
 import { Camera, orbit, framingDistance } from './camera.js';
 import { clamp, lerp, smoothstep, catmull, project, sub, dot, add, scale, length, normalize, cross, mix3, perspective, lookAt, multiply } from './math.js';
 import { dustCount } from './targets.js';
+import { sunVertex, sunFragment } from './shaders.js';
 
 const config = JSON.parse(document.getElementById('lab-config').textContent);
 const canvas = document.getElementById('lab-canvas');
@@ -154,7 +155,7 @@ function start({ gl, hdr }) {
   // ---- Chapters -------------------------------------------------------------------------------
   const state = {
     shape: config.shapes[0], shutter: 0, focal: null, aperture: null, photo: 0, mode: 'photo', contours: 0,
-    dragAzimuth: 0, dragElevation: 0, paused: false, ev: 0
+    dragAzimuth: 0, dragElevation: 0, paused: false, ev: 0, sun: 0
   };
   // Each photograph keeps its own metric scale. The subject sits at least 6 scene units out, and the nearest content at least
   // .3, clear of the lens's near plane; a beach 3 m away under a bridge 1.5 km off needs the second rule.
@@ -318,6 +319,34 @@ function start({ gl, hdr }) {
     const forward = normalize(sub(at.look, at.pos)), right = normalize(cross(forward, [0, 1, 0])), up = cross(right, forward);
     return photoTargets(sceneOf(stop), { key: stop.id, unit: 1 / metersOf(stop), frame: { pos: at.pos, right, up, forward } });
   }
+  // ---- The sun at the moment of exposure ----------------------------------------------------------------------
+  // NOAA's solar position (a few hundredths of a degree), with refraction, which holds the sun on the horizon while it is
+  // truly just below it (Saemundsson).
+  function sunAt(ms, lat, lon) {
+    const jd = ms / 86400000 + 2440587.5, T = (jd - 2451545) / 36525;
+    const L0 = (280.46646 + T * (36000.76983 + T * .0003032)) % 360, M = 357.52911 + T * (35999.05029 - .0001537 * T);
+    const e = .016708634 - T * (.000042037 + .0000001267 * T);
+    const C = Math.sin(M * rad) * (1.914602 - T * (.004817 + .000014 * T)) + Math.sin(2 * M * rad) * (.019993 - .000101 * T) + Math.sin(3 * M * rad) * .000289;
+    const omega = 125.04 - 1934.136 * T, lambda = L0 + C - .00569 - .00478 * Math.sin(omega * rad);
+    const eps = 23 + (26 + (21.448 - T * (46.815 + T * (.00059 - T * .001813))) / 60) / 60 + .00256 * Math.cos(omega * rad);
+    const decl = Math.asin(Math.sin(eps * rad) * Math.sin(lambda * rad)), y = Math.tan(eps * rad / 2) ** 2;
+    const eqTime = 4 / rad * (y * Math.sin(2 * L0 * rad) - 2 * e * Math.sin(M * rad) + 4 * e * y * Math.sin(M * rad) * Math.cos(2 * L0 * rad) - .5 * y * y * Math.sin(4 * L0 * rad) - 1.25 * e * e * Math.sin(2 * M * rad));
+    const date = new Date(ms), minutes = date.getUTCHours() * 60 + date.getUTCMinutes() + date.getUTCSeconds() / 60;
+    const ha = (((minutes + eqTime + 4 * lon) / 4 - 180) % 360 + 540) % 360 - 180;
+    const zen = Math.acos(clamp(Math.sin(lat * rad) * Math.sin(decl) + Math.cos(lat * rad) * Math.cos(decl) * Math.cos(ha * rad), -1, 1));
+    const azimuth = Math.acos(clamp((Math.sin(lat * rad) * Math.cos(zen) - Math.sin(decl)) / (Math.cos(lat * rad) * Math.sin(zen)), -1, 1)) / rad;
+    const altitude = 90 - zen / rad;
+    const refraction = altitude > -1 ? 1.02 / Math.tan((altitude + 10.3 / (altitude + 5.11)) * rad) / 60 : 0;
+    return { azimuth: ha > 0 ? (azimuth + 180) % 360 : (540 - azimuth) % 360, altitude: altitude + refraction };
+  }
+  // A direction in the scene (x east, y up, z south) from azimuth and altitude in degrees.
+  const skyward = (azimuth, altitude) => [Math.sin(azimuth * rad) * Math.cos(altitude * rad), Math.sin(altitude * rad), -Math.cos(azimuth * rad) * Math.cos(altitude * rad)];
+  const ortho = (l, r, b, t, n, f) => new Float32Array([2 / (r - l), 0, 0, 0, 0, 2 / (t - b), 0, 0, 0, 0, -2 / (f - n), 0, -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1]);
+  const SHADOW = 2048;
+  const shadowMap = depthTarget(gl, SHADOW);
+  const sunProgram = program(gl, sunVertex, sunFragment);
+  let sunNow = null;
+
   // The globe turns so a site faces the camera: its longitude relative to the globe's centre, its latitude as elevation.
   const facing = site => [(site.lon - home.lon) * rad, site.lat * rad];
   let atlasPhoto = null;
@@ -348,7 +377,9 @@ function start({ gl, hdr }) {
       const look = mix3(start, [lerp(start[0], target[0], .6), start[1], lerp(start[2], target[2], .6)], k);
       const path = stop.orbit || { from: [-.35, .62, 10250], to: [-.9, .42, 6500] };
       const pos = add(look, orbit([0, 0, 0], lerp(path.from[0], path.to[0], k) + state.dragAzimuth, lerp(path.from[1], path.to[1], k) + state.dragElevation, lerp(path.from[2], path.to[2], k) / m));
-      return { view: { pos, look, focal: lerp(35, 45, k), aperture: 5.6, focus: length(sub(pos, look)), shift, metersPerUnit: m }, photo: null };
+      // The light of the next photograph, two hours before it was taken; that stop then runs it on to the exposure.
+      const sun = next && next.light ? { ...next.light, when: Date.parse(next.light.when) - 7200000, strength: smoothstep(0, .3, t) } : null;
+      return { view: { pos, look, focal: lerp(35, 45, k), aperture: 5.6, focus: length(sub(pos, look)), shift, metersPerUnit: m, sun }, photo: null };
     }
     const at = station(stop);
     if (!at) return { view: { pos: [0, 3, 6], look: [0, 0, 0], focal: 35, aperture: 5.6, focus: 6.7, shift, metersPerUnit: m }, photo: null };
@@ -390,7 +421,10 @@ function start({ gl, hdr }) {
       print = t > .86;
     }
     const photo = { stop, at, mix, print };
-    return { view: { pos, look, focal, aperture, focus: Math.max(.2, length(sub(look, pos))), shift, metersPerUnit: m, ev }, photo };
+    // The sun runs from two hours before the exposure to the exposure itself as the camera arrives, then gives way to the
+    // photograph, which carries the real light.
+    const sun = stop.light ? { ...stop.light, when: Date.parse(stop.light.when) - 7200000 * (1 - smoothstep(.05, own ? .48 : .55, t)), strength: 1 - smoothstep(own ? .44 : .56, own ? .56 : .7, t) } : null;
+    return { view: { pos, look, focal, aperture, focus: Math.max(.2, length(sub(look, pos))), shift, metersPerUnit: m, ev, sun }, photo };
   }
 
   // Prints fade in over the scene once the camera has settled: one photograph exactly over its projection, or a strip.
@@ -584,11 +618,17 @@ function start({ gl, hdr }) {
   // ---- Viewfinder readout ----------------------------------------------------------------------
   const read = {
     chapter: $('#lab-read-chapter'), focal: $('#lab-read-focal'), aperture: $('#lab-read-aperture'),
-    shutter: $('#lab-read-shutter'), focus: $('#lab-read-focus'), count: $('#lab-read-count'), af: $('#lab-af')
+    shutter: $('#lab-read-shutter'), focus: $('#lab-read-focus'), count: $('#lab-read-count'), af: $('#lab-af'), sun: $('#lab-read-sun')
   };
   const labels = { intro: 'Lab', ignite: '00 Ignite', sculpt: '01 Sculpt', develop: '02 Develop', atlas: '03 Atlas' };
   function readout(view, matrices) {
     read.chapter.textContent = labels[active];
+    // The sun's bearing and height, and the local time the light is shown at (the exposure itself once the camera arrives).
+    if (sunNow) {
+      const [, sign, hh, mm] = sunNow.light.utcOffset.match(/^([+-])(\d\d):(\d\d)$/), offset = (sign === '-' ? -1 : 1) * (+hh * 60 + +mm);
+      const local = new Date(sunNow.light.when + offset * 60000).toISOString().slice(11, 16);
+      read.sun.textContent = 'Sun ' + Math.round(sunNow.azimuth) + '° ' + (sunNow.altitude >= 0 ? '▲' : '▼') + Math.abs(sunNow.altitude).toFixed(1) + '° · ' + local + ' UTC' + (sign === '-' ? '−' : '+') + Number(hh) + (+mm ? ':' + mm : '');
+    } else read.sun.textContent = '';
     read.focal.textContent = Math.round(view.focal);
     read.aperture.textContent = nearest(apertureStops, view.aperture)[1];
     read.shutter.textContent = active === 'ignite' ? shutterLabel() : '1/60';
@@ -703,14 +743,46 @@ function start({ gl, hdr }) {
     const decay = exposureTime > 1 / 50 ? Math.exp(-dt / exposureTime) : 0;
     const contourTarget = active === 'develop' && state.mode !== 'photo' ? 1 : 0;
     state.contours += (contourTarget - state.contours) * Math.min(1, dt * 4);
+    // The sun of the stop's photograph: its depth map over the cloud, then its light in the points and its disc in the sky.
+    const light = active === 'atlas' ? desired.sun : null;
+    const sun = light ? sunAt(light.when, light.where[0], light.where[1]) : null;
+    state.sun += ((light ? light.strength * smoothstep(-.8, 1.2, sun.altitude) : 0) - state.sun) * Math.min(1, dt * (reduced.matches ? 30 : 3));
+    sunNow = light && { ...sun, light };
+    const bounds = particles.toSet && particles.toSet.bounds;
+    let sunlight = { uSun: 0, uShadow: shadowMap.texture };
+    if (sun && state.sun > .01 && bounds) {
+      // A sun on the horizon would graze the map edge-on; half a degree up keeps it readable and the shadows still run long.
+      const dir = skyward(sun.azimuth, clamp(sun.altitude, .5, 85)), r = bounds.radius;
+      const sunMatrix = multiply(ortho(-r, r, -r, r, r * .5, r * 3.5), lookAt(add(bounds.center, scale(dir, 2 * r)), bounds.center));
+      bindTarget(gl, shadowMap);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LESS);
+      gl.clearDepth(1);
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      particles.shadow({ uSunMatrix: sunMatrix, uSplat: clamp(1.8 * bounds.spacing * SHADOW / (2 * r), 2, 12) });
+      gl.disable(gl.DEPTH_TEST);
+      const warm = smoothstep(0, 20, sun.altitude);
+      sunlight = { uSun: state.sun, uShadow: shadowMap.texture, uSunMatrix: sunMatrix, uSunColor: [1.25, lerp(.62, .95, warm), lerp(.3, .82, warm)], uShadowBias: 1.5 * bounds.spacing / (3 * r) };
+    }
     post.begin();
     particles.draw({
+      ...sunlight,
       uView: frame.view, uProjection: frame.projection, uCoc: frame.coc, uFocus: view.focus, uBase: base(), uMaxSize: Math.min(64, 26 * dpr),
       uGain: 2 ** state.ev, uDustGain: .8 / 2 ** state.ev, uTime: time, uNear: Math.min(.05, .3 / view.metersPerUnit), uBlades: 9, uRoundness: smoothstep(5.6, 2, view.aperture) * .85, uCatEye: .32 * smoothstep(8, 2, view.aperture),
       uMode: state.mode === 'depth' ? 2 : 1, uContours: state.contours, uContourOrigin: [0, 0, 0], uContourUnit: view.metersPerUnit,
       uPhoto: atlasPhoto && atlasPhoto.stop.photo ? photoTexture(atlasPhoto.stop.photo) : blank, uPhotoMatrix: atlasPhoto ? atlasPhoto.at.matrix : frame.viewProjection,
       uPhotoMix: active === 'atlas' && atlasPhoto && atlasPhoto.stop.photo && particles.morph >= 1 ? atlasPhoto.mix : 0
     });
+    if (sun && state.sun > .01 && sun.altitude > -1) {
+      // Half a degree across, drawn far out along its true direction; the bloom does the rest.
+      const across = .0093 * frame.projection[5] * viewHeight / 2, size = clamp(across * 9, 10, 256), warm = smoothstep(0, 20, sun.altitude);
+      use(sunProgram, { uViewProjection: frame.viewProjection, uEye: view.pos, uDir: skyward(sun.azimuth, sun.altitude), uDistance: 2000, uSize: size, uDisc: across / size,
+        uColor: [1, lerp(.55, .93, warm), lerp(.25, .8, warm)].map(c => c * state.sun * lerp(.35, 1, smoothstep(0, 8, sun.altitude))) });
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      gl.drawArrays(gl.POINTS, 0, 1);
+      gl.disable(gl.BLEND);
+    }
     showPrint(view);
     post.finish({
       decay, exposure: 1, bloom: .055, halation: .03, grain: .02, tanCorner: frame.tanCorner, aberration: .0035,
