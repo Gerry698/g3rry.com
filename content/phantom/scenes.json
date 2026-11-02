@@ -1,0 +1,896 @@
+{
+  "p16": {
+    "subject": 1470,
+    "far": 6000,
+    "lidar": "marshalls-beach",
+    "ground": {
+      "horizon": [
+        0.639,
+        0.639
+      ],
+      "height": 0.35,
+      "region": [
+        0,
+        0.76,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.592,
+          0.42
+        ],
+        "z": 1470,
+        "what": "south tower, from the solved station"
+      },
+      {
+        "at": [
+          0.2,
+          0.84
+        ],
+        "z": 4.3,
+        "what": "boulder standing on the sand, its foot where the plane is 4.2 m out"
+      }
+    ],
+    "note": "Depth from the 2010 LiDAR seen from the spot solved on the sand: the bridge, Fort Point, the headlands. The beach is a plane 35 cm under the lens, which sat almost on the sand. Waves and rocks come from the network, fitted to both.",
+    "lidarRegion": [
+      0,
+      0,
+      1,
+      0.66
+    ]
+  },
+  "p07": {
+    "subject": 18,
+    "far": 900,
+    "lidar": "times-square",
+    "ground": {
+      "horizon": [
+        0.699,
+        0.699
+      ],
+      "height": 1.6,
+      "region": [
+        0,
+        0.78,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.445,
+          0.735
+        ],
+        "z": 18.4,
+        "what": "walker, feet at 76.5%"
+      },
+      {
+        "at": [
+          0.635,
+          0.735
+        ],
+        "z": 18,
+        "what": "walker in white"
+      }
+    ],
+    "note": "The lens was at head height: every walker’s head sits on one line, the horizon, 70% of the way down. A walker’s feet 6.5% below it at 24 mm puts the crossing 18 m away; the bowtie’s far end is 320 m off, read from the LiDAR."
+  },
+  "p05": {
+    "subject": 11,
+    "far": 400,
+    "ground": {
+      "horizon": [
+        0.843,
+        0.843
+      ],
+      "height": 0.32,
+      "region": [
+        0,
+        0.9,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.57,
+          0.76
+        ],
+        "z": 11,
+        "what": "couple, a 1.65 m figure over 27% of the frame"
+      },
+      {
+        "at": [
+          0.86,
+          0.8
+        ],
+        "z": 34,
+        "what": "walkers behind, 1.7 m over 9%"
+      }
+    ],
+    "note": "Shot from about 30 cm above the wet street: distant heads float far above the horizon, which crosses at 84%. The couple, 1.65 m tall across 27% of a 65 mm frame, stand 11 m away; the walkers behind them, 34 m."
+  },
+  "p02": {
+    "subject": 1.35,
+    "far": 60,
+    "anchors": [
+      {
+        "at": [
+          0.55,
+          0.21
+        ],
+        "z": 1.35,
+        "what": "face, 23 cm cap to chin over 18% of the frame"
+      },
+      {
+        "at": [
+          0.26,
+          0.86
+        ],
+        "z": 0.8,
+        "what": "jars on the stall"
+      },
+      {
+        "at": [
+          0.82,
+          0.82
+        ],
+        "z": 1.15,
+        "what": "cardboard box"
+      },
+      {
+        "at": [
+          0.5,
+          0.05
+        ],
+        "z": 1.9,
+        "what": "stone wall behind her"
+      },
+      {
+        "at": [
+          0.85,
+          0.08
+        ],
+        "z": 24,
+        "what": "bus down the street"
+      }
+    ],
+    "note": "A close portrait at 24 mm. Her face, about 23 cm from cap to chin, fills 18% of the frame, so she sits 1.3 m from the lens; the stall is within arm’s reach, the stone wall a step behind her, the bus 24 m down the street."
+  },
+  "p01": {
+    "subject": 30,
+    "far": 300,
+    "ground": {
+      "horizon": [
+        0.5,
+        0.5
+      ],
+      "height": 1.4,
+      "region": [
+        0.1,
+        0.75,
+        0.25,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.93,
+          0.5
+        ],
+        "z": 22,
+        "what": "nearest column across the tracks"
+      },
+      {
+        "box": [
+          0.17,
+          0.46,
+          0.24,
+          0.52
+        ],
+        "z": 80,
+        "what": "far end, where the tracks curve"
+      },
+      {
+        "at": [
+          0.02,
+          0.4
+        ],
+        "z": 9,
+        "what": "wall at the left edge"
+      }
+    ],
+    "note": "From a tripod about 1.4 m above the platform at 104 mm. The platform edge and the light trails meet at the vanishing point halfway up the frame, so even the bottom edge is 12 m down the platform; the curve where the train came in is about 80 m off."
+  },
+  "p03": {
+    "subject": 2.9,
+    "far": 200,
+    "ground": {
+      "horizon": [
+        0.345,
+        0.345
+      ],
+      "height": 0.97,
+      "region": [
+        0.05,
+        0.8,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.37,
+          0.12
+        ],
+        "z": 2.9,
+        "what": "face and cap, 25 cm over 17% of the frame"
+      },
+      {
+        "at": [
+          0.76,
+          0.35
+        ],
+        "z": 5.5,
+        "what": "man at right, 1.75 m over 64%"
+      },
+      {
+        "at": [
+          0.93,
+          0.3
+        ],
+        "z": 5.8,
+        "what": "woman at right"
+      },
+      {
+        "at": [
+          0.57,
+          0.35
+        ],
+        "z": 19,
+        "what": "walker crossing behind"
+      }
+    ],
+    "note": "Shot from about a metre up: the walkers behind meet a horizon 35% down the frame. At 48 mm the man with the cane, his cap and face 25 cm tall across 17% of it, is under 3 m away; the couple at right 5.5 m, the crossing 19 m."
+  },
+  "p04": {
+    "subject": 17.5,
+    "far": 200,
+    "ground": {
+      "horizon": [
+        0.49,
+        0.49
+      ],
+      "height": 1.6,
+      "region": [
+        0,
+        0.8,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.46,
+          0.6
+        ],
+        "z": 17.5,
+        "what": "rider and bike, 1.75 m over 30% of the frame"
+      },
+      {
+        "box": [
+          0.3,
+          0.1,
+          0.7,
+          0.35
+        ],
+        "z": 27,
+        "what": "shopfronts, bases meeting the ground 27 m out"
+      }
+    ],
+    "note": "Panned with the rider at 1/13 s and 70 mm. Rider and helmet stand 1.75 m and fill 30% of the frame, and a wheel spans 7% of its width: 17.5 m out, with the lens at eye level. The kerb is 20 m off and the shopfronts 27 m, read from where their bases meet the ground."
+  },
+  "p06": {
+    "subject": 3.7,
+    "far": 150,
+    "ground": {
+      "horizon": [
+        0.586,
+        0.586
+      ],
+      "height": 0.5,
+      "region": [
+        0,
+        0.7,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.3,
+          0.5
+        ],
+        "z": 20,
+        "what": "cars, tail lights 1.4 m apart"
+      },
+      {
+        "at": [
+          0.55,
+          0.3
+        ],
+        "z": 35,
+        "what": "billboard behind"
+      }
+    ],
+    "note": "Everything above the street is a blur because the lens focused on the wet pavement 3.7 m away, half a metre below it. The reflections lie on the pavement, not behind it, so they are put on the ground plane; the cars, tail lights 1.4 m apart, are 20 m off."
+  },
+  "p08": {
+    "subject": 4.4,
+    "far": 400,
+    "ground": {
+      "horizon": [
+        0.583,
+        0.583
+      ],
+      "height": 0.95,
+      "region": [
+        0,
+        0.82,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.6,
+          0.55
+        ],
+        "z": 4.4,
+        "what": "walker in the middle, 1.75 m over 40%"
+      },
+      {
+        "at": [
+          0.85,
+          0.55
+        ],
+        "z": 5.9,
+        "what": "walker in red"
+      },
+      {
+        "box": [
+          0.45,
+          0.05,
+          0.7,
+          0.3
+        ],
+        "z": 70,
+        "what": "the Flash billboard"
+      },
+      {
+        "box": [
+          0.17,
+          0.1,
+          0.28,
+          0.35
+        ],
+        "z": 140,
+        "what": "brick hotel at left"
+      }
+    ],
+    "note": "Low, about a metre up, at 24 mm: the walker in the middle, 1.75 m across 40% of the frame, is 4.4 m away, and the crowd’s feet meet a horizon 58% down. The Flash billboard hangs about 70 m off."
+  },
+  "p09": {
+    "subject": 1450,
+    "far": 4000,
+    "ground": {
+      "horizon": [
+        0.535,
+        0.535
+      ],
+      "height": 9,
+      "region": [
+        0.33,
+        0.6,
+        0.55,
+        0.88
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.455,
+          0.42
+        ],
+        "z": 1450,
+        "what": "statue and pedestal, 93 m over 18%"
+      },
+      {
+        "at": [
+          0.22,
+          0.33
+        ],
+        "z": 3.6,
+        "what": "onlooker at left, head 25 cm over 20%"
+      },
+      {
+        "at": [
+          0.66,
+          0.36
+        ],
+        "z": 3.6,
+        "what": "onlooker in the middle"
+      },
+      {
+        "at": [
+          0.9,
+          0.55
+        ],
+        "z": 4,
+        "what": "onlooker at right"
+      }
+    ],
+    "note": "Seconds before frame 12, from the same ferry. Statue and pedestal, 93 m, span 18% of the 70 mm frame: 1.5 km. The onlookers’ heads, about 25 cm, span 20%: under 4 m from the lens, and soft because it focused on the statue. The water starts 76 m out, 9 m below the deck."
+  },
+  "p10": {
+    "subject": 18,
+    "far": 80,
+    "anchors": [
+      {
+        "at": [
+          0.6,
+          0.06
+        ],
+        "z": 13,
+        "what": "nearest ceiling light"
+      },
+      {
+        "at": [
+          0.44,
+          0.6
+        ],
+        "z": 20,
+        "what": "woman with a phone, in focus"
+      },
+      {
+        "at": [
+          0.86,
+          0.38
+        ],
+        "z": 16,
+        "what": "man at the window"
+      },
+      {
+        "at": [
+          0.38,
+          0.86
+        ],
+        "z": 11,
+        "what": "blurred heads in front"
+      },
+      {
+        "at": [
+          0.08,
+          0.45
+        ],
+        "z": 45,
+        "what": "far end of the cabin"
+      }
+    ],
+    "note": "Across the ferry’s cabin at 200 mm. Heads about 22 cm tall span under a hundredth of a radian, so the people in focus stand 16 to 20 m away and the blurred heads in front of them 11 m. The ceiling lights march off to the far end of the cabin, about 45 m."
+  },
+  "p11": {
+    "subject": 2.6,
+    "far": 12,
+    "ground": {
+      "horizon": [
+        0.62,
+        0.62
+      ],
+      "height": 0.25,
+      "region": [
+        0,
+        0.82,
+        0.42,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.21,
+          0.82
+        ],
+        "z": 1.6,
+        "what": "table leg, foot on the carpet"
+      },
+      {
+        "at": [
+          0.6,
+          0.55
+        ],
+        "z": 2.6,
+        "what": "white chair, in focus"
+      },
+      {
+        "at": [
+          0.3,
+          0.55
+        ],
+        "z": 3.3,
+        "what": "chairs behind"
+      },
+      {
+        "at": [
+          0.85,
+          0.08
+        ],
+        "z": 4,
+        "what": "window wall"
+      },
+      {
+        "at": [
+          0.9,
+          0.5
+        ],
+        "z": 0.8,
+        "what": "dark chair at the right edge"
+      }
+    ],
+    "note": "Shot from about 25 cm off the carpet at 52 mm, under the table. The rockers meet the floor along lines that fix the horizon 62% down; the chair in focus stands 2.6 m off, the table leg 1.6 m, the window wall about 4 m."
+  },
+  "p12": {
+    "subject": 1360,
+    "far": 5000,
+    "lidar": "liberty",
+    "ground": {
+      "horizon": [
+        0.577,
+        0.577
+      ],
+      "height": 9,
+      "region": [
+        0,
+        0.7,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.45,
+          0.4
+        ],
+        "z": 1360,
+        "what": "statue, from the solved station"
+      }
+    ],
+    "note": "The camera station solved for the atlas, 1.36 km off the statue and 9 m above the water, gives this frame its depth: the island and the statue from the LiDAR, the water as a plane 9 m below the deck, the sun and sky beyond."
+  },
+  "p13": {
+    "subject": 5.9,
+    "far": 3000,
+    "ground": {
+      "horizon": [
+        0.445,
+        0.445
+      ],
+      "height": 1.6,
+      "region": [
+        0,
+        0.9,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.55,
+          0.65
+        ],
+        "z": 5.9,
+        "what": "fisherman, 1.75 m over 58%"
+      },
+      {
+        "at": [
+          0.05,
+          0.61
+        ],
+        "z": 6.3,
+        "what": "rail at the left edge"
+      },
+      {
+        "at": [
+          0.95,
+          0.56
+        ],
+        "z": 9,
+        "what": "rail at the right edge"
+      },
+      {
+        "box": [
+          0.05,
+          0.5,
+          0.4,
+          0.56
+        ],
+        "z": 60,
+        "what": "water beyond the rail"
+      },
+      {
+        "at": [
+          0.53,
+          0.4
+        ],
+        "z": 1600,
+        "what": "Jersey City across the Hudson"
+      }
+    ],
+    "note": "At the Hudson’s edge at 70 mm. The fisherman’s feet sit 52% of the frame below a horizon set by the far shore, with the lens at eye height: 5.9 m, which his 1.75 m across 58% of the frame confirms. The rail runs from 6 to 9 m; Jersey City is 1.6 km across the water."
+  },
+  "p14": {
+    "subject": 40,
+    "far": 600,
+    "ground": {
+      "horizon": [
+        0.72,
+        0.72
+      ],
+      "height": 1.43,
+      "region": [
+        0,
+        0.88,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.15,
+          0.8
+        ],
+        "z": 18.6,
+        "what": "SUV, 1.85 m wide over 29%"
+      },
+      {
+        "box": [
+          0.38,
+          0.4,
+          0.5,
+          0.6
+        ],
+        "z": 95,
+        "what": "Nordstrom corner"
+      },
+      {
+        "box": [
+          0.15,
+          0.45,
+          0.25,
+          0.6
+        ],
+        "z": 250,
+        "what": "towers up the avenue"
+      }
+    ],
+    "note": "Fifteen seconds at 70 mm from a tripod about 1.4 m high. The SUV in front, 1.85 m wide across 29% of the frame, waits 18.6 m away; its wheels and the avenue’s vanishing point fix the horizon at 72%. Nordstrom’s corner stands about 95 m up the street."
+  },
+  "p15": {
+    "subject": 41,
+    "far": 3000,
+    "ground": {
+      "horizon": [
+        0.795,
+        0.795
+      ],
+      "height": 3.9,
+      "region": [
+        0,
+        0.965,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.75,
+          0.9
+        ],
+        "z": 41,
+        "what": "bus rear, 2.55 m wide"
+      },
+      {
+        "at": [
+          0.5,
+          0.93
+        ],
+        "z": 55,
+        "what": "taxi"
+      },
+      {
+        "at": [
+          0.17,
+          0.92
+        ],
+        "z": 40,
+        "what": "red SUV"
+      },
+      {
+        "box": [
+          0.06,
+          0.1,
+          0.18,
+          0.35
+        ],
+        "z": 150,
+        "what": "glass tower at left"
+      },
+      {
+        "box": [
+          0.3,
+          0.15,
+          0.36,
+          0.45
+        ],
+        "z": 400,
+        "what": "tall white tower"
+      },
+      {
+        "box": [
+          0.7,
+          0.1,
+          0.9,
+          0.4
+        ],
+        "z": 120,
+        "what": "dark tower at right"
+      },
+      {
+        "at": [
+          0.54,
+          0.78
+        ],
+        "z": 1200,
+        "what": "vanishing point"
+      }
+    ],
+    "note": "The avenue’s vanishing point puts the horizon 79% down a 70 mm frame. The bus’s rear, 2.55 m wide, is 41 m off, and its wheels sit so far below the horizon that the lens was about 4 m up, perhaps on steps. The towers stand 120 to 400 m away."
+  },
+  "p17": {
+    "subject": 680,
+    "far": 30000,
+    "lidar": "conzelman",
+    "anchors": [
+      {
+        "at": [
+          0.5,
+          0.4
+        ],
+        "z": 680,
+        "what": "north tower, from the solved station"
+      },
+      {
+        "box": [
+          0.15,
+          0.78,
+          0.4,
+          0.88
+        ],
+        "z": 8900,
+        "what": "downtown, the Salesforce Tower’s distance"
+      },
+      {
+        "box": [
+          0.03,
+          0.03,
+          0.2,
+          0.3
+        ],
+        "z": 30000,
+        "what": "open sky"
+      },
+      {
+        "box": [
+          0.8,
+          0.03,
+          0.97,
+          0.3
+        ],
+        "z": 30000,
+        "what": "open sky"
+      },
+      {
+        "box": [
+          0.05,
+          0.48,
+          0.35,
+          0.72
+        ],
+        "z": 30000,
+        "what": "sky below the cables, left"
+      },
+      {
+        "box": [
+          0.65,
+          0.55,
+          0.95,
+          0.78
+        ],
+        "z": 30000,
+        "what": "sky below the cables, right"
+      },
+      {
+        "box": [
+          0.62,
+          0.86,
+          0.95,
+          0.93
+        ],
+        "z": 8000,
+        "what": "city at right"
+      }
+    ],
+    "note": "The tower, its cables and the deck come from the LiDAR seen from the spot solved on Conzelman Road, 680 m away. Downtown, 8.9 km behind it, is placed by the Salesforce Tower’s distance. Stepping aside shows how far apart the tower and the city really are."
+  },
+  "p18": {
+    "subject": 800,
+    "far": 4000,
+    "lidar": "deck",
+    "ground": {
+      "horizon": [
+        -0.669,
+        -0.669
+      ],
+      "height": 140,
+      "region": [
+        0,
+        0.58,
+        1,
+        1
+      ]
+    },
+    "anchors": [
+      {
+        "at": [
+          0.5,
+          0.42
+        ],
+        "z": 800,
+        "what": "deck, from the solved station"
+      },
+      {
+        "at": [
+          0.57,
+          0.71
+        ],
+        "z": 1340,
+        "what": "ferry on the water"
+      },
+      {
+        "box": [
+          0.1,
+          0.03,
+          0.9,
+          0.15
+        ],
+        "z": 2500,
+        "what": "water beyond the deck"
+      }
+    ],
+    "note": "At 481 mm everything in the frame lies beyond the bridge: the deck 800 m off from the LiDAR, and the water, 140 m below the lens, from 1.1 km at the bottom edge to 2.8 km at the top. The ferry sits 1.3 km out, on that water."
+  }
+}

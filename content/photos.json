@@ -13,5 +13,8 @@
   {"id":"p12","source":"Photo/12.jpg","alt":"A torch-bearing statue stands beside the setting sun above dark water.","featured":false},
   {"id":"p13","source":"Photo/13.jpg","alt":"A person holds a fishing rod beside a waterfront railing at dusk.","featured":false},
   {"id":"p14","source":"Photo/14.jpg","alt":"Red and white traffic light trails pass beneath tall buildings at dusk.","featured":false},
-  {"id":"p15","source":"Photo/15.jpg","alt":"Buses and cars travel along a tree-lined avenue between tall buildings.","featured":false}
+  {"id":"p15","source":"Photo/15.jpg","alt":"Buses and cars travel along a tree-lined avenue between tall buildings.","featured":false},
+  {"id":"p16","source":"Photo/p16-fr9a2329.jpg","alt":"The Golden Gate Bridge in low sunset light, seen from a beach as waves break over dark rocks and the tower reflects in wet sand.","featured":false},
+  {"id":"p17","source":"Photo/p17-fr9a2619.jpg","alt":"A red Golden Gate Bridge tower and its cables at dusk, with the San Francisco skyline small behind it.","featured":false},
+  {"id":"p18","source":"Photo/p18-fr9a2667.jpg","alt":"A red-and-white ferry passes beneath the Golden Gate Bridge deck while cars cross above at dusk.","featured":false}
 ]

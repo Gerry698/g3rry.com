@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="{{LANGUAGE}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {{CSP}}
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#06080b">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <link rel="canonical" href="{{CANONICAL}}">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{STYLES}}">
+  {{PRELOADS}}
+</head>
+<body class="lab-page">
+  <a class="lab-skip" href="#ignite">Skip to the experiments</a>
+  <canvas class="lab-canvas" id="lab-canvas" aria-hidden="true"></canvas>
+  <div class="lab-prints" id="lab-prints" aria-hidden="true"></div>
+  <div class="lab-finder" id="lab-finder" aria-hidden="true">
+    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    <span class="af" id="lab-af"></span>
+    <p class="readout">
+      <span class="readout-chapter" id="lab-read-chapter">Lab</span>
+      <span class="readout-sun" id="lab-read-sun"></span>
+      <span class="readout-exposure"><b id="lab-read-focal">50</b><small>mm</small> <b id="lab-read-aperture">ƒ/4</b> <b id="lab-read-shutter">1/60</b> <b id="lab-read-focus">—</b></span>
+      <span class="readout-count" id="lab-read-count"></span>
+    </p>
+  </div>
+  <header class="lab-top">
+    <a class="lab-mark" href="/">{{NAME}}<span aria-hidden="true">.</span></a>
+    <nav class="lab-index" aria-label="Experiments">
+      <a href="#ignite" data-index="ignite"><span>00</span> Ignite</a>
+      <a href="#sculpt" data-index="sculpt"><span>01</span> Sculpt</a>
+      <a href="#develop" data-index="develop"><span>02</span> Develop</a>
+      <a href="#atlas" data-index="atlas"><span>03</span> Atlas</a>
+    </nav>
+    <button class="lab-motion" id="lab-motion" type="button" hidden>Pause</button>
+  </header>
+  <main id="main" class="lab-main">
+    <section class="lab-intro" id="intro" data-chapter="intro" aria-labelledby="lab-title">
+      <p class="lab-kicker">{{INTRO_KICKER}}</p>
+      <h1 id="lab-title">{{INTRO_TITLE}}</h1>
+      <p class="lab-lede">{{INTRO_TEXT}}</p>
+      <p class="lab-hint" aria-hidden="true"><span>{{INTRO_HINT}}</span><i></i></p>
+    </section>
+
+    <section class="lab-chapter" id="ignite" data-chapter="ignite" aria-labelledby="ignite-title">
+      <div class="lab-panel">
+        <p class="lab-kicker">{{IGNITE_KICKER}}</p>
+        <h2 id="ignite-title">{{IGNITE_TITLE}}</h2>
+        <p class="lab-text">{{IGNITE_TEXT}}</p>
+        <div class="lab-controls" data-needs-gl>
+          <label class="lab-field"><span>Mark</span><select id="lab-shape" disabled>{{SHAPE_OPTIONS}}</select></label>
+          <label class="lab-field lab-range"><span>Shutter <output id="lab-shutter-out">1/60</output></span><input id="lab-shutter" type="range" min="0" max="100" step="1" value="0" disabled></label>
+        </div>
+      </div>
+      <figure class="lab-fallback">{{SHAPE_FALLBACK}}</figure>
+    </section>
+
+    <section class="lab-chapter" id="sculpt" data-chapter="sculpt" aria-labelledby="sculpt-title">
+      <div class="lab-panel">
+        <p class="lab-kicker">{{SCULPT_KICKER}}</p>
+        <h2 id="sculpt-title">{{SCULPT_TITLE}}</h2>
+        <p class="lab-text">{{SCULPT_TEXT}}</p>
+        <div class="lab-controls" data-needs-gl>
+          <fieldset class="lab-lenses"><legend>Focal length</legend>
+            <button type="button" data-focal="24">24</button><button type="button" data-focal="35">35</button><button type="button" data-focal="50">50</button><button type="button" data-focal="70">70</button><button type="button" data-focal="135">135</button><button type="button" data-focal="200">200</button>
+          </fieldset>
+          <label class="lab-field lab-range"><span>Aperture <output id="lab-aperture-out">ƒ/2</output></span><input id="lab-aperture" type="range" min="0" max="100" step="1" value="20" disabled></label>
+          <p class="lab-note">Drag to walk around it. Changing lens keeps the subject the same size — the background is what moves.</p>
+        </div>
+      </div>
+      <figure class="lab-fallback">{{SHAPE_FALLBACK}}</figure>
+    </section>
+
+    <section class="lab-chapter" id="develop" data-chapter="develop" aria-labelledby="develop-title">
+      <div class="lab-panel">
+        <p class="lab-kicker">{{DEVELOP_KICKER}}</p>
+        <h2 id="develop-title">{{DEVELOP_TITLE}}</h2>
+        <p class="lab-text">{{DEVELOP_TEXT}}</p>
+        <div class="lab-controls" data-needs-gl>
+          <div class="lab-stepper"><button type="button" id="lab-photo-prev" aria-label="Previous photograph">←</button><span id="lab-photo-label">Frame</span><button type="button" id="lab-photo-next" aria-label="Next photograph">→</button></div>
+          <fieldset class="lab-modes"><legend>Read it as</legend>
+            <button type="button" data-mode="photo" aria-pressed="true">Photograph</button><button type="button" data-mode="isophote" aria-pressed="false">Equal light</button><button type="button" data-mode="depth" aria-pressed="false">Equal depth</button>
+          </fieldset>
+          <p class="lab-note" id="lab-depth-note" aria-live="polite"></p>
+        </div>
+      </div>
+      <figure class="lab-fallback">{{DEVELOP_FALLBACK}}</figure>
+    </section>
+
+    <section class="lab-chapter" id="atlas" data-chapter="atlas" aria-labelledby="atlas-title">
+      <div class="lab-panel">
+        <p class="lab-kicker">{{ATLAS_KICKER}}</p>
+        <h2 id="atlas-title">{{ATLAS_TITLE}}</h2>
+        <p class="lab-text">{{ATLAS_TEXT}}</p>
+        <ol class="lab-sites">{{ATLAS_SITES}}</ol>
+        <ol class="lab-stops" id="lab-stops">{{ATLAS_STOPS}}</ol>
+      </div>
+    </section>
+
+    <footer class="lab-end">
+      <p class="lab-kicker">End of the roll</p>
+      <p class="lab-end-line">Back to the light.</p>
+      <p class="lab-links"><a href="/#phantom">The original Phantom <span aria-hidden="true">↗</span></a><a href="/photos/">The photographs <span aria-hidden="true">↗</span></a></p>
+      <ul class="lab-credits">{{CREDITS}}</ul>
+    </footer>
+  </main>
+  <script type="application/json" id="lab-config">{{CONFIG}}</script>
+  <script type="module" src="{{SCRIPT}}"></script>
+</body>
+</html>

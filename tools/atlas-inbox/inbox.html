@@ -1,0 +1,685 @@
+<title>Atlas Inbox</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: the dot-matrix map holds the left of a wide screen (sticky), the new submission and the queue run down the right;
+   on a phone the map sits on top and everything stacks. One dark look, by choice: it is the Phantom lab's own ink and gold. */
+:root {
+  --ink: #06080b; --ink-2: #0c1016; --ink-3: #131922; --line: #e9e3d61c; --line-2: #e9e3d633;
+  --paper: #eee9df; --muted: #a3abb1; --faint: #6d757c; --gold: #c9af77; --gold-2: #e6d3a3;
+  --warn: #e3a76c; --ok: #9fc79b; --bad: #e07c6f;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--ink); color: var(--paper); font: 15px/1.65 var(--sans); }
+.page { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 22px 48px; max-width: 1480px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.mark { font: 400 1.7rem/1.1 var(--serif); letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+.mark span { color: var(--gold); }
+.kicker { font: 11px/1.4 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--gold); margin: 0; }
+.lede { color: var(--muted); max-width: 46em; margin: 8px 0 0; }
+.layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; margin-top: 22px; align-items: start; }
+.mapwrap { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 14px); }
+.map { position: relative; height: min(76vh, 760px); min-height: 360px; border: 1px solid var(--line); background: radial-gradient(120% 90% at 50% 40%, #0b1017 0%, var(--ink) 70%); overflow: hidden; touch-action: none; cursor: grab; }
+.map.picking { cursor: crosshair; outline: 1px solid var(--gold); outline-offset: -1px; }
+.map canvas { display: block; width: 100%; height: 100%; }
+.maptools { position: absolute; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); }
+.maptools button, .zoom button { font: 11px/1 var(--mono); letter-spacing: .08em; color: var(--paper); background: #06080bcc; border: 1px solid var(--line-2); padding: 7px 9px; cursor: pointer; }
+.maptools button:hover, .zoom button:hover { border-color: var(--gold); color: var(--gold-2); }
+.zoom { position: absolute; right: 10px; top: 10px; display: grid; gap: 6px; }
+.zoom button { width: 32px; font-size: 15px; padding: 6px 0; }
+.readout { position: absolute; left: 10px; right: 10px; bottom: 8px; display: flex; justify-content: space-between; gap: 12px; font: 11px/1.4 var(--mono); color: var(--muted); pointer-events: none; font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font: 11px/1.5 var(--mono); color: var(--muted); }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+section.panel { border: 1px solid var(--line); background: var(--ink-2); padding: 20px; display: grid; gap: 18px; }
+section.panel + section.panel { margin-top: 22px; }
+h2 { font: 400 1.25rem/1.25 var(--serif); margin: 0; text-wrap: balance; }
+.step { display: grid; gap: 8px; }
+.step > label, .step > .label { font: 11px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.hint { color: var(--faint); font-size: 13px; margin: 0; }
+input[type="text"], textarea { width: 100%; background: var(--ink); color: var(--paper); border: 1px solid var(--line-2); padding: 10px 12px; font: 14px/1.55 var(--sans); border-radius: 0; }
+input[type="text"]:focus, textarea:focus, button:focus-visible, .drop:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+textarea { min-height: 150px; resize: vertical; }
+.drop { border: 1px dashed var(--line-2); padding: 18px; text-align: center; color: var(--muted); cursor: pointer; display: grid; gap: 4px; }
+.drop.over { border-color: var(--gold); color: var(--gold-2); }
+.drop strong { color: var(--paper); font-weight: 500; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.thumb { border: 1px solid var(--line); background: var(--ink); display: grid; min-width: 0; }
+.thumb img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; background: var(--ink-3); display: block; }
+.thumb .meta { padding: 7px 8px; font: 11px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.thumb .meta b { color: var(--paper); font-weight: 400; }
+.thumb .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 0 8px 8px; }
+.bar { height: 2px; background: var(--line); }
+.bar i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .2s; }
+.where { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.pinline { font: 12px/1.5 var(--mono); color: var(--muted); }
+.pinline b { color: var(--gold-2); font-weight: 400; }
+button.primary { background: var(--gold); color: var(--ink); border: 0; padding: 12px 18px; font: 600 14px/1 var(--sans); letter-spacing: .02em; cursor: pointer; }
+button.primary:disabled { background: var(--ink-3); color: var(--faint); cursor: not-allowed; }
+button.quiet { background: transparent; color: var(--muted); border: 1px solid var(--line-2); padding: 7px 10px; font: 12px/1 var(--sans); cursor: pointer; }
+button.quiet:hover { color: var(--paper); border-color: var(--muted); }
+button.quiet.armed { color: var(--ink); background: var(--gold); border-color: var(--gold); }
+button.danger { color: var(--bad); border-color: #e07c6f55; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.status-line { font-size: 13px; color: var(--muted); margin: 0; }
+.notice { border-left: 2px solid var(--warn); padding: 8px 12px; background: #e3a76c0f; color: var(--paper); font-size: 13px; margin: 0; }
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.how li { counter-increment: s; border-top: 1px solid var(--line-2); padding-top: 8px; font-size: 13px; color: var(--muted); min-width: 0; }
+.how li::before { content: counter(s); display: block; font: 400 1.4rem/1 var(--serif); color: var(--gold); margin-bottom: 6px; }
+.how code { font: 12px var(--mono); color: var(--gold-2); }
+.queue { display: grid; gap: 14px; }
+.card { border: 1px solid var(--line); background: var(--ink); display: grid; gap: 10px; padding: 14px; min-width: 0; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 12px; }
+.card-head h3 { font: 400 1.05rem/1.3 var(--serif); margin: 0; overflow-wrap: anywhere; }
+.chip { font: 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 5px 7px; border: 1px solid currentColor; white-space: nowrap; }
+.chip.new { color: var(--paper); } .chip.working { color: var(--gold); } .chip.question { color: var(--warn); } .chip.published { color: var(--ok); } .chip.set-aside { color: var(--faint); }
+.card .facts { font: 12px/1.6 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.strip { display: flex; gap: 6px; overflow-x: auto; }
+.strip img { height: 72px; width: auto; border: 1px solid var(--line); background: var(--ink-3); }
+.story { white-space: pre-wrap; color: var(--paper); font-size: 14px; margin: 0; overflow-wrap: anywhere; }
+.thread { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.msg { font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg .who { font: 11px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); display: block; }
+.msg.claude .who { color: var(--gold); }
+.links { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
+.links a { color: var(--gold-2); }
+.empty { color: var(--muted); border: 1px dashed var(--line-2); padding: 18px; margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 960px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .mapwrap { position: static; }
+  .map { height: 52vh; min-height: 300px; }
+}
+@media (max-width: 560px) {
+  .how { grid-template-columns: minmax(0, 1fr); }
+  .where { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div>
+      <p class="kicker">Phantom · Atlas</p>
+      <h1 class="mark">Atlas Inbox<span>.</span></h1>
+      <p class="lede">把照片钉到地图上，写下你记得的经过。我读取后把它们放进 g3rry.com/phantom 的地图和景深章节，处理完的状态和我的问题都会回到这里。</p>
+    </div>
+    <ol class="how" aria-label="流程">
+      <li>选照片，放一个 pin（照片里有 GPS 会自动放）</li>
+      <li>写经过：在哪、站在哪、朝哪拍、当时的情况</li>
+      <li>提交后在 Claude Code 里运行 <code>/phantom-publish</code></li>
+    </ol>
+  </header>
+
+  <div class="layout">
+    <div class="mapwrap">
+      <div class="map" id="map" aria-label="世界地图：拖动平移，滚轮或双指缩放">
+        <canvas id="map-canvas"></canvas>
+        <div class="maptools" id="maptools">
+          <button type="button" data-jump="world">全球</button>
+          <button type="button" data-jump="new-york">New York</button>
+          <button type="button" data-jump="san-francisco">San Francisco</button>
+          <button type="button" data-jump="tennessee">Tennessee</button>
+        </div>
+        <div class="zoom"><button type="button" id="zoom-in" aria-label="放大">+</button><button type="button" id="zoom-out" aria-label="缩小">−</button></div>
+        <div class="readout"><span id="scale">—</span><span id="cursor">—</span></div>
+      </div>
+      <div class="legend">
+        <span><i style="background: var(--gold)"></i>已上线的地点</span>
+        <span><i style="background: var(--gold-2); opacity: .55"></i>已放进 Atlas 的照片</span>
+        <span><i style="background: var(--paper)"></i>你的投稿</span>
+        <span><i style="border: 1px solid var(--gold); background: transparent"></i>正在编辑的 pin</span>
+      </div>
+    </div>
+
+    <div>
+      <section class="panel" aria-labelledby="new-title">
+        <h2 id="new-title">新投稿</h2>
+        <p class="notice" id="access-note" hidden></p>
+
+        <div class="step">
+          <span class="label" id="photos-label">照片</span>
+          <div class="drop" id="drop" tabindex="0" role="button" aria-labelledby="photos-label">
+            <strong>选择照片，或拖到这里</strong>
+            <span class="hint">JPEG、PNG 或 WebP。超过 20 MB 的原图会先在本机缩到 3200 px 再上传，焦距、光圈、时间和 GPS 先读出来记下。</span>
+          </div>
+          <input type="file" id="photos" accept="image/jpeg,image/png,image/webp" multiple hidden>
+          <div class="thumbs" id="thumbs"></div>
+        </div>
+
+        <div class="step">
+          <label for="place">地点</label>
+          <input type="text" id="place" placeholder="随便写，比如：Flushing Main St 靠近 Roosevelt Ave；或 Great Smoky Mountains, Newfound Gap" autocomplete="off">
+        </div>
+
+        <div class="step">
+          <label for="coords">坐标</label>
+          <div class="where">
+            <input type="text" id="coords" placeholder="40.7586, -73.8300　或　Google 地图链接" autocomplete="off" inputmode="text">
+            <button type="button" class="quiet" id="pick">在地图上点选</button>
+          </div>
+          <p class="pinline" id="pinline">还没有 pin。照片带 GPS 会自动放；也可以粘贴坐标，或在地图上点一下（粗略位置也行）。</p>
+        </div>
+
+        <div class="step">
+          <label for="story">经过</label>
+          <textarea id="story" placeholder="当时的情况：哪一天、几点；站在哪里、朝哪个方向；镜头离地多高；画面里的人和东西离你多远；有没有你记得的地标。想到什么写什么，用输入法的语音输入也可以。"></textarea>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="primary" id="submit" disabled>提交到收件箱</button>
+          <p class="status-line" id="submit-status" role="status"></p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="queue-title">
+        <h2 id="queue-title">收件箱</h2>
+        <p class="status-line" id="queue-status" role="status">正在读取…</p>
+        <div class="queue" id="queue"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Data from the Phantom lab (tools/atlas-inbox/build.mjs refreshes this block from content/phantom.json). */
+const LAB = /*DATA*/{"land":"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","sites":[{"id":"new-york","name":"New York","lat":40.7128,"lon":-74.006,"status":"live","period":"June 2023"},{"id":"san-francisco","name":"San Francisco","lat":37.8199,"lon":-122.4783,"status":"live","period":"December 2025"},{"id":"tennessee","name":"Tennessee","lat":35.6118,"lon":-83.4895,"status":"soon","period":null}],"stops":[{"id":"liberty","title":"Liberty, from the ferry","at":[40.68925,-74.0445]},{"id":"times-square","title":"Times Square, in the rain","at":[40.75705,-73.98615]},{"id":"columbus-circle","title":"Columbus Circle, underground","at":[40.7676,-73.9822]},{"id":"flushing","title":"Flushing, Main Street","at":[40.7586,-73.83]},{"id":"marshalls-beach","title":"Marshall's Beach, at sunset","at":[37.800888,-122.48035]},{"id":"conzelman","title":"Conzelman Road, after sunset","at":[37.828642,-122.48584]},{"id":"deck","title":"The deck, at 481 mm","at":[37.828642,-122.48584]}]}/*END*/;
+
+const $ = selector => document.querySelector(selector);
+const STATUS = { new: '待处理', working: '处理中', question: '需要你补充', published: '已发布', 'set-aside': '暂缓' };
+const MAX_UPLOAD = 20 * 1024 * 1024, MASTER_EDGE = 3200;
+const rad = Math.PI / 180;
+
+// ---- EXIF: what the camera recorded, read in the browser before anything is resized ------------------------------
+function readJpeg(buffer) {
+  const v = new DataView(buffer);
+  if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return { exif: null, width: 0, height: 0 };
+  let o = 2, exif = null, width = 0, height = 0;
+  while (o + 4 <= v.byteLength && v.getUint8(o) === 0xFF) {
+    const marker = v.getUint8(o + 1);
+    if (marker === 0xD9 || marker === 0xDA) break;
+    const length = v.getUint16(o + 2);
+    if (marker === 0xE1 && !exif && o + 10 < v.byteLength && v.getUint32(o + 4) === 0x45786966) exif = readTiff(v, o + 10);
+    if ([0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF].includes(marker)) { height = v.getUint16(o + 5); width = v.getUint16(o + 7); }
+    o += 2 + length;
+  }
+  return { exif, width, height };
+}
+function readTiff(v, t) {
+  try {
+    const le = v.getUint16(t) === 0x4949;
+    const u16 = o => v.getUint16(t + o, le), u32 = o => v.getUint32(t + o, le), s32 = o => v.getInt32(t + o, le);
+    const sizes = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
+    const ifd = o => {
+      const tags = {};
+      if (!o || t + o + 2 > v.byteLength) return tags;
+      const n = u16(o);
+      for (let i = 0; i < n; i++) {
+        const e = o + 2 + i * 12, tag = u16(e), type = u16(e + 2), count = u32(e + 4);
+        const size = (sizes[type] || 1) * count, vo = size > 4 ? u32(e + 8) : e + 8;
+        if (t + vo + size > v.byteLength) continue;
+        if (type === 2) { let s = ''; for (let k = 0; k < count; k++) { const c = v.getUint8(t + vo + k); if (!c) break; s += String.fromCharCode(c); } tags[tag] = s.trim(); }
+        else if (type === 3) tags[tag] = count === 1 ? u16(vo) : Array.from({ length: count }, (_, k) => u16(vo + 2 * k));
+        else if (type === 4) tags[tag] = count === 1 ? u32(vo) : Array.from({ length: count }, (_, k) => u32(vo + 4 * k));
+        else if (type === 5) tags[tag] = Array.from({ length: count }, (_, k) => u32(vo + 8 * k) / (u32(vo + 8 * k + 4) || 1));
+        else if (type === 10) tags[tag] = Array.from({ length: count }, (_, k) => s32(vo + 8 * k) / (s32(vo + 8 * k + 4) || 1));
+        else if (type === 1 || type === 7) tags[tag] = count === 1 ? v.getUint8(t + vo) : null;
+      }
+      return tags;
+    };
+    const ifd0 = ifd(u32(4)), ex = ifd(ifd0[0x8769]), gps = ifd0[0x8825] ? ifd(ifd0[0x8825]) : null;
+    const first = value => Array.isArray(value) ? value[0] : value;
+    const exposure = first(ex[0x829a]);
+    const out = {
+      camera: ifd0[0x110] && ifd0[0x10f] && ifd0[0x110].startsWith(ifd0[0x10f]) ? ifd0[0x110] : [ifd0[0x10f], ifd0[0x110]].filter(Boolean).join(' ') || null,
+      lens: ex[0xa434] || null,
+      focal: first(ex[0x920a]) ? +first(ex[0x920a]).toFixed(1) : null,
+      focal35: ex[0xa405] || null,
+      aperture: first(ex[0x829d]) ? +first(ex[0x829d]).toFixed(1) : null,
+      shutter: exposure ? (exposure < 1 ? '1/' + Math.round(1 / exposure) : +exposure.toFixed(1) + '"') : null,
+      iso: first(ex[0x8827]) || null,
+      taken: ex[0x9003] ? ex[0x9003].replace(/^(\d{4}):(\d{2}):(\d{2}) /, '$1-$2-$3T') : null,
+      offset: ex[0x9011] || null,
+      orientation: ifd0[0x112] || 1,
+      gps: null
+    };
+    if (gps && gps[2] && gps[4]) {
+      const dms = a => a[0] + (a[1] || 0) / 60 + (a[2] || 0) / 3600;
+      const lat = dms(gps[2]) * (gps[1] === 'S' ? -1 : 1), lon = dms(gps[4]) * (gps[3] === 'W' ? -1 : 1);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && (lat || lon)) out.gps = { lat: +lat.toFixed(6), lon: +lon.toFixed(6), alt: gps[6] ? +(first(gps[6]) * (gps[5] === 1 ? -1 : 1)).toFixed(1) : null, heading: gps[17] ? +first(gps[17]).toFixed(1) : null };
+    }
+    return out;
+  } catch { return null; }
+}
+
+// ---- Coordinates: decimal, degrees-minutes-seconds, or a Google Maps link that carries them ---------------------
+const inRange = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : null;
+function parseCoords(text) {
+  const s = text.trim();
+  if (!s) return null;
+  let m = s.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/) || s.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/)
+    || s.match(/[?&](?:q|query|ll|center|destination)=(-?\d+(?:\.\d+)?)(?:,|%2C)\s*(-?\d+(?:\.\d+)?)/i);
+  if (m) return inRange(+m[1], +m[2]);
+  const dms = [...s.matchAll(/(\d+(?:\.\d+)?)\s*°\s*(?:(\d+(?:\.\d+)?)\s*['′]\s*)?(?:(\d+(?:\.\d+)?)\s*(?:"|″|'')\s*)?([NSEW])/gi)];
+  if (dms.length >= 2) {
+    const value = d => (+d[1] + (+d[2] || 0) / 60 + (+d[3] || 0) / 3600) * (/[SW]/i.test(d[4]) ? -1 : 1);
+    const lat = dms.find(d => /[NS]/i.test(d[4])), lon = dms.find(d => /[EW]/i.test(d[4]));
+    if (lat && lon) return inRange(value(lat), value(lon));
+  }
+  m = s.match(/(-?\d{1,3}(?:\.\d+)?)\s*[,，\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+  return m ? inRange(+m[1], +m[2]) : null;
+}
+
+// ---- Map: equirectangular around the view centre, land drawn as dots from the lab's own Natural Earth mask -----------
+const canvas = $('#map-canvas'), mapBox = $('#map'), ctx = canvas.getContext('2d');
+const view = { lon: -98, lat: 38.5, ppd: 4 };
+let land = null, landW = 0, landH = 0, drawQueued = false, dpr = 1;
+let draft = { pin: null };
+let submissions = [];
+async function loadLand() {
+  if (!LAB.land) return;
+  try {
+    const bytes = Uint8Array.from(atob(LAB.land), c => c.charCodeAt(0));
+    const buffer = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    const head = new DataView(buffer);
+    landW = head.getUint16(0, true); landH = head.getUint16(2, true);
+    land = new Uint8Array(buffer, 4);
+  } catch { land = null; }
+  queueDraw();
+}
+const isLand = (lat, lon) => {
+  if (!land) return false;
+  const row = Math.min(landH - 1, Math.max(0, Math.floor((90 - lat) / 180 * landH)));
+  const col = ((Math.floor((lon + 180) / 360 * landW) % landW) + landW) % landW;
+  return land[row * landW + col] > 0;
+};
+const kx = () => view.ppd * Math.cos(view.lat * rad);
+const toScreen = (lat, lon) => {
+  let dl = lon - view.lon; dl = ((dl + 540) % 360) - 180;
+  return [canvas.clientWidth / 2 + dl * kx(), canvas.clientHeight / 2 + (view.lat - lat) * view.ppd];
+};
+const toGeo = (x, y) => {
+  const lat = view.lat - (y - canvas.clientHeight / 2) / view.ppd;
+  let lon = view.lon + (x - canvas.clientWidth / 2) / kx();
+  lon = ((lon + 540) % 360) - 180;
+  return [lat, lon];
+};
+const minPpd = () => Math.max(canvas.clientWidth / 360, canvas.clientHeight / 170, 1);
+const clampView = () => {
+  view.ppd = Math.min(60000, Math.max(minPpd(), view.ppd));
+  view.lat = Math.max(-80, Math.min(80, view.lat));
+  view.lon = ((view.lon + 540) % 360) - 180;
+};
+function resize() {
+  dpr = Math.min(2, devicePixelRatio || 1);
+  canvas.width = Math.round(canvas.clientWidth * dpr);
+  canvas.height = Math.round(canvas.clientHeight * dpr);
+  clampView();
+  queueDraw();
+}
+function queueDraw() { if (!drawQueued) { drawQueued = true; requestAnimationFrame(draw); } }
+function niceStep(pxPerDegree) {
+  for (const step of [30, 10, 5, 2, 1, .5, .2, .1, .05, .02, .01, .005, .002, .001]) if (step * pxPerDegree < 220) return step;
+  return .001;
+}
+function draw() {
+  drawQueued = false;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  // Graticule, labelled at the edges.
+  const step = niceStep(view.ppd);
+  ctx.strokeStyle = 'rgba(233, 227, 214, .06)'; ctx.lineWidth = 1;
+  ctx.fillStyle = 'rgba(163, 171, 177, .55)'; ctx.font = '10px ui-monospace, Menlo, Consolas, monospace';
+  const [latTop] = toGeo(0, 0), [latBottom] = toGeo(0, h), lonLeft = view.lon - w / 2 / kx(), lonRight = view.lon + w / 2 / kx();
+  const fmt = v => (Math.round(v / step) * step).toFixed(Math.max(0, Math.ceil(-Math.log10(step))));
+  for (let lat = Math.ceil(latBottom / step) * step; lat <= latTop; lat += step) {
+    const [, y] = toScreen(lat, view.lon);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    ctx.fillText(fmt(lat) + '°', 6, y - 3);
+  }
+  for (let lon = Math.ceil(lonLeft / step) * step; lon <= lonRight; lon += step) {
+    const x = w / 2 + (lon - view.lon) * kx();
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    ctx.fillText(fmt(((lon + 540) % 360) - 180) + '°', x + 3, h - 22);
+  }
+  // Land as a field of dots, the lab's own look.
+  const gap = 6;
+  ctx.fillStyle = 'rgba(201, 175, 119, .34)';
+  for (let y = gap / 2; y < h; y += gap) for (let x = gap / 2; x < w; x += gap) {
+    const [lat, lon] = toGeo(x, y);
+    if (lat < 90 && lat > -90 && isLand(lat, lon)) ctx.fillRect(x - .8, y - .8, 1.6, 1.6);
+  }
+  // Placed photographs, then the live sites, then submissions, then the pin being edited.
+  for (const stop of LAB.stops || []) {
+    const [x, y] = toScreen(stop.at[0], stop.at[1]);
+    ctx.fillStyle = 'rgba(230, 211, 163, .55)';
+    ctx.beginPath(); ctx.arc(x, y, view.ppd > 300 ? 3.2 : 2, 0, Math.PI * 2); ctx.fill();
+    if (view.ppd > 1500) { ctx.fillStyle = 'rgba(230, 211, 163, .7)'; ctx.fillText(stop.title, x + 6, y + 3); }
+  }
+  for (const site of LAB.sites || []) {
+    const [x, y] = toScreen(site.lat, site.lon);
+    const live = site.status === 'live';
+    ctx.strokeStyle = live ? '#c9af77' : 'rgba(163, 171, 177, .7)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(x, y, live ? 7 : 5, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = live ? '#c9af77' : 'rgba(163, 171, 177, .8)';
+    ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+    if (view.ppd < 900) { ctx.font = '11px ui-monospace, Menlo, Consolas, monospace'; ctx.fillText(site.name + (live ? '' : ' · soon'), x + 11, y + 4); ctx.font = '10px ui-monospace, Menlo, Consolas, monospace'; }
+  }
+  const colour = { new: '#eee9df', working: '#c9af77', question: '#e3a76c', published: '#9fc79b', 'set-aside': '#6d757c' };
+  for (const item of submissions) {
+    if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) continue;
+    const [x, y] = toScreen(item.lat, item.lon);
+    if (item.radiusKm) { ctx.strokeStyle = 'rgba(238, 233, 223, .18)'; ctx.beginPath(); ctx.arc(x, y, Math.max(4, item.radiusKm / 111.32 * view.ppd), 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillStyle = colour[item.status] || '#eee9df';
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  if (draft.pin) {
+    const [x, y] = toScreen(draft.pin.lat, draft.pin.lon);
+    if (draft.pin.radiusKm) { ctx.fillStyle = 'rgba(201, 175, 119, .12)'; ctx.beginPath(); ctx.arc(x, y, Math.max(6, draft.pin.radiusKm / 111.32 * view.ppd), 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = '#e6d3a3'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x - 5, y); ctx.moveTo(x + 5, y); ctx.lineTo(x + 14, y); ctx.moveTo(x, y - 14); ctx.lineTo(x, y - 5); ctx.moveTo(x, y + 5); ctx.lineTo(x, y + 14); ctx.stroke();
+  }
+  // Scale bar text: metres per 100 px at the centre.
+  const metres = 100 / kx() * 111320 * Math.cos(view.lat * rad);
+  $('#scale').textContent = '100 px ≈ ' + (metres >= 1000 ? (metres / 1000).toFixed(metres >= 10000 ? 0 : 1) + ' km' : Math.round(metres) + ' m');
+}
+function zoomAt(factor, x = canvas.clientWidth / 2, y = canvas.clientHeight / 2) {
+  const [lat, lon] = toGeo(x, y);
+  view.ppd *= factor; clampView();
+  const [nx, ny] = toScreen(lat, lon);
+  view.lon -= (nx - x) / kx(); view.lat += (ny - y) / view.ppd;
+  clampView(); queueDraw();
+}
+function jump(lat, lon, ppd) { view.lat = lat; view.lon = lon; view.ppd = ppd; clampView(); queueDraw(); }
+
+// Pointer: drag to pan, two fingers to pinch, wheel to zoom, a tap places the pin while picking.
+const pointers = new Map();
+let gesture = null, picking = false;
+canvas.addEventListener('pointerdown', event => {
+  canvas.setPointerCapture(event.pointerId);
+  pointers.set(event.pointerId, [event.offsetX, event.offsetY]);
+  gesture = { moved: false, start: [event.offsetX, event.offsetY], view: { ...view }, spread: null };
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; gesture.spread = Math.hypot(a[0] - b[0], a[1] - b[1]); gesture.mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; gesture.ppd = view.ppd; }
+});
+canvas.addEventListener('pointermove', event => {
+  const [lat, lon] = toGeo(event.offsetX, event.offsetY);
+  $('#cursor').textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
+  if (!pointers.has(event.pointerId) || !gesture) return;
+  pointers.set(event.pointerId, [event.offsetX, event.offsetY]);
+  if (pointers.size === 2 && gesture.spread) {
+    const [a, b] = [...pointers.values()];
+    const spread = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    zoomAt(gesture.ppd * spread / gesture.spread / view.ppd, gesture.mid[0], gesture.mid[1]);
+    gesture.moved = true;
+    return;
+  }
+  const dx = event.offsetX - gesture.start[0], dy = event.offsetY - gesture.start[1];
+  if (Math.hypot(dx, dy) > 4) gesture.moved = true;
+  if (gesture.moved && pointers.size === 1) {
+    view.lon = gesture.view.lon - dx / (gesture.view.ppd * Math.cos(gesture.view.lat * rad));
+    view.lat = gesture.view.lat + dy / gesture.view.ppd;
+    clampView(); queueDraw();
+  }
+});
+const release = event => {
+  if (!pointers.has(event.pointerId)) return;
+  pointers.delete(event.pointerId);
+  if (gesture && !gesture.moved && pointers.size === 0 && picking) {
+    const [lat, lon] = toGeo(event.offsetX, event.offsetY);
+    setPin({ lat: +lat.toFixed(6), lon: +lon.toFixed(6), source: 'map', radiusKm: +(10 / view.ppd * 111.32).toFixed(3) });
+    setPicking(false);
+  }
+  if (pointers.size === 0) gesture = null;
+};
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+canvas.addEventListener('wheel', event => { event.preventDefault(); zoomAt(Math.exp(-event.deltaY * .0016), event.offsetX, event.offsetY); }, { passive: false });
+canvas.addEventListener('dblclick', event => zoomAt(2.5, event.offsetX, event.offsetY));
+$('#zoom-in').addEventListener('click', () => zoomAt(2));
+$('#zoom-out').addEventListener('click', () => zoomAt(.5));
+$('#maptools').addEventListener('click', event => {
+  const id = event.target.dataset && event.target.dataset.jump;
+  if (!id) return;
+  if (id === 'world') return jump(25, -40, minPpd());
+  const site = (LAB.sites || []).find(item => item.id === id);
+  if (site) jump(site.lat, site.lon, 900);
+});
+new ResizeObserver(resize).observe(canvas);
+
+// ---- The draft: kept in this browser until it is submitted ----------------------------------------------------
+const DRAFT_KEY = 'atlas-inbox-draft';
+let photos = [];   // { key, name, bytes, width, height, downscaled, exif, asset, url, state, progress, error }
+const storage = { get() { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } }, set(value) { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(value)); } catch {} }, clear() { try { localStorage.removeItem(DRAFT_KEY); } catch {} } };
+function saveDraft() {
+  storage.set({ place: $('#place').value, coords: $('#coords').value, story: $('#story').value, pin: draft.pin,
+    photos: photos.filter(p => p.asset).map(({ name, bytes, width, height, downscaled, exif, asset }) => ({ name, bytes, width, height, downscaled, exif, asset })) });
+}
+const precisionText = { gps: '来自照片 GPS', pasted: '粘贴的坐标', map: '地图点选（粗略）' };
+function setPin(pin) {
+  draft.pin = pin;
+  const line = $('#pinline');
+  if (!pin) line.textContent = '还没有 pin。照片带 GPS 会自动放；也可以粘贴坐标，或在地图上点一下（粗略位置也行）。';
+  else {
+    line.innerHTML = '';
+    const b = document.createElement('b');
+    b.textContent = pin.lat.toFixed(5) + ', ' + pin.lon.toFixed(5);
+    line.append('Pin：', b, ' · ' + precisionText[pin.source] + (pin.radiusKm ? '，误差约 ' + (pin.radiusKm >= 1 ? pin.radiusKm.toFixed(1) + ' km' : Math.round(pin.radiusKm * 1000) + ' m') : ''));
+  }
+  if (pin && (pin.source !== 'map')) jump(pin.lat, pin.lon, Math.max(view.ppd, 1500));
+  queueDraw(); saveDraft(); refreshSubmit();
+}
+function setPicking(on) { picking = on; mapBox.classList.toggle('picking', on); $('#pick').classList.toggle('armed', on); $('#pick').textContent = on ? '点地图放 pin…' : '在地图上点选'; }
+$('#pick').addEventListener('click', () => setPicking(!picking));
+$('#coords').addEventListener('input', () => {
+  const text = $('#coords').value, found = parseCoords(text);
+  if (found) setPin({ ...found, source: 'pasted' });
+  else if (text.trim() && /goo\.gl|maps\.app/.test(text)) $('#pinline').textContent = '这个短链接里没有坐标。在 Google 地图里长按那个位置，复制显示出来的坐标数字再粘贴。';
+  else if (text.trim()) $('#pinline').textContent = '还没认出坐标。格式像 40.7586, -73.8300，或带 @纬度,经度 的 Google 地图链接。';
+  saveDraft();
+});
+for (const id of ['#place', '#story']) $(id).addEventListener('input', () => { saveDraft(); refreshSubmit(); });
+
+// ---- Photos: read EXIF, shrink only when too big to upload, upload, show ----------------------------------------
+let assets = null, db = null, user = null;
+const drop = $('#drop'), fileInput = $('#photos');
+drop.addEventListener('click', () => assets && fileInput.click());
+drop.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && assets) { event.preventDefault(); fileInput.click(); } });
+drop.addEventListener('dragover', event => { event.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', event => { event.preventDefault(); drop.classList.remove('over'); if (assets) addFiles([...event.dataTransfer.files]); });
+fileInput.addEventListener('change', () => { addFiles([...fileInput.files]); fileInput.value = ''; });
+// The site keeps 3200 px web masters, so a camera original over the upload limit loses nothing the site would use.
+async function shrink(file) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const fit = Math.min(1, MASTER_EDGE / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * fit)), h = Math.max(1, Math.round(bitmap.height * fit));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close && bitmap.close();
+  const blob = await new Promise(resolve => c.toBlob(resolve, 'image/jpeg', .92));
+  return { blob, width: w, height: h };
+}
+async function addFiles(files) {
+  const accepted = f => /^image\/(jpeg|png|webp)$/.test(f.type), skipped = files.filter(f => !accepted(f));
+  if (skipped.length) $('#submit-status').textContent = '跳过了 ' + skipped.map(f => f.name).join('、') + '：只收 JPEG、PNG、WebP（iPhone 的 HEIC 请先导出成 JPEG）。';
+  for (const file of files.filter(accepted)) {
+    const item = { key: Math.random().toString(36).slice(2), name: file.name, bytes: file.size, state: 'reading', progress: .1 };
+    photos.push(item); renderThumbs();
+    try {
+      const buffer = await file.arrayBuffer();
+      const head = file.type === 'image/jpeg' ? readJpeg(buffer) : { exif: null, width: 0, height: 0 };
+      Object.assign(item, { exif: head.exif, width: head.width, height: head.height, preview: URL.createObjectURL(file) });
+      let blob = file;
+      if (file.size > MAX_UPLOAD) {
+        item.state = 'shrinking'; item.progress = .35; renderThumbs();
+        const small = await shrink(file);
+        blob = small.blob; Object.assign(item, { downscaled: true, width: small.width, height: small.height });
+      }
+      item.state = 'uploading'; item.progress = .6; renderThumbs();
+      const result = await assets.upload(blob, { type: blob.type || 'image/jpeg' });
+      Object.assign(item, { asset: result.id, url: result.url, state: 'done', progress: 1 });
+      if (!draft.pin && item.exif && item.exif.gps) setPin({ lat: item.exif.gps.lat, lon: item.exif.gps.lon, source: 'gps' });
+    } catch (error) {
+      item.state = 'error';
+      item.error = error && error.code === 'too_large' ? '缩小后仍超过 20 MB，请先导出一张较小的 JPEG。'
+        : error && error.code === 'quota_or_state' ? '收件箱的存储空间满了。删掉已发布投稿里不再需要的照片后再试。'
+        : '没能上传' + (error && error.code ? '（' + error.code + '）' : '') + '。可以删掉这张再试一次。';
+    }
+    renderThumbs(); saveDraft(); refreshSubmit();
+  }
+}
+function exifLine(exif) {
+  if (!exif) return '没有读到 EXIF';
+  return [exif.focal && exif.focal + ' mm', exif.aperture && 'ƒ/' + exif.aperture, exif.shutter, exif.iso && 'ISO ' + exif.iso].filter(Boolean).join(' · ') || '没有读到 EXIF';
+}
+function renderThumbs() {
+  const box = $('#thumbs');
+  box.replaceChildren(...photos.map(item => {
+    const card = document.createElement('div'); card.className = 'thumb';
+    const img = document.createElement('img'); img.alt = item.name; img.src = item.preview || item.url || ('/_blob/' + item.asset); img.loading = 'lazy';
+    const bar = document.createElement('div'); bar.className = 'bar'; const fill = document.createElement('i'); fill.style.width = Math.round((item.progress || 0) * 100) + '%'; bar.append(fill);
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const name = document.createElement('b'); name.textContent = item.name;
+    const states = { reading: '读取中…', shrinking: '缩小到 3200 px…', uploading: '上传中…', done: '', error: '' };
+    meta.append(name, document.createElement('br'), exifLine(item.exif));
+    if (item.exif && item.exif.taken) meta.append(document.createElement('br'), '相机时间 ' + item.exif.taken.replace('T', ' ') + (item.exif.offset ? ' ' + item.exif.offset : ''));
+    if (item.exif && item.exif.gps) meta.append(document.createElement('br'), 'GPS ' + item.exif.gps.lat.toFixed(5) + ', ' + item.exif.gps.lon.toFixed(5));
+    if (item.downscaled) meta.append(document.createElement('br'), '已缩到 ' + item.width + '×' + item.height);
+    if (states[item.state]) meta.append(document.createElement('br'), states[item.state]);
+    if (item.error) { const e = document.createElement('span'); e.style.color = 'var(--bad)'; e.textContent = item.error; meta.append(document.createElement('br'), e); }
+    const row = document.createElement('div'); row.className = 'row';
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'quiet danger'; remove.textContent = '移除';
+    remove.disabled = item.state === 'reading' || item.state === 'shrinking' || item.state === 'uploading';
+    remove.addEventListener('click', async () => {
+      photos = photos.filter(p => p !== item);
+      if (item.asset && assets) { try { await assets.delete(item.asset); } catch {} }
+      renderThumbs(); saveDraft(); refreshSubmit();
+    });
+    row.append(remove);
+    card.append(img, bar, meta, row);
+    return card;
+  }));
+}
+function refreshSubmit() {
+  const busy = photos.some(p => ['reading', 'shrinking', 'uploading'].includes(p.state));
+  const ready = photos.some(p => p.state === 'done') && (draft.pin || $('#place').value.trim()) && db;
+  $('#submit').disabled = !ready || busy;
+  $('#submit-status').textContent = busy ? '照片还在上传…' : !db ? '' : !photos.some(p => p.state === 'done') ? '至少放一张照片。' : !(draft.pin || $('#place').value.trim()) ? '写个地点，或放一个 pin。' : '';
+}
+$('#submit').addEventListener('click', async () => {
+  const button = $('#submit'); button.disabled = true;
+  const now = new Date().toISOString();
+  const body = {
+    createdAt: now, updatedAt: now, status: 'new',
+    place: $('#place').value.trim(), story: $('#story').value.trim(),
+    lat: draft.pin ? draft.pin.lat : null, lon: draft.pin ? draft.pin.lon : null,
+    precision: draft.pin ? draft.pin.source : 'none', radiusKm: draft.pin && draft.pin.radiusKm || null,
+    photos: photos.filter(p => p.state === 'done').map(({ name, bytes, width, height, downscaled, exif, asset }) => ({ name, bytes, width: width || null, height: height || null, downscaled: Boolean(downscaled), exif: exif || null, asset })),
+    thread: [], result: null
+  };
+  try {
+    await db.collection('submissions').add(body);
+    photos = []; draft.pin = null; storage.clear();
+    $('#place').value = ''; $('#coords').value = ''; $('#story').value = '';
+    setPin(null); renderThumbs();
+    $('#submit-status').textContent = '已提交。在 Claude Code 里运行 /phantom-publish 让我处理。';
+  } catch (error) {
+    $('#submit-status').textContent = error && error.code === 'quota_exceeded' ? '收件箱满了：删掉几条已发布的投稿再提交。' : '没能提交' + (error && error.code ? '（' + error.code + '）' : '') + '，稍后再试。草稿还在。';
+    button.disabled = false;
+  }
+});
+
+// ---- The queue: every submission, its status, my notes and questions, your replies ---------------------------------
+function renderQueue() {
+  const box = $('#queue');
+  if (!submissions.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = '还没有投稿。选几张照片、放一个 pin、写几句经过，提交后它会出现在这里，处理进度和我的问题也会写在这里。'; box.replaceChildren(p); return; }
+  box.replaceChildren(...submissions.map(item => {
+    const card = document.createElement('article'); card.className = 'card';
+    const head = document.createElement('div'); head.className = 'card-head';
+    const h = document.createElement('h3'); h.textContent = item.place || (Number.isFinite(item.lat) ? item.lat.toFixed(4) + ', ' + item.lon.toFixed(4) : '未写地点');
+    const chip = document.createElement('span'); chip.className = 'chip ' + (item.status || 'new'); chip.textContent = STATUS[item.status] || item.status;
+    head.append(h, chip);
+    const facts = document.createElement('div'); facts.className = 'facts';
+    facts.textContent = [new Date(item.createdAt).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }),
+      Number.isFinite(item.lat) ? item.lat.toFixed(5) + ', ' + item.lon.toFixed(5) + ' · ' + (precisionText[item.precision] || '') : '没有 pin',
+      (item.photos || []).length + ' 张照片'].join('　');
+    const strip = document.createElement('div'); strip.className = 'strip';
+    for (const photo of item.photos || []) { const img = document.createElement('img'); img.src = '/_blob/' + photo.asset; img.alt = photo.name; img.loading = 'lazy'; img.onerror = () => { img.style.visibility = 'hidden'; }; strip.append(img); }
+    card.append(head, facts, strip);
+    if (item.story) { const story = document.createElement('p'); story.className = 'story'; story.textContent = item.story; card.append(story); }
+    if ((item.thread || []).length) {
+      const thread = document.createElement('div'); thread.className = 'thread';
+      for (const m of item.thread) {
+        const msg = document.createElement('div'); msg.className = 'msg ' + (m.from === 'claude' ? 'claude' : 'you');
+        const who = document.createElement('span'); who.className = 'who'; who.textContent = (m.from === 'claude' ? 'Claude' : '你') + ' · ' + new Date(m.at).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' });
+        msg.append(who, m.text); thread.append(msg);
+      }
+      card.append(thread);
+    }
+    if (item.result && (item.result.links || []).length) {
+      const links = document.createElement('div'); links.className = 'links';
+      for (const link of item.result.links) { const a = document.createElement('a'); a.href = link.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = link.label + ' ↗'; links.append(a); }
+      card.append(links);
+    }
+    // A reply goes back into the queue; a submission nobody has touched yet can be withdrawn.
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const replyBox = document.createElement('textarea'); replyBox.id = 'reply-' + item.id; replyBox.placeholder = item.status === 'question' ? '回答上面的问题…' : '补充一句…'; replyBox.style.minHeight = '64px';
+    const send = document.createElement('button'); send.type = 'button'; send.className = 'quiet'; send.textContent = '发送补充';
+    send.addEventListener('click', async () => {
+      const text = replyBox.value.trim(); if (!text) return;
+      send.disabled = true;
+      try {
+        const ref = db.collection('submissions').doc(item.id), snap = await ref.get(), current = snap.exists ? snap.data() : item;
+        await ref.update({ thread: [...(current.thread || []), { from: 'you', at: new Date().toISOString(), text }], status: current.status === 'published' ? 'published' : 'new', updatedAt: new Date().toISOString() });
+        replyBox.value = '';
+      } catch { send.textContent = '没发出去，再试一次'; }
+      send.disabled = false;
+    });
+    actions.append(send);
+    if (item.status === 'new' && !(item.thread || []).length) {
+      const withdraw = document.createElement('button'); withdraw.type = 'button'; withdraw.className = 'quiet danger'; withdraw.textContent = '撤回';
+      let armed = false;
+      withdraw.addEventListener('click', async () => {
+        if (!armed) { armed = true; withdraw.textContent = '确认撤回？照片也会删掉'; return; }
+        withdraw.disabled = true;
+        try {
+          for (const photo of item.photos || []) { try { await assets.delete(photo.asset); } catch {} }
+          await db.collection('submissions').doc(item.id).delete();
+        } catch { withdraw.textContent = '没能撤回'; withdraw.disabled = false; }
+      });
+      actions.append(withdraw);
+    }
+    card.append(replyBox, actions);
+    return card;
+  }));
+}
+
+// ---- Start ---------------------------------------------------------------------------------------------------
+(async () => {
+  loadLand();
+  const saved = storage.get();
+  if (saved) {
+    $('#place').value = saved.place || ''; $('#coords').value = saved.coords || ''; $('#story').value = saved.story || '';
+    photos = (saved.photos || []).map(p => ({ ...p, key: p.asset, state: 'done', progress: 1 }));
+    if (saved.pin) setPin(saved.pin); else jump(38.5, -98, Math.max(minPpd(), 4));
+    renderThumbs();
+  } else jump(38.5, -98, Math.max(minPpd(), 4));
+  const claude = window.claude;
+  if (!claude || !claude.use) { $('#queue-status').textContent = '这个页面要在 claude.ai 里打开才能上传和读取收件箱。'; $('#access-note').hidden = false; $('#access-note').textContent = '现在只能看地图：上传和提交需要在 claude.ai 里打开。'; return; }
+  [db, assets, user] = await Promise.all([claude.use('db'), claude.use('assets'), claude.use('user')]);
+  if (!assets) { $('#access-note').hidden = false; $('#access-note').textContent = '只有这个收件箱的所有者能上传照片。'; drop.setAttribute('aria-disabled', 'true'); }
+  if (!db) { $('#queue-status').textContent = '读不到收件箱：请登录 claude.ai 后再打开。'; refreshSubmit(); return; }
+  const timer = setTimeout(() => { $('#queue-status').textContent = '收件箱暂时连不上，显示的可能不是最新。'; }, 10000);
+  db.collection('submissions').orderBy('createdAt', 'desc').limit(200).onSnapshot(snap => {
+    if (!snap.metadata.fromCache) clearTimeout(timer);
+    submissions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    $('#queue-status').textContent = submissions.length ? submissions.filter(s => s.status === 'new').length + ' 条待处理，共 ' + submissions.length + ' 条。' : '';
+    renderQueue(); queueDraw();
+  }, error => { clearTimeout(timer); $('#queue-status').textContent = '收件箱读取中断（' + error.code + '），刷新页面再试。'; });
+  renderQueue(); refreshSubmit();
+})();
+</script>
