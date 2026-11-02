@@ -23,7 +23,7 @@ async function walk(directory, prefix = '') {
 }
 const files = await walk(dist);
 const exactFiles = new Set(files);
-const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'Photo', 'phantom']);
+const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom']);
 for (const file of files) assert(allowedRoots.has(file.split('/')[0]), 'Unexpected published file: ' + file);
 assert.equal(report.photoCount, photos.length, 'Build report must match the current manifest.');
 assert.equal(report.photos.length, photos.length);
@@ -80,7 +80,24 @@ for (const stop of labConfig.atlas.stops) {
 }
 assert.deepEqual(files.filter(file => file.startsWith('Photo/')), ['Photo/gallery.html'], 'Only the old gallery redirect belongs under Photo/.');
 assert.equal((await readFile(path.join(dist, 'CNAME'), 'utf8')).trim(), new URL(site.url).hostname);
-assert((await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/photos/', site.url).href));
+const sitemap = await readFile(path.join(dist, 'sitemap.xml'), 'utf8');
+assert(sitemap.includes(new URL('/photos/', site.url).href) && sitemap.includes(new URL('/guestbook/', site.url).href), 'Sitemap is incomplete.');
+
+// Guestbook: Turnstile is allowed on that page only, its script never parses HTML, and a release never ships a dummy key.
+const guestbook = htmlByFile.get('guestbook/index.html');
+const siteKey = /id="note-form" data-sitekey="([0-9A-Za-z_-]+)"/.exec(guestbook ?? '')?.[1];
+assert(siteKey, 'Guestbook form is missing.');
+for (const [file, html] of htmlByFile) {
+  if (file === 'Photo/gallery.html') continue;
+  const policy = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)?.[1] ?? '';
+  assert(policy.includes("default-src 'self'") && policy.includes("object-src 'none'"), 'Missing CSP: ' + file);
+  assert.equal(policy.includes('challenges.cloudflare.com'), file === 'guestbook/index.html', 'Turnstile belongs only to the guestbook page: ' + file);
+}
+const guestbookScript = files.find(file => /^assets\/guestbook-[0-9a-f]{12}\.js$/.test(file));
+assert(guestbookScript, 'Guestbook script is missing.');
+assert.doesNotMatch(await readFile(path.join(dist, guestbookScript), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'The guestbook script must not build HTML from strings.');
+// Cloudflare's dummy site keys pass every visitor in the browser and are refused by the production secret.
+if (process.env.CI) assert(!/^[123]x0{20}/.test(siteKey), 'The guestbook still uses a Turnstile testing key.');
 
 let derivedBytes = 0;
 for (const photo of photos) {

@@ -16,6 +16,11 @@ Desktop.ini
 /dist/
 /.cache/
 
+# Guestbook Worker dependencies, bundles and local state
+/guestbook/node_modules/
+/guestbook/build/
+/guestbook/.wrangler/
+
 # Local task state and editor launch configs
 /work/
 /.claude/

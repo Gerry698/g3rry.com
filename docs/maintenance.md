@@ -10,9 +10,11 @@
 | 首页、摄影页结构 | `src/index.html`、`src/photos.html` |
 | 外观与响应式布局 | `src/styles.css` |
 | 粒子效果 / 画廊交互 | `src/particles.js` / `src/gallery.js` |
+| 留言板页面、文案 | `src/guestbook.html`、`src/guestbook.js`、`content/site.json` 的 `guestbook` |
+| 留言板后端与后台 | `guestbook/`，见[留言板手册](guestbook.md) |
 | 构建与检查 | `scripts/build.mjs`、`scripts/check.mjs` |
 
-页面带有 Content-Security-Policy（`src/layout.html` 的 meta）：只允许本站资源和 Cloudflare Web Analytics。引入任何外部脚本、字体或图片前，先在那里放行，否则浏览器会拦截。
+页面带有 Content-Security-Policy（由 `scripts/build.mjs` 的 `policy()` 生成，写进 `src/layout.html` 的 meta）：只允许本站资源和 Cloudflare Web Analytics，留言页额外放行 Turnstile。引入任何外部脚本、字体或图片前，先在那里放行，否则浏览器会拦截。
 
 `site.json` 里 `hero.photoId` 指定首屏照片，`phantom.shapes` 的第一项是默认图案。图片 `sizes` 定义在 `build.mjs` 顶部的 `sizes` 对象里，修改 `styles.css` 的网格列数或断点时同步更新它。
 

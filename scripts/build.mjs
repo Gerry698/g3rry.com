@@ -129,6 +129,7 @@ async function asset(source, name) {
 }
 const styles = await asset('styles.css', 'site');
 const galleryScript = await asset('gallery.js', 'gallery');
+const guestbookScript = await asset('guestbook.js', 'guestbook');
 const particleScript = await asset('particles.js', 'particles');
 // The lab is a folder of ES modules; hashing the folder as a whole keeps their relative imports intact.
 async function assetFolder(source, name) {
@@ -168,8 +169,13 @@ function picture(photo, layoutName, priority) {
 const frame = index => String(index + 1).padStart(2, '0');
 const hero = generated.find(photo => photo.id === site.hero.photoId);
 const lines = value => escape(value).replace(/\n/g, '<br>');
-function render(body, { title, description, route, pageClass, script = '', noindex = false }) {
+// Pages allow only this site and Cloudflare Web Analytics; the guestbook also needs the Turnstile script and frame.
+const policy = extra => "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com" + (extra ? ' ' + extra : '')
+  + "; connect-src 'self' https://cloudflareinsights.com; img-src 'self' data:; style-src 'self'" + (extra ? '; frame-src ' + extra : '')
+  + "; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests";
+function render(body, { title, description, route, pageClass, script = '', noindex = false, csp = policy() }) {
   return replace(layout, {
+    CSP: csp,
     LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(title),
     DESCRIPTION: escape(description), CANONICAL: escape(new URL(route, origin).href),
     SOCIAL_IMAGE: escape(new URL(hero.large, origin).href), SOCIAL_ALT: escape(hero.alt),
@@ -177,6 +183,7 @@ function render(body, { title, description, route, pageClass, script = '', noind
     STYLES: styles, PAGE_CLASS: pageClass, BODY: body, YEAR: new Date().getUTCFullYear(),
     HOME_CURRENT: route === '/' ? 'aria-current="page"' : '',
     PHOTOS_CURRENT: route === '/photos/' ? 'aria-current="page"' : '',
+    GUESTBOOK_CURRENT: route === '/guestbook/' ? 'aria-current="page"' : '',
     HEAD_EXTRA: noindex ? '<meta name="robots" content="noindex">' : '',
     SCRIPTS: script ? '<script type="module" src="' + script + '"></script>' : ''
   });
@@ -203,6 +210,20 @@ const gallery = replace(await readFile(path.join(root, 'src/photos.html'), 'utf8
   SIZES_GRID: sizes.grid, SIZES_LARGE: sizes.large, GALLERY_PHOTOS: galleryPhotos.join('\n')
 });
 await output('photos/index.html', render(gallery, { title: site.photography.title + ' — ' + site.name, description: site.photography.description, route: '/photos/', pageClass: 'gallery-page', script: galleryScript }));
+
+// The Turnstile site key is public; GUESTBOOK_SITEKEY swaps in Cloudflare's dummy keys for local testing.
+const notes = site.guestbook;
+const siteKey = process.env.GUESTBOOK_SITEKEY || notes.turnstileSiteKey;
+if (!/^[0-9A-Za-z_-]{10,64}$/.test(siteKey)) throw new Error('Invalid Turnstile site key.');
+if (!/^[a-z0-9._-]+@g3rry\.com$/.test(notes.contact)) throw new Error('The guestbook contact must be a g3rry.com address.');
+const guestbook = replace(await readFile(path.join(root, 'src/guestbook.html'), 'utf8'), {
+  GUESTBOOK_EYEBROW: escape(notes.eyebrow), GUESTBOOK_HEADING: escape(notes.heading), GUESTBOOK_DESCRIPTION: escape(notes.description),
+  TURNSTILE_SITEKEY: escape(siteKey), GUESTBOOK_CONTACT: escape(notes.contact)
+});
+await output('guestbook/index.html', render(guestbook, {
+  title: notes.title + ' — ' + site.name, description: notes.description, route: '/guestbook/', pageClass: 'guestbook-page',
+  script: guestbookScript, csp: policy('https://challenges.cloudflare.com')
+}));
 
 await output('404.html', render(
   '<section class="simple-page wrap"><p class="eyebrow">404 / A small detour</p><h1>This frame is missing.</h1><p>The page may have moved. There are still plenty of moments to explore.</p><a class="text-link" href="/photos/">Explore the photographs ↗</a></section>',
@@ -249,7 +270,7 @@ const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {
 const developHero = generated.find(photo => photo.id === lab.develop[0]);
 await output('phantom/index.html', replace(await readFile(path.join(root, 'src/phantom/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(lab.title), DESCRIPTION: escape(lab.description),
-  CANONICAL: escape(new URL('/phantom/', origin).href), CSP: layout.match(/<meta http-equiv="Content-Security-Policy"[^>]*>/)[0],
+  CANONICAL: escape(new URL('/phantom/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
   STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript,
   PRELOADS: labFiles.filter(file => file.endsWith('.js') && file !== labScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">').join('\n  '),
   INTRO_KICKER: escape(lab.intro.kicker), INTRO_TITLE: lines(lab.intro.title), INTRO_TEXT: escape(lab.intro.text), INTRO_HINT: escape(lab.intro.hint),
@@ -267,7 +288,7 @@ await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta c
   + '<meta http-equiv="refresh" content="0;url=/photos/"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(new URL('/photos/', origin).href) + '">'
   + '<title>Photography — ' + escape(site.name) + '</title></head><body><h1>The gallery has moved.</h1><p><a href="/photos/">Explore the photography collection</a></p></body></html>');
 await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/sitemap.xml', origin).href + '\n');
-await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url></urlset>\n');
+await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url></urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');
 

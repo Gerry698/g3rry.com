@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#101a24">
   <title>{{TITLE}}</title>
@@ -30,6 +30,7 @@
     <nav aria-label="Main navigation">
       <a href="/" {{HOME_CURRENT}}>Home</a>
       <a href="/photos/" {{PHOTOS_CURRENT}}>Photography</a>
+      <a href="/guestbook/" {{GUESTBOOK_CURRENT}}>Guestbook</a>
       <a href="/#phantom">The Phantom <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
