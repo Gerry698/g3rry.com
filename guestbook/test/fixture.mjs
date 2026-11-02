@@ -1,10 +1,10 @@
 // Runs both bundled Workers in workerd (via Miniflare) with one shared D1 database. Outbound requests are
 // answered locally: a fake Turnstile Siteverify and a fake Access key endpoint; anything else fails.
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { Log, LogLevel, Miniflare, Response, convertV4MiniflareOptions } from 'miniflare';
+import { applyMigrations } from '../scripts/migrate.mjs';
 import { ipHash } from '../src/lib/ip.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -77,9 +77,7 @@ export async function startFixture({ adminVars = {} } = {}) {
     ]
   }));
   const db = await mf.getD1Database('DB', 'public');
-  const migration = await readFile(path.join(root, 'migrations/0001_init.sql'), 'utf8');
-  const statements = migration.split('\n').filter(line => !line.trim().startsWith('--')).join('\n').split(/;\s*\n/).map(text => text.trim()).filter(Boolean);
-  for (const statement of statements) await db.prepare(statement).run();
+  await applyMigrations(db);
 
   // dispatchFetch routes by hostname like the real edge; Miniflare's own dev-server checks do not apply to it.
   const send = (url, init) => mf.dispatchFetch(url, init);

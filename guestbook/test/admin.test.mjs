@@ -234,3 +234,93 @@ describe('scheduled work', () => {
     assert.equal(f.logs.filter(line => line.includes('send_email binding called')).length, 0);
   });
 });
+
+describe('owner notes and pins', () => {
+  const post = (pathname, body) => f.admin(pathname, { method: 'POST', body });
+  // The public list is cached for a minute, as in production; each read here wants the current state.
+  const page = async () => { await f.mf.purgeCache(); return (await f.list()).json(); };
+
+  test('the owner posts a note that is public at once and marked as theirs', async () => {
+    await f.insert({ name: 'Ada', status: 'approved', created_at: Date.now() - 1000 });
+    const response = await post('/api/notes', { message: '  Welcome!\n\nLeave a note.  ' });
+    assert.equal(response.status, 201);
+    const { id } = await response.json();
+    const [row] = await f.rows('SELECT * FROM entries WHERE owner = 1');
+    assert.equal(row.id, id);
+    assert.equal(row.name, 'Gerry');
+    assert.equal(row.body, 'Welcome!\n\nLeave a note.');
+    assert.equal(row.status, 'approved');
+    assert.equal(row.notified, 1);
+    const data = await page();
+    assert.deepEqual(data.entries.map(entry => [entry.name, entry.owner]), [['Gerry', true], ['Ada', false]]);
+    assert.deepEqual((await f.rows('SELECT action, entry_id FROM audit')), [{ action: 'owner_note', entry_id: id }]);
+    await f.scheduled();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.equal(f.logs.filter(line => line.includes('send_email binding called')).length, 0, 'no digest for the owner\'s own note');
+  });
+
+  test('owner notes need text and accept only known fields', async () => {
+    assert.equal((await post('/api/notes', { message: ' \n ' })).status, 422);
+    assert.equal((await post('/api/notes', { message: 'x'.repeat(1001) })).status, 422);
+    assert.equal((await post('/api/notes', { message: 'Hi', name: 'Someone else' })).status, 400);
+    assert.equal((await post('/api/notes', { message: 'Hi', pinned: 'yes' })).status, 400);
+    assert.equal((await f.admin('/api/notes', { method: 'POST', body: { message: 'Hi' }, origin: null })).status, 403);
+    assert.equal((await f.admin('/api/notes', { method: 'POST', body: { message: 'Hi' }, jwt: null })).status, 403);
+    assert.equal((await f.rows()).length, 0);
+  });
+
+  test('only the owner\'s own notes can be edited', async () => {
+    const { id } = await (await post('/api/notes', { message: 'First draft' })).json();
+    const edit = await post('/api/entries/' + id + '/edit', { message: 'Second draft' });
+    assert.deepEqual(await edit.json(), { ok: true, message: 'Second draft' });
+    assert.equal((await page()).entries[0].message, 'Second draft');
+    const visitor = await f.insert({ name: 'Ada', body: 'My own words', status: 'approved' });
+    const refused = await post('/api/entries/' + visitor.id + '/edit', { message: 'Words I never wrote' });
+    assert.equal(refused.status, 403);
+    assert.equal((await f.rows('SELECT body FROM entries WHERE id = \'' + visitor.id + '\''))[0].body, 'My own words');
+    assert.equal((await post('/api/entries/' + id + '/edit', { message: '' })).status, 422);
+  });
+
+  test('pinned notes come first, at most three, and only while published', async () => {
+    const notes = [];
+    for (let i = 0; i < 5; i++) notes.push(await f.insert({ name: 'N' + i, status: 'approved', created_at: Date.now() - (10 - i) * 1000 }));
+    const pin = (note, pinned = true) => post('/api/entries/' + note.id + '/pin', { pinned });
+    assert.deepEqual(await (await pin(notes[0])).json(), { ok: true, pinned: true });
+    let data = await page();
+    assert.deepEqual(data.pinned.map(entry => entry.name), ['N0']);
+    assert.equal(data.entries.length, 5, 'pinned notes also keep their place for older pages');
+    const admin = await (await f.admin('/api/entries?view=approved')).json();
+    assert.deepEqual(admin.pinned.map(entry => [entry.name, entry.pinned]), [['N0', true]]);
+    assert.equal((await (await f.admin('/api/entries?view=pending')).json()).pinned, undefined);
+
+    assert.equal((await pin(notes[1])).status, 200);
+    assert.equal((await pin(notes[2])).status, 200);
+    assert.equal((await pin(notes[3])).status, 409, 'a fourth pin is refused');
+    assert.equal((await pin(notes[2])).status, 200, 'pinning an already pinned note again is fine');
+    assert.equal((await post('/api/notes', { message: 'Pinned hello', pinned: true })).status, 409);
+    data = await page();
+    assert.deepEqual(data.pinned.map(entry => entry.name), ['N2', 'N1', 'N0'], 'newest pin first');
+
+    assert.equal((await pin(notes[1], false)).status, 200);
+    assert.equal((await post('/api/entries/' + notes[0].id + '/reject', {})).status, 200);
+    assert.deepEqual((await page()).pinned.map(entry => entry.name), ['N2']);
+    assert.equal((await post('/api/entries/' + notes[0].id + '/approve', {})).status, 200);
+    assert.deepEqual((await page()).pinned.map(entry => entry.name), ['N2'], 'a restored note does not jump back to the top');
+
+    const waiting = await f.insert({ name: 'Waiting' });
+    assert.equal((await pin(waiting)).status, 409);
+    assert.equal((await post('/api/entries/' + notes[3].id + '/pin', { pinned: 'yes' })).status, 400);
+    const actions = (await f.rows('SELECT action FROM audit')).map(row => row.action);
+    assert.deepEqual(actions.filter(action => action === 'pin' || action === 'unpin'), ['pin', 'pin', 'pin', 'pin', 'unpin']);
+  });
+
+  test('the owner\'s pins come before pinned visitor notes', async () => {
+    const visitor = await f.insert({ name: 'Ada', status: 'approved', created_at: Date.now() - 5000 });
+    const { id } = await (await post('/api/notes', { message: 'Welcome', pinned: true })).json();
+    await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal((await post('/api/entries/' + visitor.id + '/pin', { pinned: true })).status, 200);
+    assert.deepEqual((await page()).pinned.map(entry => [entry.name, entry.owner]), [['Gerry', true], ['Ada', false]], 'a newer visitor pin still comes second');
+    const admin = await (await f.admin('/api/entries?view=approved')).json();
+    assert.deepEqual(admin.pinned.map(entry => entry.id), [id, visitor.id]);
+  });
+});

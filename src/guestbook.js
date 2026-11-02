@@ -40,6 +40,8 @@ const messages = {
 
 let next = null;
 let loading = false;
+// Pinned notes are shown first and skipped where they would otherwise appear in the list.
+const pinnedIds = new Set();
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -54,13 +56,22 @@ function timeElement(milliseconds) {
   return time;
 }
 
-function renderNote(entry) {
+function renderNote(entry, pinned) {
   const item = element('li', 'note');
   item.id = 'note-' + entry.id;
   const article = element('article');
   const header = element('header', 'note-header');
   header.append(element('h3', 'note-name', entry.name), timeElement(entry.date));
-  article.append(header, element('p', 'note-message', entry.message));
+  article.append(header);
+  // The owner mark comes from the server's `owner` flag, never from the name a visitor typed.
+  const tags = [pinned && 'Pinned', entry.owner === true && 'Site owner'].filter(Boolean);
+  if (tags.length) {
+    if (entry.owner === true) item.classList.add('note-owner');
+    const line = element('p', 'note-tags');
+    line.append(...tags.map(tag => element('span', '', tag)));
+    article.append(line);
+  }
+  article.append(element('p', 'note-message', entry.message));
   if (entry.reply) {
     const reply = element('div', 'note-reply');
     const label = element('p', 'note-reply-label', 'Gerry');
@@ -82,7 +93,11 @@ async function loadNotes(append) {
     const response = await fetch(endpoint + (append && next ? '?cursor=' + encodeURIComponent(next) : ''), { headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error(String(response.status));
     const data = await response.json();
-    list.append(...data.entries.map(renderNote));
+    if (!append && Array.isArray(data.pinned)) {
+      for (const entry of data.pinned) pinnedIds.add(entry.id);
+      list.append(...data.pinned.map(entry => renderNote(entry, true)));
+    }
+    list.append(...data.entries.filter(entry => !pinnedIds.has(entry.id)).map(entry => renderNote(entry, false)));
     next = data.next;
     if (data.open === false) closeForm(messages.status.closed);
     notesStatus.textContent = list.children.length ? '' : 'No notes yet. Yours could be the first.';

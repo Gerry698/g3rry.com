@@ -5,11 +5,11 @@
 // Build the site first:  GUESTBOOK_SITEKEY=1x00000000000000000000AA npm run build   (in the repository root)
 import { spawn } from 'node:child_process';
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { Miniflare, Response, convertV4MiniflareOptions } from 'miniflare';
+import { applyMigrations } from './migrate.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const site = 'http://localhost:' + Number(process.env.PORT || 4173);
@@ -51,9 +51,7 @@ const mf = new Miniflare(convertV4MiniflareOptions({
 }));
 
 const db = await mf.getD1Database('DB', 'public');
-const migration = await readFile(path.join(root, 'migrations/0001_init.sql'), 'utf8');
-const statements = migration.split('\n').filter(line => !line.trim().startsWith('--')).join('\n').split(/;\s*\n/).map(text => text.trim()).filter(Boolean);
-for (const statement of statements) await db.prepare(statement).run();
+await applyMigrations(db);
 
 async function readBody(request) {
   const chunks = [];
