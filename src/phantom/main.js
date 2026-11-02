@@ -441,6 +441,7 @@ function start({ gl, hdr }) {
   }
   const order = ['intro', 'ignite', 'sculpt', 'develop', 'atlas'];
   const sections = order.map(id => ({ id, element: document.querySelector('[data-chapter="' + id + '"]') }));
+  const developSection = $('#develop');
   let active = 'intro';
   let activePhase = '';
   let progress = 0;
@@ -459,6 +460,7 @@ function start({ gl, hdr }) {
     active = found.id;
     activePhase = phase;
     progress = found_p;
+    developSection.classList.toggle('is-travelling', active === 'develop' && progress > .06);
     if (changed) retarget();
   }
 

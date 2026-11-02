@@ -254,7 +254,7 @@ await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta c
   + '<meta http-equiv="refresh" content="0;url=/photos/"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(new URL('/photos/', origin).href) + '">'
   + '<title>Photography — ' + escape(site.name) + '</title></head><body><h1>The gallery has moved.</h1><p><a href="/photos/">Explore the photography collection</a></p></body></html>');
 await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/sitemap.xml', origin).href + '\n');
-await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url></urlset>\n');
+await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url></urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');
 

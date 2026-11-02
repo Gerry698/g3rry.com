@@ -131,7 +131,8 @@ html:not(.lab-gl) .lab-fallback picture img { filter: none; opacity: 1; }
   .lab-controls { margin-top: 1.2rem; gap: .8rem; }
   .readout-count { display: none; }
   html:not(.lab-gl) .lab-chapter { grid-template-columns: 1fr; }
-  /* Past the first globe a phone keeps only the current stop's caption, so the print above it stays clear. */
+  /* Once a chapter is under way a phone keeps only its controls and captions (in the atlas, past the first globe),
+     so the photograph or print above them stays clear. */
   html.lab-gl .lab-chapter.is-travelling :is(h2, .lab-text, .lab-sites) { display: none; }
   html.lab-gl .lab-chapter.is-travelling .lab-stops { margin-top: .9rem; }
 }

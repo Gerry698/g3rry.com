@@ -68,7 +68,8 @@ assert(home.includes('name="description"') && gallery.includes('rel="canonical"'
 assert(htmlByFile.get('Photo/gallery.html').includes('http-equiv="refresh"'), 'Old gallery must work without JavaScript.');
 assert(htmlByFile.get('404.html').includes('name="robots" content="noindex"'), 'The 404 page must not be indexed.');
 const labPage = htmlByFile.get('phantom/index.html');
-assert(labPage.includes('name="robots" content="noindex"'), 'The lab page stays out of search until it launches.');
+assert(!labPage.includes('noindex') && (await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/phantom/', site.url).href), 'The lab page is public: indexed and in the sitemap.');
+assert(home.includes('href="/phantom/"'), 'The home page links to the lab.');
 const labConfig = JSON.parse(labPage.match(/<script type="application\/json" id="lab-config">([^<]*)<\/script>/)[1]);
 for (const url of JSON.stringify(labConfig).match(/\/assets\/[^"]+/g)) assert(exactFiles.has(url.slice(1)), 'Lab config points at a missing file: ' + url);
 assert(labConfig.shapes.length === site.phantom.shapes.length, 'Every Phantom shape belongs in the lab.');
