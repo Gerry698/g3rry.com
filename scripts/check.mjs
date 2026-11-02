@@ -85,6 +85,13 @@ for (const stop of labConfig.atlas.stops) {
   if (stop.cloud) assert(labConfig.atlas.clouds[stop.cloud], 'Atlas stop has no point cloud: ' + stop.id);
   if (stop.photos) assert(stop.photos.every(photo => photo && photo.url), 'Atlas strip has a missing print: ' + stop.id);
 }
+// Every photograph has its own page (Develop, and Atlas where its city is live), linked from the gallery and the sitemap.
+for (const photo of photos) {
+  const page = htmlByFile.get('photos/' + photo.id + '/index.html');
+  assert(page && /id="lab-config"/.test(page) && /data-chapter="develop"/.test(page), 'Photograph page is missing: ' + photo.id);
+  assert(gallery.includes('href="/photos/' + photo.id + '/"'), 'The gallery must link to the page of ' + photo.id);
+  assert((await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/photos/' + photo.id + '/', site.url).href), 'Sitemap misses the page of ' + photo.id);
+}
 assert.deepEqual(files.filter(file => file.startsWith('Photo/')), ['Photo/gallery.html'], 'Only the old gallery redirect belongs under Photo/.');
 assert.equal((await readFile(path.join(dist, 'CNAME'), 'utf8')).trim(), new URL(site.url).hostname);
 const sitemap = await readFile(path.join(dist, 'sitemap.xml'), 'utf8');

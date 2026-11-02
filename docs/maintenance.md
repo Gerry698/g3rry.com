@@ -21,7 +21,7 @@
 
 ## 照片
 
-- 数组顺序就是画廊顺序；`move` 不改 ID，单张链接 `/photos/#photo-p16` 一直有效。
+- 数组顺序就是画廊顺序；`move` 不改 ID。每张照片有自己的页面 `/photos/<id>/`（见下文 Phantom）；旧的单张链接 `/photos/#photo-p16` 仍在画廊里打开快速预览，预览里有到照片页的入口。
 - `featured: true` 的照片进首页精选，至少保留一张。
 - `add` 生成网页母版（长边 ≤ 3200px，无元数据），不保存相机原片。所有修改命令都支持 `--dry-run`。
 - 工具运行时持有 `.cache/photos.lock`；进程异常退出后，确认没有照片命令在跑再删掉它。
@@ -41,9 +41,13 @@
 - 构建把整个目录连同两款 OFL 字体（`@fontsource` 的 Cormorant Garamond、JetBrains Mono 拉丁子集）按内容哈希发布到 `/assets/mountain-<hash>/`，所以模块之间的相对 import 不用改。
 - 山的形状是确定的：同一份代码每次生成同一座山。改 `terrain.js` 里的 `PEAKS` 和噪声参数会整体改变山形和营地位置；远景里那几座独立的远山在 `FAR_PEAKS`。小径是在山体网格上按坡度寻路得出的，陡处自动走之字形，营地之间改了位置会自己重新找路。
 - 调试参数：`?debug` 暴露 `window.mountain`（`station(i)` 跳到第 i 站、`pose()`、`time('dusk')`、`bench()` 测每帧耗时、`hide('bloom')`）；`?clean` 隐藏文字层；`?timer` 用定时器驱动渲染（后台标签页不跑 requestAnimationFrame 时用）；`?quality=low|high`；`?motion=reduce`。
-## Phantom 实验页（/phantom/）
+## Phantom 实验页（/phantom/）与照片页（/photos/<id>/）
 
-独立全屏页，`noindex`，不在导航和 sitemap 里。代码在 `src/phantom/`（原生 WebGL2，无依赖；构建时整个目录按内容取哈希输出到 `assets/phantom-<hash>/`），文案与参数在 `content/phantom.json`。
+两种页面共用一套引擎 `src/phantom/`（原生 WebGL2，无依赖；构建时整个目录按内容取哈希输出到 `assets/phantom-<hash>/`），文案与参数在 `content/phantom.json`。引擎按页面里有哪些 `data-chapter` 段落装配章节，每页的 `lab-config` 只带本页要显示的内容。
+
+- **实验页**（`src/phantom/page.html`）介绍技术，每章一个例子：`example.develop` 是 Develop 的示例照片，`example.atlas` 是 Atlas 示例经过的 stop。
+- **照片页**（`src/phantom/photo.html`，每张照片一页）只有 02 Develop 和 03 Atlas。Atlas 的路线由构建自动选：照片有自己的 stop 时是「地球 → 城市俯瞰 → 机位」；同一地点（`place` 相同）另有已解算的 stop 时，借用那个机位看街景、不放那张照片，太阳按本张的拍摄时刻；否则只到城市俯瞰。所在城市不是 `live` 时没有 Atlas。
+- 每张照片都必须有 `photos` 元数据和深度模型（`scenes.json` + `scenes/<id>.bin`），否则构建失败。
 
 | 章节 | 内容 | 数据 |
 | --- | --- | --- |

@@ -27,6 +27,7 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
   const close = dialog.querySelector('#dialog-close');
   const original = dialog.querySelector('#dialog-original');
   const share = dialog.querySelector('#dialog-share');
+  const page = dialog.querySelector('#dialog-page');
   const previous = dialog.querySelector('#dialog-previous');
   const next = dialog.querySelector('#dialog-next');
   const hint = 'Swipe or use arrow keys. Open image to zoom.';
@@ -50,7 +51,8 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
     image.height = Number(link.dataset.height);
     caption.textContent = thumbnail.alt;
     position.textContent = String(current + 1).padStart(2, '0') + ' / ' + links.length;
-    original.href = link.href;
+    original.href = link.dataset.large;
+    page.href = link.href;
     feedback.textContent = hint;
     stage.setAttribute('aria-busy', 'true');
     status.textContent = 'Loading photograph…';
@@ -60,7 +62,7 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
     if (link.dataset.srcset) loading.srcset = link.dataset.srcset;
     loading.onload = () => {
       if (token !== request || !dialog.open) return;
-      image.src = loading.currentSrc || link.href;
+      image.src = loading.currentSrc || link.dataset.large;
       image.hidden = false;
       status.textContent = '';
       stage.setAttribute('aria-busy', 'false');
@@ -70,7 +72,7 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
       status.textContent = 'This photograph could not load. Try Open image or another frame.';
       stage.setAttribute('aria-busy', 'false');
     };
-    loading.src = link.href;
+    loading.src = link.dataset.large;
   }
   function open(index, fromLink = false) {
     if (!dialog.open) {
@@ -86,13 +88,6 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
     // A shared URL owns no history entry; closing it should stay on the gallery.
     history.replaceState(history.state, '', photoHash(current));
   }
-  links.forEach((link, index) => {
-    link.addEventListener('click', event => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      event.preventDefault();
-      open(index, true);
-    });
-  });
   close.addEventListener('click', () => dialog.close());
   previous.addEventListener('click', () => navigate(-1));
   next.addEventListener('click', () => navigate(1));

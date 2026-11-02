@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="{{LANGUAGE}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {{CSP}}
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#06080b">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <link rel="canonical" href="{{CANONICAL}}">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="{{TITLE}}">
+  <meta property="og:description" content="{{DESCRIPTION}}">
+  <meta property="og:image" content="{{SOCIAL_IMAGE}}">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{STYLES}}">
+  {{PRELOADS}}
+</head>
+<body class="lab-page photo-page">
+  <a class="lab-skip" href="#develop">Skip to the photograph</a>
+  <canvas class="lab-canvas" id="lab-canvas" aria-hidden="true"></canvas>
+  <div class="lab-prints" id="lab-prints" aria-hidden="true"></div>
+  <div class="lab-finder" id="lab-finder" aria-hidden="true">
+    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    <span class="af" id="lab-af"></span>
+    <canvas class="lab-minimap" id="lab-minimap" width="300" height="300"></canvas>
+    <p class="readout">
+      <span class="readout-chapter" id="lab-read-chapter">Develop</span>
+      <span class="readout-sun" id="lab-read-sun"></span>
+      <span class="readout-exposure"><b id="lab-read-focal">50</b><small>mm</small> <b id="lab-read-aperture">ƒ/4</b> <b id="lab-read-shutter">1/60</b> <b id="lab-read-focus">—</b></span>
+      <span class="readout-count" id="lab-read-count"></span>
+    </p>
+  </div>
+  <header class="lab-top">
+    <a class="lab-mark" href="/">{{NAME}}<span aria-hidden="true">.</span></a>
+    <nav class="lab-index" aria-label="This photograph">
+      <a href="/photos/" class="lab-back"><span>←</span> All photographs</a>
+      <a href="#develop" data-index="develop"><span>02</span> Develop</a>
+      {{ATLAS_INDEX}}
+    </nav>
+    <button class="lab-motion" id="lab-motion" type="button" hidden>Pause</button>
+  </header>
+  <main id="main" class="lab-main">
+    <section class="lab-chapter" id="develop" data-chapter="develop" aria-labelledby="photo-title">
+      <div class="lab-panel">
+        <p class="lab-kicker">Frame {{FRAME}} / {{PLACE}}</p>
+        <h1 id="photo-title">{{HEADING}}</h1>
+        <p class="lab-meta">{{TAKEN}}<br>{{EXPOSURE}}</p>
+        <p class="lab-text">{{NOTE}}</p>
+        <div class="lab-controls" data-needs-gl>
+          <fieldset class="lab-modes"><legend>Read it as</legend>
+            <button type="button" data-mode="photo" aria-pressed="true">Photograph</button><button type="button" data-mode="isophote" aria-pressed="false">Equal light</button><button type="button" data-mode="depth" aria-pressed="false">Equal depth</button>
+          </fieldset>
+          <p class="lab-note">Scroll to step away from where it was taken; drag to look around.</p>
+        </div>
+        <p class="lab-links lab-photo-links"><a href="{{LARGE}}">Open the image <span aria-hidden="true">↗</span></a></p>
+      </div>
+      <figure class="lab-fallback lab-fallback-photo">{{PICTURE}}</figure>
+    </section>
+    {{ATLAS_SECTION}}
+    <footer class="lab-end">
+      <p class="lab-kicker">Frame {{FRAME}} of {{COUNT}}</p>
+      <nav class="lab-pager" aria-label="More photographs">{{PREVIOUS}}<a href="/photos/">All photographs</a>{{NEXT}}</nav>
+      <p class="lab-links"><a href="/phantom/">How these are made <span aria-hidden="true">↗</span></a></p>
+    </footer>
+  </main>
+  <script type="application/json" id="lab-config">{{CONFIG}}</script>
+  <script type="module" src="{{SCRIPT}}"></script>
+</body>
+</html>
