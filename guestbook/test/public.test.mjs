@@ -124,17 +124,19 @@ describe('submitting a note', () => {
   });
 
   test('requires a Turnstile token solved on this site for this form', async () => {
-    for (const token of [undefined, '', 'bad', 'other-host', 'other-action', 'x'.repeat(2049)]) {
+    for (const token of [undefined, '', 'bad', 'malformed', 'other-host', 'other-action', 'x'.repeat(2049)]) {
       const response = await f.submit(note({ token }), { ip: '203.0.113.' + Math.floor(Math.random() * 200) });
       assert.equal(response.status, 403, String(token).slice(0, 20));
     }
-    assert.equal(f.siteverify.length, 3, 'missing and oversized tokens are rejected without calling Siteverify');
+    assert.equal(f.siteverify.length, 4, 'missing and oversized tokens are rejected without calling Siteverify');
     assert.equal((await f.rows()).length, 0);
   });
 
-  test('fails closed when Turnstile is unreachable', async () => {
-    const response = await f.submit(note({ token: 'down' }));
-    assert.equal(response.status, 503);
+  test('fails closed when Turnstile is unreachable or the secret is wrong', async () => {
+    for (const token of ['down', 'wrong-secret']) {
+      const response = await f.submit(note({ token }), { ip: '203.0.113.' + Math.floor(Math.random() * 200) });
+      assert.equal(response.status, 503, token);
+    }
     assert.equal((await f.rows()).length, 0);
   });
 

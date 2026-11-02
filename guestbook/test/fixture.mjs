@@ -39,8 +39,10 @@ export async function startFixture({ adminVars = {} } = {}) {
       const body = await request.json();
       siteverify.push(body);
       if (body.response === 'down') return new Response('unavailable', { status: 503 });
-      const answer = body.secret === 'test-secret' ? siteverifyAnswers[body.response] : null;
-      return Response.json(answer ?? { success: false, 'error-codes': ['invalid-input-response'] });
+      // The real Siteverify answers a wrong secret with 400; "malformed" and "wrong-secret" stand for 400 answers.
+      if (body.secret !== 'test-secret' || body.response === 'wrong-secret') return Response.json({ success: false, 'error-codes': ['invalid-input-secret'] }, { status: 400 });
+      if (body.response === 'malformed') return Response.json({ success: false, 'error-codes': ['invalid-input-response'] }, { status: 400 });
+      return Response.json(siteverifyAnswers[body.response] ?? { success: false, 'error-codes': ['invalid-input-response'] });
     }
     if (request.url === 'https://' + TEAM + '/cdn-cgi/access/certs') return Response.json({ keys: [jwk] });
     return new Response('unexpected outbound request', { status: 599 });
