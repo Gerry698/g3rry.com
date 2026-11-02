@@ -211,7 +211,8 @@ async function sendDigest(env) {
   if (count > fresh.results.length) lines.push((count - fresh.results.length) + ' more will follow in the next email.');
   // The subject is fixed text; visitor text only ever appears in the plain-text body.
   await env.EMAIL.send({
-    from: env.NOTIFY_FROM,
+    // A display name, because mail from a bare address scores worse with spam filters.
+    from: { email: env.NOTIFY_FROM, name: 'g3rry.com guestbook' },
     to: env.NOTIFY_TO,
     subject: count === 1 ? 'Guestbook: 1 new note' : 'Guestbook: ' + count + ' new notes',
     text: lines.join('\n')

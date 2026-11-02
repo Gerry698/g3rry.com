@@ -220,6 +220,7 @@ describe('scheduled work', () => {
     const mails = f.logs.filter(line => line.includes('send_email binding called'));
     assert.equal(mails.length, 1);
     assert.match(mails[0], new RegExp('To: ' + NOTIFY_TO));
+    assert.match(mails[0], /From: .*g3rry\.com guestbook.*guestbook@g3rry\.com/);
     assert.match(mails[0], /Subject: Guestbook: 2 new notes/);
     const textPath = /Text: (.+)/.exec(mails[0])[1].trim();
     const text = await readFile(textPath, 'utf8');
