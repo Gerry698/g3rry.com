@@ -1,0 +1,44 @@
+name: Test guestbook Workers
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['guestbook/**', '.github/workflows/guestbook.yml']
+  push:
+    branches: [main]
+    paths: ['guestbook/**', '.github/workflows/guestbook.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guestbook-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: guestbook
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: guestbook/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      # Bundles both Workers with wrangler and runs them in workerd against a local D1 database.
+      - name: Test Workers
+        run: npm test

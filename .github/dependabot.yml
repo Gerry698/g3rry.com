@@ -13,3 +13,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+
+  # Guestbook Workers: wrangler, miniflare and jose.
+  - package-ecosystem: npm
+    directory: /guestbook
+    schedule:
+      interval: monthly

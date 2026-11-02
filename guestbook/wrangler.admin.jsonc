@@ -1,0 +1,24 @@
+// Moderation Worker: admin.g3rry.com behind Cloudflare Access. Secrets: ADMIN_EMAILS, NOTIFY_TO.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "guestbook-admin",
+  "main": "src/admin.js",
+  "compatibility_date": "2026-10-15",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "admin.g3rry.com", "custom_domain": true }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "guestbook", "database_id": "a7b96591-774e-4480-b374-41c676ffd65b", "migrations_dir": "migrations" }
+  ],
+  // Sends only to verified Email Routing destination addresses; the recipient is the NOTIFY_TO secret.
+  "send_email": [{ "name": "EMAIL" }],
+  // Digest email and data retention every 15 minutes.
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    "ADMIN_ORIGIN": "https://admin.g3rry.com",
+    "ACCESS_TEAM_DOMAIN": "young-bonus-b4b8.cloudflareaccess.com",
+    "ACCESS_AUD": "2f0971443859f80537d5e73031f963bca31031eba8c60af8b866c7e337d4870c",
+    "NOTIFY_FROM": "guestbook@g3rry.com"
+  },
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }
+}

@@ -27,5 +27,13 @@
       { "id": "lungmen", "label": "Lungmen", "source": "image/lm.png" },
       { "id": "reunion", "label": "Reunion", "source": "image/ru.jpg" }
     ]
+  },
+  "guestbook": {
+    "title": "Guestbook",
+    "eyebrow": "Guestbook / Notes from passers-by",
+    "heading": "Leave a note",
+    "description": "Passing through? Say hello: a thought, a frame you liked, a place worth seeing. I read every note before it appears here.",
+    "turnstileSiteKey": "0x4AAAAAAFvT0xQmJu_j_Px7",
+    "contact": "guestbook@g3rry.com"
   }
 }

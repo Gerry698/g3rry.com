@@ -25,6 +25,17 @@ const sizes = {
 
 const site = JSON.parse(await readFile(path.join(root, 'content/site.json'), 'utf8'));
 const photos = JSON.parse(await readFile(path.join(root, 'content/photos.json'), 'utf8'));
+const mountain = JSON.parse(await readFile(path.join(root, 'content/mountain.json'), 'utf8'));
+const numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
+const times = ['dawn', 'morning', 'noon', 'golden', 'dusk', 'night'];
+if (!Array.isArray(mountain.camps) || mountain.camps.length < 3 || mountain.camps.length > numerals.length) throw new Error('The mountain needs 3 to 9 camps.');
+const campIds = new Set();
+for (const camp of mountain.camps) {
+  if (!/^[a-z][a-z0-9-]*$/.test(camp.id) || campIds.has(camp.id) || !camp.title || !camp.description) throw new Error('Invalid mountain camp: ' + camp.id);
+  if (camp.href !== undefined && !/^\/(?!\/)/.test(camp.href)) throw new Error('Camp links must be site paths: ' + camp.id);
+  if (camp.time !== undefined && !times.includes(camp.time)) throw new Error('Unknown camp time "' + camp.time + '"; use one of ' + times.join(', '));
+  campIds.add(camp.id);
+}
 const origin = new URL(site.url);
 if (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('site.url must be an HTTPS origin.');
 await validatePhotos(root, photos, site.hero.photoId);
@@ -129,16 +140,26 @@ async function asset(source, name) {
 }
 const styles = await asset('styles.css', 'site');
 const galleryScript = await asset('gallery.js', 'gallery');
+const guestbookScript = await asset('guestbook.js', 'guestbook');
 const particleScript = await asset('particles.js', 'particles');
-// The lab is a folder of ES modules; hashing the folder as a whole keeps their relative imports intact.
-async function assetFolder(source, name) {
+// The mountain and the lab are folders of ES modules (the mountain also carries its fonts); hashing a folder
+// as a whole keeps relative imports and url()s intact.
+async function assetFolder(source, name, extra = {}) {
   const directory = path.join(root, 'src', source);
-  const files = (await readdir(directory)).filter(file => /\.(js|css)$/.test(file)).sort();
-  const contents = await Promise.all(files.map(file => readFile(path.join(directory, file))));
+  const sources = Object.fromEntries((await readdir(directory)).filter(file => /\.(js|css)$/.test(file)).map(file => [file, path.join(directory, file)]));
+  for (const [file, from] of Object.entries(extra)) sources[file] = path.join(root, from);
+  const files = Object.keys(sources).sort();
+  const contents = await Promise.all(files.map(file => readFile(sources[file])));
   const base = '/assets/' + name + '-' + digest(Buffer.concat(files.flatMap((file, i) => [Buffer.from(file + '\0'), contents[i]]))) + '/';
   for (const [i, file] of files.entries()) await output(base.slice(1) + file, contents[i]);
   return files.map(file => base + file);
 }
+// Latin subsets of two OFL fonts, self-hosted so the page needs nothing from other origins.
+const mountainFiles = await assetFolder('mountain', 'mountain', {
+  'cormorant-garamond.woff2': 'node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-normal.woff2',
+  'jetbrains-mono.woff2': 'node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2'
+});
+const mountainSocial = await asset('mountain/social.jpg', 'mountain-social');
 const labFiles = await assetFolder('phantom', 'phantom');
 // Lab data (depth maps, point clouds) is optional per item until it has been generated with tools/phantom-data.
 async function labData(relative) {
@@ -168,8 +189,13 @@ function picture(photo, layoutName, priority) {
 const frame = index => String(index + 1).padStart(2, '0');
 const hero = generated.find(photo => photo.id === site.hero.photoId);
 const lines = value => escape(value).replace(/\n/g, '<br>');
-function render(body, { title, description, route, pageClass, script = '', noindex = false }) {
+// Pages allow only this site and Cloudflare Web Analytics; the guestbook also needs the Turnstile script and frame.
+const policy = extra => "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com" + (extra ? ' ' + extra : '')
+  + "; connect-src 'self' https://cloudflareinsights.com; img-src 'self' data:; style-src 'self'" + (extra ? '; frame-src ' + extra : '')
+  + "; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests";
+function render(body, { title, description, route, pageClass, script = '', noindex = false, csp = policy() }) {
   return replace(layout, {
+    CSP: csp,
     LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(title),
     DESCRIPTION: escape(description), CANONICAL: escape(new URL(route, origin).href),
     SOCIAL_IMAGE: escape(new URL(hero.large, origin).href), SOCIAL_ALT: escape(hero.alt),
@@ -177,6 +203,7 @@ function render(body, { title, description, route, pageClass, script = '', noind
     STYLES: styles, PAGE_CLASS: pageClass, BODY: body, YEAR: new Date().getUTCFullYear(),
     HOME_CURRENT: route === '/' ? 'aria-current="page"' : '',
     PHOTOS_CURRENT: route === '/photos/' ? 'aria-current="page"' : '',
+    GUESTBOOK_CURRENT: route === '/guestbook/' ? 'aria-current="page"' : '',
     HEAD_EXTRA: noindex ? '<meta name="robots" content="noindex">' : '',
     SCRIPTS: script ? '<script type="module" src="' + script + '"></script>' : ''
   });
@@ -204,10 +231,37 @@ const gallery = replace(await readFile(path.join(root, 'src/photos.html'), 'utf8
 });
 await output('photos/index.html', render(gallery, { title: site.photography.title + ' — ' + site.name, description: site.photography.description, route: '/photos/', pageClass: 'gallery-page', script: galleryScript }));
 
+// The Turnstile site key is public; GUESTBOOK_SITEKEY swaps in Cloudflare's dummy keys for local testing.
+const notes = site.guestbook;
+const siteKey = process.env.GUESTBOOK_SITEKEY || notes.turnstileSiteKey;
+if (!/^[0-9A-Za-z_-]{10,64}$/.test(siteKey)) throw new Error('Invalid Turnstile site key.');
+if (!/^[a-z0-9._-]+@g3rry\.com$/.test(notes.contact)) throw new Error('The guestbook contact must be a g3rry.com address.');
+const guestbook = replace(await readFile(path.join(root, 'src/guestbook.html'), 'utf8'), {
+  GUESTBOOK_EYEBROW: escape(notes.eyebrow), GUESTBOOK_HEADING: escape(notes.heading), GUESTBOOK_DESCRIPTION: escape(notes.description),
+  TURNSTILE_SITEKEY: escape(siteKey), GUESTBOOK_CONTACT: escape(notes.contact)
+});
+await output('guestbook/index.html', render(guestbook, {
+  title: notes.title + ' — ' + site.name, description: notes.description, route: '/guestbook/', pageClass: 'guestbook-page',
+  script: guestbookScript, csp: policy('https://challenges.cloudflare.com')
+}));
+
 await output('404.html', render(
   '<section class="simple-page wrap"><p class="eyebrow">404 / A small detour</p><h1>This frame is missing.</h1><p>The page may have moved. There are still plenty of moments to explore.</p><a class="text-link" href="/photos/">Explore the photographs ↗</a></section>',
   { title: 'Page not found — ' + site.name, description: 'Find your way back to the photographs.', route: '/404.html', pageClass: 'error-page', noindex: true }));
-// The lab page has its own full-screen shell but shares the site's Content-Security-Policy.
+// The full-screen pages (mountain, lab) have their own shells but share the site's Content-Security-Policy.
+const mountainScript = mountainFiles.find(file => file.endsWith('/main.js'));
+const camps = mountain.camps.map((camp, index) => '<li id="' + camp.id + '" data-kicker="' + escape(camp.kicker || 'Camp ' + numerals[index]) + '"' + (camp.time ? ' data-time="' + camp.time + '"' : '') + '>'
+  + '<a href="' + escape(camp.href || '#' + camp.id) + '"' + (camp.href ? '' : ' data-pending') + '><span class="camp-number">' + numerals[index] + '</span><span class="camp-title">' + escape(camp.title) + '</span></a>'
+  + '<p>' + escape(camp.description) + '</p></li>');
+await output('mountain/index.html', replace(await readFile(path.join(root, 'src/mountain/page.html'), 'utf8'), {
+  LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(mountain.title), DESCRIPTION: escape(mountain.description),
+  CANONICAL: escape(new URL('/mountain/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
+  SOCIAL_IMAGE: escape(new URL(mountainSocial, origin).href), STYLES: mountainFiles.find(file => file.endsWith('.css')), SCRIPT: mountainScript,
+  PRELOADS: [...mountainFiles.filter(file => file.endsWith('.woff2')).map(file => '<link rel="preload" href="' + file + '" as="font" type="font/woff2" crossorigin>'),
+    ...mountainFiles.filter(file => file.endsWith('.js') && file !== mountainScript).map(file => '<link rel="modulepreload" href="' + file + '">')].join('\n  '),
+  INTRO_KICKER: escape(mountain.intro.kicker), INTRO_TITLE: escape(mountain.intro.title), INTRO_DESCRIPTION: escape(mountain.intro.description),
+  INTRO_HINT: escape(mountain.intro.hint), CAMPS: camps.join('\n        ')
+}));
 const labScript = labFiles.find(file => file.endsWith('/main.js'));
 function labPhoto(id) {
   const photo = generated.find(item => item.id === id);
@@ -249,7 +303,7 @@ const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {
 const developHero = generated.find(photo => photo.id === lab.develop[0]);
 await output('phantom/index.html', replace(await readFile(path.join(root, 'src/phantom/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(lab.title), DESCRIPTION: escape(lab.description),
-  CANONICAL: escape(new URL('/phantom/', origin).href), CSP: layout.match(/<meta http-equiv="Content-Security-Policy"[^>]*>/)[0],
+  CANONICAL: escape(new URL('/phantom/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
   STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript,
   PRELOADS: labFiles.filter(file => file.endsWith('.js') && file !== labScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">').join('\n  '),
   INTRO_KICKER: escape(lab.intro.kicker), INTRO_TITLE: lines(lab.intro.title), INTRO_TEXT: escape(lab.intro.text), INTRO_HINT: escape(lab.intro.hint),
@@ -267,7 +321,7 @@ await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta c
   + '<meta http-equiv="refresh" content="0;url=/photos/"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(new URL('/photos/', origin).href) + '">'
   + '<title>Photography — ' + escape(site.name) + '</title></head><body><h1>The gallery has moved.</h1><p><a href="/photos/">Explore the photography collection</a></p></body></html>');
 await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/sitemap.xml', origin).href + '\n');
-await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url></urlset>\n');
+await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/mountain/', origin).href) + '</loc></url></urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');
 

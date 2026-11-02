@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="{{LANGUAGE}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {{CSP}}
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="theme-color" content="#0a1130">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <link rel="canonical" href="{{CANONICAL}}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{NAME}}">
+  <meta property="og:title" content="{{TITLE}}">
+  <meta property="og:description" content="{{DESCRIPTION}}">
+  <meta property="og:url" content="{{CANONICAL}}">
+  <meta property="og:image" content="{{SOCIAL_IMAGE}}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="A low-poly snow mountain under the northern lights, a dotted trail winding up to a flag on the summit.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{STYLES}}">
+  {{PRELOADS}}
+</head>
+<body class="mountain-page">
+  <a class="mountain-skip" href="#mountain-route">Skip to the camps</a>
+  <canvas class="mountain-canvas" id="mountain-canvas" aria-hidden="true"></canvas>
+  <header class="mountain-top">
+    <a class="mountain-mark" href="/">{{NAME}}<span aria-hidden="true">.</span></a>
+    <p class="mountain-meter" aria-hidden="true"><span>Alt</span> <b id="mountain-altitude">—</b> <span>m</span></p>
+  </header>
+  <main id="main" class="mountain-main">
+    <section class="mountain-intro" id="mountain-intro" aria-labelledby="mountain-title">
+      <p class="mountain-kicker">{{INTRO_KICKER}}</p>
+      <h1 id="mountain-title">{{INTRO_TITLE}}</h1>
+      <p class="mountain-lede">{{INTRO_DESCRIPTION}}</p>
+      <button class="mountain-begin" id="mountain-begin" type="button" hidden>{{INTRO_HINT}} <span aria-hidden="true">↓</span></button>
+    </section>
+    <section class="mountain-card" id="mountain-card" aria-live="polite" hidden>
+      <p class="mountain-kicker" id="mountain-card-kicker"></p>
+      <h2 id="mountain-card-title"></h2>
+      <p class="mountain-card-text" id="mountain-card-text"></p>
+      <a class="mountain-enter" id="mountain-card-link" href="/">Enter <span aria-hidden="true">→</span></a>
+      <p class="mountain-pending" id="mountain-card-pending" hidden>Trail under construction</p>
+    </section>
+    <nav class="mountain-route" aria-label="Camps on the mountain">
+      <ol id="mountain-route">
+        {{CAMPS}}
+      </ol>
+    </nav>
+  </main>
+  <p class="mountain-hint" id="mountain-hint" aria-hidden="true" hidden><span>Scroll</span><i></i></p>
+  <script type="module" src="{{SCRIPT}}"></script>
+</body>
+</html>
