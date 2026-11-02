@@ -4,7 +4,7 @@
   <div class="collection-rule"><span>Look a little closer.</span><span>Selected frames, 01—{{PHOTO_COUNT}}</span></div>
 </section>
 <div class="collection-tools wrap" id="collection-tools">
-  <p>Follow the light, one frame at a time.</p>
+  <p>Each frame opens with its depth and where it was taken. <a class="text-link" href="/phantom/">How these are made ↗</a></p>
   <div class="view-switch" role="group" aria-label="Photograph layout"><button type="button" data-view="grid" aria-pressed="true">Grid</button><button type="button" data-view="large" aria-pressed="false">Large</button></div>
 </div>
 <section class="photo-collection wrap" aria-label="Photograph collection" data-sizes-grid="{{SIZES_GRID}}" data-sizes-large="{{SIZES_LARGE}}">
@@ -12,7 +12,7 @@
 </section>
 <div class="collection-end wrap"><span class="gold-line" aria-hidden="true"></span><p>Thanks for looking.</p><a class="text-link" href="/">Back to my world <span aria-hidden="true">↗</span></a></div>
 <dialog class="photo-dialog" id="photo-dialog" aria-labelledby="dialog-caption">
-  <div class="dialog-toolbar"><p id="dialog-position" aria-live="polite"></p><div class="dialog-actions"><button class="dialog-button" id="dialog-share" type="button">Copy link</button><a class="dialog-button" id="dialog-original" target="_blank" rel="noopener">Open image <span aria-hidden="true">↗</span></a><button class="dialog-button" id="dialog-close" type="button" aria-label="Close photograph">Close <span aria-hidden="true">×</span></button></div></div>
+  <div class="dialog-toolbar"><p id="dialog-position" aria-live="polite"></p><div class="dialog-actions"><a class="dialog-button" id="dialog-page">Depth and place <span aria-hidden="true">↗</span></a><button class="dialog-button" id="dialog-share" type="button">Copy link</button><a class="dialog-button" id="dialog-original" target="_blank" rel="noopener">Open image <span aria-hidden="true">↗</span></a><button class="dialog-button" id="dialog-close" type="button" aria-label="Close photograph">Close <span aria-hidden="true">×</span></button></div></div>
   <div class="dialog-image-area" id="dialog-stage" aria-busy="false"><img id="dialog-image" alt="" width="1920" height="1280" hidden><p id="dialog-status" role="status" aria-live="polite"></p></div>
   <div class="dialog-bottom"><button class="dialog-button" id="dialog-previous" type="button" aria-label="Previous photograph"><span aria-hidden="true">←</span> Previous</button><p id="dialog-caption"></p><button class="dialog-button" id="dialog-next" type="button" aria-label="Next photograph">Next <span aria-hidden="true">→</span></button></div>
   <p class="dialog-hint" id="dialog-feedback" role="status">Swipe or use arrow keys. Open image to zoom.</p>

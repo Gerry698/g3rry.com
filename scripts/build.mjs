@@ -52,8 +52,10 @@ const lab = JSON.parse(await readFile(path.join(root, 'content/phantom.json'), '
 const labChapters = ['ignite', 'sculpt', 'develop', 'atlas'];
 if (!Array.isArray(lab.chapters) || lab.chapters.map(chapter => chapter.id).join() !== labChapters.join()) throw new Error('phantom.json chapters must be ' + labChapters.join(', ') + ' in that order.');
 const scenes = JSON.parse(await readFile(path.join(root, 'content/phantom/scenes.json'), 'utf8'));
-for (const id of lab.develop) {
-  if (!photos.some(photo => photo.id === id) || !lab.photos[id]) throw new Error('Develop photo needs a manifest entry and lab metadata: ' + id);
+// Every photograph has its own page with Develop, so each needs lab metadata and a depth model.
+if (!lab.example || !lab.photos[lab.example.develop] || !lab.example.atlas.every(id => lab.atlas.stops.some(stop => stop.id === id))) throw new Error('phantom.json example must name a photograph and atlas stops.');
+for (const id of photos.map(photo => photo.id)) {
+  if (!lab.photos[id]) throw new Error('Photograph needs lab metadata: ' + id);
   if (!scenes[id] || !(scenes[id].subject > 0) || !scenes[id].note) throw new Error('Develop photo needs a scene model with a subject distance and a note: ' + id);
 }
 for (const site of lab.sites) {
@@ -225,9 +227,10 @@ const home = replace(await readFile(path.join(root, 'src/index.html'), 'utf8'), 
 await output('index.html', render(home, { title: site.title, description: site.description, route: '/', pageClass: 'home-page', script: particleScript }));
 
 const galleryPhotos = generated.map((photo, index) =>
-  '<figure class="photo-card" id="photo-' + photo.id + '"><a data-photo="' + photo.id + '" data-srcset="' + photo.srcset.webp + '"'
-  + ' data-width="' + photo.width + '" data-height="' + photo.height + '" href="' + photo.large + '" aria-label="View photograph: ' + escape(photo.alt) + '">'
-  + picture(photo, 'grid', index === 0 ? 'high' : index < 3 ? 'eager' : '') + '</a><figcaption><span>' + frame(index) + '</span><span>View photograph ↗</span></figcaption></figure>');
+  '<figure class="photo-card" id="photo-' + photo.id + '"><a data-photo="' + photo.id + '" data-srcset="' + photo.srcset.webp + '" data-large="' + photo.large + '"'
+  + ' data-width="' + photo.width + '" data-height="' + photo.height + '" href="/photos/' + photo.id + '/" aria-label="Open photograph: ' + escape(photo.alt) + '">'
+  + picture(photo, 'grid', index === 0 ? 'high' : index < 3 ? 'eager' : '') + '</a><figcaption><span>' + frame(index) + (lab.photos[photo.id] ? ' · ' + escape(lab.photos[photo.id].place) : '') + '</span>'
+  + '<span>' + (lab.atlas.stops.some(stop => stop.vantage && (stop.photo === photo.id || stop.photos?.includes(photo.id))) ? 'Depth · Placed' : 'Depth') + ' ↗</span></figcaption></figure>');
 const gallery = replace(await readFile(path.join(root, 'src/photos.html'), 'utf8'), {
   PHOTO_COUNT: String(generated.length).padStart(2, '0'), COLLECTION_TITLE: escape(site.photography.title), COLLECTION_DESCRIPTION: escape(site.photography.description),
   SIZES_GRID: sizes.grid, SIZES_LARGE: sizes.large, GALLERY_PHOTOS: galleryPhotos.join('\n')
@@ -317,30 +320,42 @@ function capturedAt(id) {
   const correction = (trip.cameraClockBehindMinutes || 0) - (trip.cameraClockAheadMinutes || 0);
   return { when: new Date(Date.parse(meta.exif + 'Z') + (correction - offset) * 60000).toISOString(), utcOffset: trip.utcOffset };
 }
-const labConfig = {
-  shapes: shapes.map(({ id, label, url, width, height }) => ({ id, label, url, width, height })),
-  develop: await Promise.all(lab.develop.map(async id => {
-    const header = await readFile(path.join(root, 'content/phantom/scenes', id + '.bin')).then(file => { const raw = gunzipSync(file); return JSON.parse(raw.subarray(4, 4 + raw.readUInt32LE(0))); });
-    return { ...labPhoto(id), scene: await labData('scenes/' + id + '.bin'), subject: scenes[id].subject, nearest: header.nearest, note: scenes[id].note };
-  })),
-  sites: lab.sites.map(({ id, name, lat, lon, period, status, origin }) => ({ id, name, lat, lon, period, status, origin })), trips: lab.trips,
-  atlas: {
-    land: await labData('atlas/land.bin'),
-    frames: JSON.parse(await readFile(path.join(root, 'content/phantom/atlas/frames.json'), 'utf8').catch(() => '{"clouds":{},"stops":{}}')),
-    clouds: Object.fromEntries(await Promise.all(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).map(async cloud => [cloud.id, await labData('atlas/' + cloud.id + '.bin')]))),
-    terrain: Object.fromEntries(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).filter(cloud => cloud.terrain).map(cloud => [cloud.id, cloud.terrain])),
-    stops: lab.atlas.stops.map(stop => ({
-      ...stop, photo: stop.photo ? labPhoto(stop.photo) : null, photos: stop.photos ? stop.photos.map(labPhoto) : null,
-      // The sun as it stood when the stop's photograph was taken, seen from where it was taken.
-      light: stop.vantage && (stop.photo || stop.photos) ? { ...capturedAt(stop.photo || stop.photos[0]), where: (stop.vantage.at || stop.vantage.target).slice(0, 2) } : null
-    }))
-  }
+// The lab and every photograph's page run one engine; a page's config holds only what its chapters show.
+const sceneEntry = async id => {
+  const header = await readFile(path.join(root, 'content/phantom/scenes', id + '.bin')).then(file => { const raw = gunzipSync(file); return JSON.parse(raw.subarray(4, 4 + raw.readUInt32LE(0))); });
+  return { ...labPhoto(id), scene: await labData('scenes/' + id + '.bin'), subject: scenes[id].subject, nearest: header.nearest, note: scenes[id].note };
 };
+const resolveStop = stop => ({
+  ...stop, photo: stop.photo ? labPhoto(stop.photo) : null, photos: stop.photos ? stop.photos.map(labPhoto) : null,
+  // The sun as it stood when the stop's photograph was taken, seen from where it was taken.
+  light: stop.light || (stop.vantage && (stop.photo || stop.photos) ? { ...capturedAt(stop.photo || stop.photos[0]), where: (stop.vantage.at || stop.vantage.target).slice(0, 2) } : null)
+});
+const atlasData = {
+  land: await labData('atlas/land.bin'),
+  frames: JSON.parse(await readFile(path.join(root, 'content/phantom/atlas/frames.json'), 'utf8').catch(() => '{"clouds":{},"stops":{}}')),
+  clouds: Object.fromEntries(await Promise.all(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).map(async cloud => [cloud.id, await labData('atlas/' + cloud.id + '.bin')]))),
+  terrain: Object.fromEntries(lab.sites.flatMap(item => item.lidar ? item.lidar.clouds : []).filter(cloud => cloud.terrain).map(cloud => [cloud.id, cloud.terrain]))
+};
+async function pageConfig(developIds, stops) {
+  const sceneIds = [...new Set(stops.map(stop => stop.photo).filter(id => id && scenes[id] && !developIds.includes(id)))];
+  return {
+    shapes: shapes.map(({ id, label, url, width, height }) => ({ id, label, url, width, height })),
+    develop: await Promise.all(developIds.map(sceneEntry)), scenes: await Promise.all(sceneIds.map(sceneEntry)),
+    sites: lab.sites.map(({ id, name, lat, lon, period, status, origin }) => ({ id, name, lat, lon, period, status, origin })), trips: lab.trips,
+    atlas: stops.length ? { ...atlasData, stops: stops.map(resolveStop) } : null
+  };
+}
+const stopById = id => {
+  const stop = lab.atlas.stops.find(item => item.id === id);
+  if (!stop) throw new Error('Unknown atlas stop: ' + id);
+  return stop;
+};
+const labConfig = await pageConfig([lab.example.develop], lab.example.atlas.map(stopById));
 const chapterTokens = Object.fromEntries(lab.chapters.flatMap(chapter => {
   const key = chapter.id.toUpperCase();
   return [[key + '_KICKER', escape(chapter.kicker)], [key + '_TITLE', lines(chapter.title)], [key + '_TEXT', escape(chapter.text)]];
 }));
-const developHero = generated.find(photo => photo.id === lab.develop[0]);
+const developHero = generated.find(photo => photo.id === lab.example.develop);
 await output('phantom/index.html', replace(await readFile(path.join(root, 'src/phantom/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(lab.title), DESCRIPTION: escape(lab.description),
   CANONICAL: escape(new URL('/phantom/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
@@ -354,14 +369,70 @@ await output('phantom/index.html', replace(await readFile(path.join(root, 'src/p
   ATLAS_SITES: lab.sites.map(item => '<li data-site="' + item.id + '"' + (item.status === 'live' ? '' : ' class="is-soon"') + '><span>' + escape(item.name) + '</span><span>'
     + (item.status === 'live' ? escape(item.period || '') : 'Soon') + '</span></li>').join(''),
   CREDITS: lab.credits.map(line => '<li>' + escape(line) + '</li>').join(''),
-  ATLAS_STOPS: lab.atlas.stops.map(stop => '<li data-stop="' + stop.id + '"><b>' + escape(stop.title) + '</b><span>' + escape(stop.caption) + '</span></li>').join(''),
+  ATLAS_STOPS: lab.example.atlas.map(stopById).map(stop => '<li data-stop="' + stop.id + '"><b>' + escape(stop.title) + '</b><span>' + escape(stop.caption) + '</span></li>').join(''),
   CONFIG: JSON.stringify(labConfig).replace(/</g, '\\u003c')
 }));
+// ---- One page per photograph: the print, its depth (02 Develop) and where it was taken (03 Atlas) ----------------
+const photoTemplate = await readFile(path.join(root, 'src/phantom/photo.html'), 'utf8');
+const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function takenLine(id) {
+  const at = capturedAt(id);
+  if (!at) return '';
+  const [, sign, hh, mm] = at.utcOffset.match(/^([+-])(\d\d):(\d\d)$/);
+  const local = new Date(Date.parse(at.when) + (sign === '-' ? -1 : 1) * (+hh * 60 + +mm) * 60000);
+  return local.getUTCDate() + ' ' + months[local.getUTCMonth()] + ' ' + local.getUTCFullYear() + ' · ' + local.toISOString().slice(11, 16) + ' UTC' + (sign === '-' ? '−' : '+') + Number(hh);
+}
+// A photograph's own stop when it has one; otherwise the LiDAR around a solved stop at the same place; otherwise its city.
+function photoStops(id) {
+  const meta = lab.photos[id], site = lab.trips.find(trip => trip.id === meta.trip)?.site;
+  if (!site || !lab.sites.find(item => item.id === site && item.status === 'live')) return { stops: [], kind: 'none' };
+  const globe = { ...lab.atlas.stops.find(stop => stop.kind === 'globe' && stop.site === site), title: 'The whole planet' };
+  globe.caption = 'From the whole planet down to ' + lab.sites.find(item => item.id === site).name + '.';
+  const overview = lab.atlas.stops.find(stop => stop.kind === 'overview' && stop.site === site);
+  const own = lab.atlas.stops.find(stop => stop.vantage && (stop.photo === id || stop.photos?.includes(id)));
+  if (own) return { stops: [globe, overview, own], kind: 'own' };
+  const near = meta.located && lab.atlas.stops.find(stop => stop.vantage && [stop.photo, ...(stop.photos || [])].some(other => other && lab.photos[other].place === meta.place));
+  if (near && atlasData.frames.stops[near.id]) {
+    // The solved station of the other frame from the same place, without that frame: the street, at this frame's hour.
+    const area = { ...near, photo: null, photos: null, project: false, title: 'Around ' + meta.place,
+      caption: 'The street from a frame taken nearby. Where exactly this one was taken is not solved yet.',
+      light: { ...capturedAt(id), where: (near.vantage.at || near.vantage.target).slice(0, 2) } };
+    return { stops: [globe, overview, area], kind: 'near' };
+  }
+  return { stops: [globe, overview], kind: 'city' };
+}
+const atlasText = { own: 'The camera comes down from the whole planet to where I stood, through public airborne LiDAR, with the sun where it stood at that moment. Drag to look around the spot.',
+  near: 'The camera comes down from the whole planet to the place, rebuilt from public airborne LiDAR. This frame is not yet set at its exact spot.',
+  city: 'The camera comes down from the whole planet to the city, rebuilt from public airborne LiDAR. This frame is not yet placed.' };
+const photoLink = (photo, rel) => '<a href="/photos/' + photo.id + '/" rel="' + rel + '">' + (rel === 'prev' ? '<span aria-hidden="true">←</span> Frame ' : 'Frame ') + frame(generated.indexOf(photo)) + (rel === 'next' ? ' <span aria-hidden="true">→</span>' : '') + '</a>';
+for (const [index, photo] of generated.entries()) {
+  const meta = lab.photos[photo.id];
+  if (!meta || !scenes[photo.id]) throw new Error('Every photograph needs lab metadata and a depth model: ' + photo.id);
+  const { stops, kind } = photoStops(photo.id);
+  const config = await pageConfig([photo.id], stops);
+  const route = '/photos/' + photo.id + '/';
+  const atlasSection = stops.length ? '<section class="lab-chapter" id="atlas" data-chapter="atlas" aria-labelledby="atlas-title"><div class="lab-panel">'
+    + '<p class="lab-kicker">03 / Atlas</p><h2 id="atlas-title">Where the light<br>was.</h2><p class="lab-text">' + escape(atlasText[kind]) + '</p>'
+    + '<ol class="lab-stops" id="lab-stops">' + stops.map(stop => '<li data-stop="' + stop.id + '"><b>' + escape(stop.title) + '</b><span>' + escape(stop.caption || '') + '</span></li>').join('') + '</ol></div></section>' : '';
+  await output('photos/' + photo.id + '/index.html', replace(photoTemplate, {
+    LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape('Frame ' + frame(index) + ', ' + meta.place + ' — ' + site.name), DESCRIPTION: escape(photo.alt),
+    CANONICAL: escape(new URL(route, origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">', SOCIAL_IMAGE: escape(new URL(photo.large, origin).href),
+    STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript,
+    PRELOADS: labFiles.filter(file => file.endsWith('.js') && file !== labScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">').join('\n  '),
+    FRAME: frame(index), COUNT: frame(generated.length - 1), PLACE: escape(meta.place), HEADING: escape(meta.place) + '<span class="lab-dot" aria-hidden="true">.</span>',
+    TAKEN: escape(takenLine(photo.id)), EXPOSURE: escape([meta.focal + ' mm', 'ƒ/' + meta.aperture, meta.shutter, 'ISO ' + meta.iso].join(' · ')),
+    NOTE: escape(scenes[photo.id].note || ''), LARGE: photo.large, PICTURE: picture(photo, 'large', 'high'),
+    ATLAS_INDEX: stops.length ? '<a href="#atlas" data-index="atlas"><span>03</span> Atlas</a>' : '', ATLAS_SECTION: atlasSection,
+    PREVIOUS: index > 0 ? photoLink(generated[index - 1], 'prev') : '', NEXT: index < generated.length - 1 ? photoLink(generated[index + 1], 'next') : '',
+    CONFIG: JSON.stringify(config).replace(/</g, '\\u003c')
+  }));
+}
 await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
   + '<meta http-equiv="refresh" content="0;url=/photos/"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(new URL('/photos/', origin).href) + '">'
   + '<title>Photography — ' + escape(site.name) + '</title></head><body><h1>The gallery has moved.</h1><p><a href="/photos/">Explore the photography collection</a></p></body></html>');
 await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/sitemap.xml', origin).href + '\n');
-await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/mountain/', origin).href) + '</loc></url></urlset>\n');
+await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/mountain/', origin).href) + '</loc></url>'
+  + generated.map(photo => '<url><loc>' + escape(new URL('/photos/' + photo.id + '/', origin).href) + '</loc></url>').join('') + '</urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');
 

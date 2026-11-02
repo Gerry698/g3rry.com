@@ -160,7 +160,7 @@ function start({ gl, hdr }) {
   // Each photograph keeps its own metric scale. The subject sits at least 6 scene units out, and the nearest content at least
   // .3, clear of the lens's near plane; a beach 3 m away under a bridge 1.5 km off needs the second rule.
   // `sway` limits how far the camera steps aside to a fraction of the nearest distance, so near things shift, not fly.
-  const developPhotos = config.develop.map(photo => {
+  const developPhotos = [...config.develop, ...(config.scenes || [])].map(photo => {
     const unit = Math.max(6 / photo.subject, .3 / photo.nearest);
     return { ...photo, unit, pivot: photo.subject * unit, sway: Math.min(1, .15 * photo.nearest / (.11 * photo.subject)) };
   });
@@ -262,7 +262,7 @@ function start({ gl, hdr }) {
 
   // ---- Atlas: globes, then each site's LiDAR clouds; a stop's scale is how many metres one scene unit spans -------
   const atlas = config.atlas;
-  const stops = atlas.stops;
+  const stops = atlas ? atlas.stops : [];
   const siteOf = id => config.sites.find(item => item.id === id);
   const home = siteOf(stops.find(stop => stop.kind === 'globe')?.site) || config.sites[0];
   const GLOBE = 1.6;
@@ -271,7 +271,7 @@ function start({ gl, hdr }) {
   const stopProgress = p => clamp(p * stops.length - stops.indexOf(stopAt(p)), 0, 1);
   const metersOf = stop => stop.scale || 100;
   const atlasSection = $('#atlas');
-  atlasSection.style.minHeight = stops.length * 90 + 'vh';
+  if (atlasSection) atlasSection.style.minHeight = stops.length * 90 + 'vh';
   const inflate = async url => new Response((await fetch(url)).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
   let land = null;
   function globeTargets() {
@@ -456,7 +456,7 @@ function start({ gl, hdr }) {
       const pos = add(look, orbit([0, 0, 0], lerp(path.from[0], path.to[0], k) + state.dragAzimuth, lerp(path.from[1], path.to[1], k) + state.dragElevation, lerp(path.from[2], path.to[2], k) / m));
       // The light of the next photograph, two hours before it was taken; that stop then runs it on to the exposure.
       const sun = next && next.light ? { ...next.light, when: Date.parse(next.light.when) - 7200000, strength: smoothstep(0, .3, t) } : null;
-      return { view: { pos, look, focal: lerp(35, 45, k), aperture: 5.6, focus: length(sub(pos, look)), shift, metersPerUnit: m, sun }, photo: null };
+      return { view: { pos, look, focal: lerp(35, 45, k), aperture: 5.6, focus: length(sub(pos, look)), shift, metersPerUnit: m, ev: (stop.exposure || 0) * k, sun }, photo: null };
     }
     const at = station(stop);
     if (!at) return { view: { pos: [0, 3, 6], look: [0, 0, 0], focal: 35, aperture: 5.6, focus: 6.7, shift, metersPerUnit: m }, photo: null };
@@ -506,8 +506,8 @@ function start({ gl, hdr }) {
     }
     const photo = { stop, at, mix, print };
     // The sun runs from two hours before the exposure to the exposure itself as the camera arrives, then gives way to the
-    // photograph, which carries the real light.
-    const sun = stop.light ? { ...stop.light, when: Date.parse(stop.light.when) - 7200000 * (1 - smoothstep(.05, own ? .48 : .55, t)), strength: 1 - smoothstep(own ? .44 : .56, own ? .56 : .7, t) } : null;
+    // photograph, which carries the real light; a stop without one (a frame shown near its place) keeps the sun.
+    const sun = stop.light ? { ...stop.light, when: Date.parse(stop.light.when) - 7200000 * (1 - smoothstep(.05, own ? .48 : .55, t)), strength: stop.photo || stop.photos ? 1 - smoothstep(own ? .44 : .56, own ? .56 : .7, t) : 1 } : null;
     return { view: { pos, look, focal, aperture, focus: Math.max(.2, length(sub(look, pos))), shift, metersPerUnit: m, ev, sun }, photo };
   }
 
@@ -555,12 +555,12 @@ function start({ gl, hdr }) {
     const current = active === 'atlas' ? stopAt(shown.p) : null;
     for (const item of document.querySelectorAll('[data-stop]')) item.classList.toggle('is-current', item.dataset.stop === current?.id);
     for (const item of document.querySelectorAll('[data-site]')) item.classList.toggle('is-current', item.dataset.site === current?.site);
-    atlasSection.classList.toggle('is-travelling', stops.indexOf(current) > 0);
+    atlasSection?.classList.toggle('is-travelling', stops.indexOf(current) > 0);
   }
-  const order = ['intro', 'ignite', 'sculpt', 'develop', 'atlas'];
-  const sections = order.map(id => ({ id, element: document.querySelector('[data-chapter="' + id + '"]') }));
+  const sections = [...document.querySelectorAll('[data-chapter]')].map(element => ({ id: element.dataset.chapter, element }));
+  const order = sections.map(section => section.id);
   const developSection = $('#develop');
-  let active = 'intro';
+  let active = order[0];
   let activePhase = '';
   let progress = 0;
   // Where the view is on its way to: the scroll sets `progress`, the view follows at the chapter's pace.
@@ -575,7 +575,7 @@ function start({ gl, hdr }) {
       if (rect.top <= middle) { found = section; found_p = clamp((middle - rect.top) / rect.height, 0, 1); }
     }
     progress = found_p;
-    developSection.classList.toggle('is-travelling', found.id === 'develop' && progress > .06);
+    developSection?.classList.toggle('is-travelling', found.id === 'develop' && progress > .06);
     if (found.id !== active) {
       state.dragAzimuth = state.dragElevation = 0;
       active = found.id;
@@ -642,22 +642,19 @@ function start({ gl, hdr }) {
 
   // ---- Controls -------------------------------------------------------------------------------
   const shapeSelect = $('#lab-shape');
-  shapeSelect.disabled = false;
-  shapeSelect.addEventListener('change', () => {
+  shapeSelect?.addEventListener('change', () => {
     state.shape = config.shapes.find(shape => shape.id === shapeSelect.value);
     if (active === 'ignite' || active === 'sculpt') retarget();
   });
   const shutterStops = [[1 / 60, '1/60'], [1 / 30, '1/30'], [1 / 15, '1/15'], [1 / 8, '1/8'], [1 / 4, '1/4'], [1 / 2, '1/2'], [1, '1"'], [2, '2"'], [4, '4"']];
   const shutterInput = $('#lab-shutter');
-  shutterInput.disabled = false;
   const shutterTime = () => Math.exp(lerp(Math.log(1 / 60), Math.log(4), state.shutter / 100));
   const nearest = (stops, value) => stops.reduce((best, stop) => Math.abs(Math.log(stop[0] / value)) < Math.abs(Math.log(best[0] / value)) ? stop : best);
   const shutterLabel = () => nearest(shutterStops, shutterTime())[1];
-  shutterInput.addEventListener('input', () => { state.shutter = Number(shutterInput.value); $('#lab-shutter-out').textContent = shutterLabel(); });
+  shutterInput?.addEventListener('input', () => { state.shutter = Number(shutterInput.value); $('#lab-shutter-out').textContent = shutterLabel(); });
   const apertureStops = [1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.5, 2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16].map(value => [value, 'ƒ/' + value]);
   const apertureInput = $('#lab-aperture');
-  apertureInput.disabled = false;
-  apertureInput.addEventListener('input', () => {
+  apertureInput?.addEventListener('input', () => {
     state.aperture = Math.exp(lerp(Math.log(1.2), Math.log(16), Number(apertureInput.value) / 100));
     $('#lab-aperture-out').textContent = nearest(apertureStops, state.aperture)[1];
   });
@@ -672,18 +669,18 @@ function start({ gl, hdr }) {
   const photoLabel = $('#lab-photo-label'), depthNote = $('#lab-depth-note');
   const showPhoto = () => {
     const photo = developPhotos[state.photo];
-    photoLabel.textContent = 'Frame ' + photo.frame + ' · ' + photo.place;
-    depthNote.textContent = photo.note;
+    if (photoLabel) photoLabel.textContent = 'Frame ' + photo.frame + ' · ' + photo.place;
+    if (depthNote) depthNote.textContent = photo.note;
   };
-  showPhoto();
+  if (developPhotos.length) showPhoto();
   const stepPhoto = delta => {
-    state.photo = (state.photo + delta + developPhotos.length) % developPhotos.length;
+    state.photo = (state.photo + delta + config.develop.length) % config.develop.length;
     state.dragAzimuth = state.dragElevation = 0;
     showPhoto();
     if (active === 'develop') retarget();
   };
-  $('#lab-photo-prev').addEventListener('click', () => stepPhoto(-1));
-  $('#lab-photo-next').addEventListener('click', () => stepPhoto(1));
+  $('#lab-photo-prev')?.addEventListener('click', () => stepPhoto(-1));
+  $('#lab-photo-next')?.addEventListener('click', () => stepPhoto(1));
   for (const button of document.querySelectorAll('[data-mode]')) {
     button.addEventListener('click', () => {
       state.mode = button.dataset.mode;
@@ -946,7 +943,7 @@ function start({ gl, hdr }) {
   });
   addEventListener('scroll', measure, { passive: true });
   measure();
-  introTargets().then(set => {
+  chapters[active].targets().then(set => {
     particles.allocate(set.count, set, { burst: !reduced.matches });
     retarget();
     requestAnimationFrame(loop);

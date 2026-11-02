@@ -79,7 +79,7 @@ h1, h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -.05em; li
 .lab-chapter { position: relative; min-height: 260vh; }
 /* Scrolling moves step by step: each chapter's resting steps are snap points, centred where the page reads progress. */
 html.lab-gl { scroll-snap-type: y mandatory; }
-html.lab-gl .lab-intro { scroll-snap-align: start; }
+html.lab-gl .lab-main > :first-child { scroll-snap-align: start; }
 html.lab-gl .lab-end { scroll-snap-align: end; }
 .lab-snap { position: absolute; left: 0; width: 1px; height: 1px; scroll-snap-align: center; pointer-events: none; }
 html:not(.lab-gl) .lab-snap { display: none; }
@@ -87,7 +87,7 @@ html:not(.lab-gl) .lab-snap { display: none; }
 .lab-chapter[data-chapter="sculpt"] { min-height: 400vh; }
 .lab-chapter[data-chapter="develop"] { min-height: 320vh; }
 .lab-chapter[data-chapter="atlas"] { min-height: 260vh; }
-.lab-panel { position: sticky; top: 0; height: 100vh; height: 100svh; display: flex; flex-direction: column; justify-content: center; width: min(430px, 34vw); margin-left: var(--edge); padding-block: 110px 70px; }
+.lab-panel { position: sticky; top: 0; height: 100vh; height: 100svh; display: flex; flex-direction: column; justify-content: safe center; width: min(430px, 34vw); margin-left: var(--edge); padding-block: 110px 70px; }
 .lab-panel h2 { font-size: clamp(2.4rem, 4.1vw, 4.3rem); margin-top: 1.1rem; text-shadow: 0 0 30px #06080b; }
 .lab-text { color: var(--muted); font-size: .88rem; line-height: 1.85; margin-top: 1.4rem; text-shadow: 0 0 16px #06080b, 0 0 4px #06080b; }
 .lab-controls { margin-top: 1.9rem; display: grid; gap: 1.1rem; justify-items: start; }
@@ -121,6 +121,22 @@ html.lab-gl .lab-sites li.is-current span:first-child::before { content: "● ";
 .lab-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem 2.4rem; margin-top: 2rem; font-size: .8rem; }
 .lab-links a { padding-bottom: .5rem; border-bottom: 1px solid #c9af775c; }
 .lab-links span { color: var(--gold); margin-left: .6rem; }
+/* A photograph's own page: the lab's Develop and Atlas for one frame. */
+.photo-page .lab-panel h1 { font-size: clamp(2.4rem, 4.1vw, 4.3rem); margin-top: 1.1rem; text-shadow: 0 0 30px #06080b; }
+.lab-dot { color: var(--gold); }
+.lab-meta { margin-top: 1.1rem; font: 11px/1.8 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-shadow: 0 0 12px #06080b; }
+.lab-photo-links { justify-content: flex-start; margin-top: 1.5rem; }
+.lab-back span { color: var(--gold); }
+.lab-pager { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem 2.6rem; margin-top: 1.4rem; font: clamp(1.4rem, 2.6vw, 2rem)/1.2 var(--serif); letter-spacing: -.03em; }
+.lab-pager a { padding-bottom: .3rem; border-bottom: 1px solid #c9af775c; }
+.lab-pager span { color: var(--gold); }
+html:not(.lab-gl) .lab-fallback-photo img { max-height: 80vh; }
+@media (max-width: 860px) {
+  .photo-page .lab-index { display: flex; }
+  .photo-page .lab-index a:not(.lab-back) { display: none; }
+  .photo-page .lab-panel h1 { font-size: clamp(2.1rem, 9vw, 3rem); }
+  html.lab-gl .lab-chapter.is-travelling :is(h1, .lab-meta, .lab-photo-links) { display: none; }
+}
 .lab-credits { margin-top: 3.2rem; color: #a3abb1aa; font-size: .72rem; line-height: 1.9; }
 
 /* Without WebGL2 (or before it starts) the page is a plain illustrated essay. */

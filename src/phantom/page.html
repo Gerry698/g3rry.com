@@ -87,12 +87,13 @@
         <h2 id="develop-title">{{DEVELOP_TITLE}}</h2>
         <p class="lab-text">{{DEVELOP_TEXT}}</p>
         <div class="lab-controls" data-needs-gl>
-          <div class="lab-stepper"><button type="button" id="lab-photo-prev" aria-label="Previous photograph">←</button><span id="lab-photo-label">Frame</span><button type="button" id="lab-photo-next" aria-label="Next photograph">→</button></div>
+          <p class="lab-stepper" id="lab-photo-label">Frame</p>
           <fieldset class="lab-modes"><legend>Read it as</legend>
             <button type="button" data-mode="photo" aria-pressed="true">Photograph</button><button type="button" data-mode="isophote" aria-pressed="false">Equal light</button><button type="button" data-mode="depth" aria-pressed="false">Equal depth</button>
           </fieldset>
           <p class="lab-note" id="lab-depth-note" aria-live="polite"></p>
         </div>
+        <p class="lab-links lab-photo-links"><a href="/photos/">Every photograph, with its depth <span aria-hidden="true">↗</span></a></p>
       </div>
       <figure class="lab-fallback">{{DEVELOP_FALLBACK}}</figure>
     </section>
@@ -104,6 +105,7 @@
         <p class="lab-text">{{ATLAS_TEXT}}</p>
         <ol class="lab-sites">{{ATLAS_SITES}}</ol>
         <ol class="lab-stops" id="lab-stops">{{ATLAS_STOPS}}</ol>
+        <p class="lab-links lab-photo-links"><a href="/photos/">Every photograph, in its place <span aria-hidden="true">↗</span></a></p>
       </div>
     </section>
 
