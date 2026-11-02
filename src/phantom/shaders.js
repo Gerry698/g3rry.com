@@ -391,6 +391,18 @@ out vec4 color;
 void main() { color = vec4(0.0); }
 `;
 
+// The camera station drawn as a frustum of light lines, shown while the view is away from it.
+export const lineVertex = header + `
+layout(location = 0) in vec3 aPos;
+uniform mat4 uViewProjection;
+void main() { gl_Position = uViewProjection * vec4(aPos, 1.0); }
+`;
+export const lineFragment = header + `
+uniform vec3 uColor;
+out vec4 color;
+void main() { color = vec4(uColor, 1.0); }
+`;
+
 // The sun itself, a disc half a degree across in its true direction, with a glow the bloom carries further.
 export const sunVertex = header + `
 uniform mat4 uViewProjection;

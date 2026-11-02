@@ -46,6 +46,9 @@ ol, ul { padding: 0; list-style: none; }
 .readout small { font-size: inherit; color: #eee9df80; margin-left: .15em; }
 .readout-chapter { color: var(--gold); }
 .readout-sun { color: #e6d3a3; margin-right: auto; }
+.lab-minimap { position: absolute; right: var(--edge); bottom: 52px; width: 150px; height: 150px; border: 1px solid #eee9df26; background: #06080bb3; opacity: 0; transition: opacity .6s ease; }
+.lab-minimap.is-shown { opacity: 1; }
+@media (max-width: 860px) { .lab-minimap { top: 112px; bottom: auto; width: 104px; height: 104px; } }
 .readout-sun:empty { display: none; }
 
 .lab-top { position: fixed; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem;
@@ -74,6 +77,12 @@ h1, h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -.05em; li
 
 /* Each chapter is a tall scroll track; its panel stays put while the camera travels. */
 .lab-chapter { position: relative; min-height: 260vh; }
+/* Scrolling moves step by step: each chapter's resting steps are snap points, centred where the page reads progress. */
+html.lab-gl { scroll-snap-type: y mandatory; }
+html.lab-gl .lab-intro { scroll-snap-align: start; }
+html.lab-gl .lab-end { scroll-snap-align: end; }
+.lab-snap { position: absolute; left: 0; width: 1px; height: 1px; scroll-snap-align: center; pointer-events: none; }
+html:not(.lab-gl) .lab-snap { display: none; }
 .lab-chapter[data-chapter="ignite"] { min-height: 220vh; }
 .lab-chapter[data-chapter="sculpt"] { min-height: 400vh; }
 .lab-chapter[data-chapter="develop"] { min-height: 320vh; }

@@ -20,6 +20,7 @@
   <div class="lab-finder" id="lab-finder" aria-hidden="true">
     <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
     <span class="af" id="lab-af"></span>
+    <canvas class="lab-minimap" id="lab-minimap" width="300" height="300"></canvas>
     <p class="readout">
       <span class="readout-chapter" id="lab-read-chapter">Lab</span>
       <span class="readout-sun" id="lab-read-sun"></span>
@@ -53,6 +54,9 @@
         <div class="lab-controls" data-needs-gl>
           <label class="lab-field"><span>Mark</span><select id="lab-shape" disabled>{{SHAPE_OPTIONS}}</select></label>
           <label class="lab-field lab-range"><span>Shutter <output id="lab-shutter-out">1/60</output></span><input id="lab-shutter" type="range" min="0" max="100" step="1" value="0" disabled></label>
+          <fieldset class="lab-modes lab-cursor"><legend>Cursor</legend>
+            <button type="button" data-cursor="off" aria-pressed="false">Off</button><button type="button" data-cursor="s" aria-pressed="true">S</button><button type="button" data-cursor="m" aria-pressed="false">M</button><button type="button" data-cursor="l" aria-pressed="false">L</button>
+          </fieldset>
         </div>
       </div>
       <figure class="lab-fallback">{{SHAPE_FALLBACK}}</figure>
@@ -68,6 +72,9 @@
             <button type="button" data-focal="24">24</button><button type="button" data-focal="35">35</button><button type="button" data-focal="50">50</button><button type="button" data-focal="70">70</button><button type="button" data-focal="135">135</button><button type="button" data-focal="200">200</button>
           </fieldset>
           <label class="lab-field lab-range"><span>Aperture <output id="lab-aperture-out">ƒ/2</output></span><input id="lab-aperture" type="range" min="0" max="100" step="1" value="20" disabled></label>
+          <fieldset class="lab-modes lab-cursor"><legend>Cursor</legend>
+            <button type="button" data-cursor="off" aria-pressed="false">Off</button><button type="button" data-cursor="s" aria-pressed="true">S</button><button type="button" data-cursor="m" aria-pressed="false">M</button><button type="button" data-cursor="l" aria-pressed="false">L</button>
+          </fieldset>
           <p class="lab-note">Drag to walk around it. Changing lens keeps the subject the same size — the background is what moves.</p>
         </div>
       </div>

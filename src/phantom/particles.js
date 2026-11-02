@@ -19,12 +19,15 @@ export class Particles {
 
   // Allocates state for `count` particles (a multiple of ROW). With `burst` they start packed into a single point and
   // morph out into `set`; otherwise (a change of quality) they start exactly on it.
-  allocate(count, set, { burst = false } = {}) {
+  // `carry` starts the new particles where the current ones are (repeated to fill a larger count), so a change of quality
+  // tier is a short flight to the new targets instead of a cut.
+  allocate(count, set, { burst = false, carry = false } = {}) {
     const { gl } = this;
-    this.free();
+    const previous = carry && this.count ? { buffers: this.buffers, vaos: this.vaos, feedback: this.feedback, slots: [this.from, this.to], pos: this.buffers[this.side].pos, count: this.count } : null;
+    if (!previous) this.free();
     this.count = count;
     const rows = count / ROW;
-    const position = burst ? new Float32Array(count * 4) : set.pos.slice();
+    const position = burst ? new Float32Array(count * 4) : previous ? null : set.pos.slice();
     if (burst) {
       for (let i = 0; i < count; i++) {
         const u = Math.random() * 2 - 1, phi = Math.random() * Math.PI * 2, r = .03 * Math.cbrt(Math.random()), s = Math.sqrt(1 - u * u);
@@ -35,7 +38,8 @@ export class Particles {
     this.buffers = [0, 1].map(() => {
       const pos = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, pos);
-      gl.bufferData(gl.ARRAY_BUFFER, position, gl.DYNAMIC_COPY);
+      if (position) gl.bufferData(gl.ARRAY_BUFFER, position, gl.DYNAMIC_COPY);
+      else gl.bufferData(gl.ARRAY_BUFFER, count * 16, gl.DYNAMIC_COPY);
       const vel = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, vel);
       gl.bufferData(gl.ARRAY_BUFFER, count * 16, gl.DYNAMIC_COPY);
@@ -63,6 +67,19 @@ export class Particles {
       return tf;
     });
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    if (previous) {
+      gl.bindBuffer(gl.COPY_READ_BUFFER, previous.pos);
+      for (const { pos } of this.buffers) {
+        gl.bindBuffer(gl.COPY_WRITE_BUFFER, pos);
+        for (let offset = 0; offset < count; offset += previous.count) gl.copyBufferSubData(gl.COPY_READ_BUFFER, gl.COPY_WRITE_BUFFER, 0, offset * 16, Math.min(previous.count, count - offset) * 16);
+      }
+      gl.bindBuffer(gl.COPY_READ_BUFFER, null);
+      gl.bindBuffer(gl.COPY_WRITE_BUFFER, null);
+      for (const { pos, vel } of previous.buffers) { gl.deleteBuffer(pos); gl.deleteBuffer(vel); }
+      previous.vaos.forEach(vao => gl.deleteVertexArray(vao));
+      previous.feedback.forEach(tf => gl.deleteTransformFeedback(tf));
+      for (const old of previous.slots) { gl.deleteTexture(old.pos); gl.deleteTexture(old.col); }
+    }
     const slot = () => ({
       pos: texture(gl, { width: ROW, height: rows, internal: gl.RGBA32F, format: gl.RGBA, type: gl.FLOAT, filter: gl.NEAREST }),
       col: texture(gl, { width: ROW, height: rows, internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE, filter: gl.NEAREST })

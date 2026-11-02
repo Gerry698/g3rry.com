@@ -4,7 +4,7 @@ import { Post } from './post.js';
 import { Camera, orbit, framingDistance } from './camera.js';
 import { clamp, lerp, smoothstep, catmull, project, sub, dot, add, scale, length, normalize, cross, mix3, perspective, lookAt, multiply } from './math.js';
 import { dustCount } from './targets.js';
-import { sunVertex, sunFragment } from './shaders.js';
+import { sunVertex, sunFragment, lineVertex, lineFragment } from './shaders.js';
 
 const config = JSON.parse(document.getElementById('lab-config').textContent);
 const canvas = document.getElementById('lab-canvas');
@@ -155,7 +155,7 @@ function start({ gl, hdr }) {
   // ---- Chapters -------------------------------------------------------------------------------
   const state = {
     shape: config.shapes[0], shutter: 0, focal: null, aperture: null, photo: 0, mode: 'photo', contours: 0,
-    dragAzimuth: 0, dragElevation: 0, paused: false, ev: 0, sun: 0
+    dragAzimuth: 0, dragElevation: 0, paused: false, ev: 0, sun: 0, cursor: 's'
   };
   // Each photograph keeps its own metric scale. The subject sits at least 6 scene units out, and the nearest content at least
   // .3, clear of the lens's near plane; a beach 3 m away under a bridge 1.5 km off needs the second rule.
@@ -174,46 +174,56 @@ function start({ gl, hdr }) {
     return catmull(at(i - 1), at(i), at(i + 1), at(i + 2), t);
   }
 
+  // Sculpt's camera keys: azimuth, elevation, focal length, f-number.
+  const SCULPT_KEYS = [[0, .02, 50, 4], [.62, .14, 35, 2.8], [1.15, .22, 135, 2.8], [2.2, -.1, 85, 2], [3.0, .08, 70, 2.8], [Math.PI * 2 - .2, .04, 50, 4]];
   const chapters = {
     intro: {
+      steps: () => [],
+      pace: .5,
       targets: introTargets,
       sim: { stiffness: 6, damping: .9, turbulence: .1, flight: 2.2, noiseScale: .35 },
       pointer: true,
       camera(p, time) {
         const distance = 8.6 - p * 1.4;
-        const pos = orbit([0, 0, 0], Math.sin(time * .05) * .22, .1 + Math.sin(time * .037) * .05, distance);
+        const pos = orbit([0, 0, 0], Math.sin(time * .05) * .12, .1 + Math.sin(time * .037) * .03, distance);
         return { pos, look: [0, 0, 0], focal: 35, aperture: 1.6, focus: distance - .2, shift: [0, wide() ? .02 : .08], metersPerUnit: .5 };
       }
     },
     ignite: {
+      steps: () => [.3, .75],
+      pace: .4,
       targets: () => markTargets(state.shape, false),
       sim: { stiffness: 14, damping: .8, turbulence: 0, flight: 3, noiseScale: .55 },
       pointer: true,
       camera(p, time) {
         const still = state.shutter > 20 ? 0 : 1;
         const distance = 8.2 - p * .6;
-        const pos = [Math.sin(time * .13) * .1 * still, Math.sin(time * .1) * .05 * still, distance];
+        const pos = [Math.sin(time * .13) * .04 * still, Math.sin(time * .1) * .02 * still, distance];
         return { pos, look: [pos[0] * .5, pos[1] * .5, 0], focal: 50, aperture: 4, focus: distance, shift: subjectShift(), metersPerUnit: .5 };
       }
     },
     sculpt: {
+      // One resting step per camera key, each in focus; the moves between them carry the depth of field.
+      steps: () => SCULPT_KEYS.map((_, k) => (k + .5) / SCULPT_KEYS.length),
+      pace: .12,
       targets: () => markTargets(state.shape, true),
       sim: { stiffness: 16, damping: .85, turbulence: 0, flight: 3, noiseScale: .5 },
       pointer: true,
       drag: true,
       camera(p, time) {
-        const [azimuth, elevation, railFocal, railAperture, focusShift] = rail([
-          [0, .02, 50, 2.8, 0], [.62, .14, 35, 2, -.35], [1.15, .22, 135, 2, 0], [2.2, -.1, 85, 1.4, .45], [3.0, .08, 70, 2, 0], [Math.PI * 2 - .2, .04, 50, 2.8, 0]
-        ], p);
+        const keys = SCULPT_KEYS.length;
+        const [azimuth, elevation, railFocal, railAperture] = rail(SCULPT_KEYS, clamp((p * keys - .5) / (keys - 1), 0, 1));
         const focal = state.focal || railFocal;
         const aperture = state.aperture || railAperture;
         const distance = framingDistance(wide() ? 4.4 : 4.9, focal);
         const look = [0, 0, 0];
-        const pos = orbit(look, azimuth + state.dragAzimuth + Math.sin(time * .1) * .02, clamp(elevation + state.dragElevation, -.9, 1.2), distance);
-        return { pos, look, focal, aperture, focus: Math.max(.5, distance + focusShift), shift: subjectShift(), metersPerUnit: .6 };
+        const pos = orbit(look, azimuth + state.dragAzimuth + Math.sin(time * .1) * .008, clamp(elevation + state.dragElevation, -.9, 1.2), distance);
+        return { pos, look, focal, aperture, focus: Math.max(.5, distance), shift: subjectShift(), metersPerUnit: .6 };
       }
     },
     develop: {
+      steps: () => [.15, .5, .85],
+      pace: .3,
       targets: () => photoTargets(developPhotos[state.photo]),
       sim: { stiffness: 18, damping: .9, turbulence: 0, flight: 2.4, noiseScale: .3 },
       pointer: false,
@@ -234,8 +244,11 @@ function start({ gl, hdr }) {
       }
     },
     atlas: {
+      // Per stop: arrived (globe, overview); or the light at the moment, the photograph set in place, and the print.
+      steps: () => stops.flatMap((stop, i) => (!stop.vantage ? [.82] : sceneOf(stop) ? [.44, .74, .94] : [.6, .93]).map(t => (i + t) / stops.length)),
+      pace: .035,
       phase: p => stopAt(p).id + (developed(stopAt(p), stopProgress(p)) ? ':photo' : ''),
-      targets: (p = progress) => {
+      targets: (p = shown.p) => {
         const stop = stopAt(p);
         if (developed(stop, stopProgress(p))) return placedPhotoTargets(stop);
         return stop.cloud ? cityTargets(stop) : globeTargets();
@@ -258,7 +271,7 @@ function start({ gl, hdr }) {
   const stopProgress = p => clamp(p * stops.length - stops.indexOf(stopAt(p)), 0, 1);
   const metersOf = stop => stop.scale || 100;
   const atlasSection = $('#atlas');
-  atlasSection.style.minHeight = stops.length * 70 + 'vh';
+  atlasSection.style.minHeight = stops.length * 90 + 'vh';
   const inflate = async url => new Response((await fetch(url)).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
   let land = null;
   function globeTargets() {
@@ -346,6 +359,70 @@ function start({ gl, hdr }) {
   const shadowMap = depthTarget(gl, SHADOW);
   const sunProgram = program(gl, sunVertex, sunFragment);
   let sunNow = null;
+  const lineProgram = program(gl, lineVertex, lineFragment);
+  const lineBuffer = gl.createBuffer(), lineArray = gl.createVertexArray();
+  gl.bindVertexArray(lineArray);
+  gl.bindBuffer(gl.ARRAY_BUFFER, lineBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, 16 * 3 * 4, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+  // The photograph's camera as a frustum: from the station to its frame at a distance scaled to how far away we stand.
+  function drawStation(view, viewProjection) {
+    if (active !== 'atlas' || !atlasPhoto || !atlasPhoto.stop.vantage) return;
+    const { at } = atlasPhoto, away = length(sub(view.pos, at.pos)), reach = length(sub(at.look, at.pos));
+    const fade = smoothstep(.02, .12, away / reach);
+    if (fade <= 0) return;
+    const forward = normalize(sub(at.look, at.pos)), right = normalize(cross(forward, [0, 1, 0])), up = cross(right, forward);
+    const depth = Math.min(reach * .5, away * .12), w = at.fit.tanX * depth, h = at.fit.tanY * depth;
+    const corner = (sx, sy) => add(at.pos, add(scale(forward, depth), add(scale(right, sx * w), scale(up, sy * h))));
+    const c = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+    const segments = [at.pos, c[0], at.pos, c[1], at.pos, c[2], at.pos, c[3], c[0], c[1], c[1], c[2], c[2], c[3], c[3], c[0]];
+    gl.bindBuffer(gl.ARRAY_BUFFER, lineBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(segments.flat()));
+    use(lineProgram, { uViewProjection: viewProjection, uColor: [3.2, 2.5, 1.4].map(v => v * fade) });
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.bindVertexArray(lineArray);
+    gl.drawArrays(gl.LINES, 0, 16);
+    gl.bindVertexArray(null);
+    gl.disable(gl.BLEND);
+  }
+  // A small north-up map: the photograph's station and view cone (gold), the current view (white), the subject between.
+  const minimap = $('#lab-minimap'), mini = minimap.getContext('2d');
+  function drawMinimap(view) {
+    const on = active === 'atlas' && atlasPhoto && atlasPhoto.stop.vantage;
+    minimap.classList.toggle('is-shown', Boolean(on));
+    if (!on) return;
+    const size = minimap.width, ratio = size / minimap.clientWidth || 1, { at, stop } = atlasPhoto;
+    const points = [at.pos, at.look, view.pos];
+    const xs = points.map(p => p[0]), zs = points.map(p => p[2]);
+    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs), .05) * 1.35;
+    const cx = (Math.max(...xs) + Math.min(...xs)) / 2, cz = (Math.max(...zs) + Math.min(...zs)) / 2, k = size / span;
+    const map = p => [size / 2 + (p[0] - cx) * k, size / 2 + (p[2] - cz) * k];
+    mini.clearRect(0, 0, size, size);
+    const cone = (from, toward, half, colour) => {
+      const [x, y] = map(from), heading = Math.atan2(toward[0] - from[0], toward[2] - from[2]), r = size * .22;
+      mini.fillStyle = colour;
+      mini.beginPath(); mini.moveTo(x, y);
+      mini.arc(x, y, r, Math.PI / 2 - heading - half, Math.PI / 2 - heading + half);
+      mini.closePath(); mini.fill();
+    };
+    cone(at.pos, at.look, Math.atan(at.fit.tanX), 'rgba(201, 175, 119, .32)');
+    cone(view.pos, view.look, Math.atan(18 / view.focal), 'rgba(238, 233, 223, .16)');
+    const dot = (p, r, colour) => { const [x, y] = map(p); mini.fillStyle = colour; mini.beginPath(); mini.arc(x, y, r * ratio, 0, Math.PI * 2); mini.fill(); };
+    dot(at.look, 2.2, 'rgba(238, 233, 223, .6)');
+    dot(at.pos, 3.2, '#c9af77');
+    dot(view.pos, 2.6, '#eee9df');
+    // North arrow and a scale bar in metres.
+    mini.fillStyle = 'rgba(163, 171, 177, .9)';
+    mini.font = (10 * ratio) + 'px ui-monospace, Menlo, Consolas, monospace';
+    mini.fillText('N ↑', 6 * ratio, 14 * ratio);
+    const metres = span * view.metersPerUnit / 4, nice = [1, 2, 5].flatMap(m => [m, m * 10, m * 100, m * 1000]).sort((a, b) => a - b).reduce((best, v) => v <= metres ? v : best, 1);
+    const bar = nice / view.metersPerUnit * k;
+    mini.fillRect(6 * ratio, size - 10 * ratio, bar, 1.5 * ratio);
+    mini.fillText(nice >= 1000 ? nice / 1000 + ' km' : nice + ' m', 6 * ratio, size - 14 * ratio);
+  }
 
   // The globe turns so a site faces the camera: its longitude relative to the globe's centre, its latitude as elevation.
   const facing = site => [(site.lon - home.lon) * rad, site.lat * rad];
@@ -411,6 +488,13 @@ function start({ gl, hdr }) {
       pos = mix3(start, at.pos, k);
       look = mix3(startLook, at.look, k);
     }
+    // Dragging turns the view around what the photograph looks at, to show where it was taken; the next step brings it back.
+    if (state.dragAzimuth || state.dragElevation) {
+      const offset = sub(pos, look), r = length(offset);
+      const azimuth = Math.atan2(offset[0], offset[2]) + state.dragAzimuth;
+      const elevation = clamp(Math.asin(clamp(offset[1] / r, -1, 1)) + state.dragElevation, -.15, 1.35);
+      pos = add(look, orbit([0, 0, 0], azimuth, elevation, r));
+    }
     let mix = stop.project === false ? 0 : smoothstep(.58, .76, t), print = t > .8;
     if (own) {
       const settle = smoothstep(.58, .66, t);
@@ -443,7 +527,7 @@ function start({ gl, hdr }) {
     Object.assign(image.style, { width: w.toFixed(1) + 'px', height: h.toFixed(1) + 'px', transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)', transitionDelay: delay + 's' });
   };
   function showPrint(view) {
-    const shown = new Set();
+    const visible = new Set();
     const settled = active === 'atlas' && atlasPhoto && atlasPhoto.print && length(sub(view.pos, atlasPhoto.at.pos)) < .02;
     if (settled) {
       const { stop, at } = atlasPhoto;
@@ -451,7 +535,7 @@ function start({ gl, hdr }) {
       if (stop.photo) {
         const w = at.fit.tanX / at.fit.viewTanX * innerWidth, h = at.fit.tanY / at.fit.viewTanY * innerHeight;
         place(printOf(stop.photo), cx - w / 2, cy - h / 2, w, h, 0);
-        shown.add(stop.photo.id);
+        visible.add(stop.photo.id);
       } else if (stop.photos) {
         // Side by side beside the text on wide screens, stacked above it on narrow ones.
         const row = wide(), gap = Math.min(innerWidth, innerHeight) * .025, n = stop.photos.length;
@@ -463,12 +547,12 @@ function start({ gl, hdr }) {
           const w = aspects[i] * h;
           place(printOf(photo), row ? x : cx - w / 2, y, w, h, i * .18);
           if (row) x += w + gap; else y += h + gap;
-          shown.add(photo.id);
+          visible.add(photo.id);
         });
       }
     }
-    for (const [id, image] of printImages) image.classList.toggle('is-shown', shown.has(id));
-    const current = active === 'atlas' ? stopAt(progress) : null;
+    for (const [id, image] of printImages) image.classList.toggle('is-shown', visible.has(id));
+    const current = active === 'atlas' ? stopAt(shown.p) : null;
     for (const item of document.querySelectorAll('[data-stop]')) item.classList.toggle('is-current', item.dataset.stop === current?.id);
     for (const item of document.querySelectorAll('[data-site]')) item.classList.toggle('is-current', item.dataset.site === current?.site);
     atlasSection.classList.toggle('is-travelling', stops.indexOf(current) > 0);
@@ -479,6 +563,8 @@ function start({ gl, hdr }) {
   let active = 'intro';
   let activePhase = '';
   let progress = 0;
+  // Where the view is on its way to: the scroll sets `progress`, the view follows at the chapter's pace.
+  const shown = { p: 0 };
   let wanted = null;
 
   function measure() {
@@ -488,14 +574,15 @@ function start({ gl, hdr }) {
       const rect = section.element.getBoundingClientRect();
       if (rect.top <= middle) { found = section; found_p = clamp((middle - rect.top) / rect.height, 0, 1); }
     }
-    const phase = chapters[found.id].phase ? chapters[found.id].phase(found_p) : '';
-    const changed = found.id !== active || phase !== activePhase;
-    if (found.id !== active) state.dragAzimuth = state.dragElevation = 0;
-    active = found.id;
-    activePhase = phase;
     progress = found_p;
-    developSection.classList.toggle('is-travelling', active === 'develop' && progress > .06);
-    if (changed) retarget();
+    developSection.classList.toggle('is-travelling', found.id === 'develop' && progress > .06);
+    if (found.id !== active) {
+      state.dragAzimuth = state.dragElevation = 0;
+      active = found.id;
+      shown.p = progress;
+      activePhase = chapters[active].phase ? chapters[active].phase(shown.p) : '';
+      retarget();
+    }
   }
 
   // Requests the active chapter's targets; a stale answer (the reader has moved on) is dropped.
@@ -509,7 +596,7 @@ function start({ gl, hdr }) {
     // Warm the neighbours so the next morph starts without waiting.
     const next = order[order.indexOf(active) + 1];
     if (next) chapters[next].targets(0).catch(() => {});
-    const following = active === 'atlas' && stops[stops.indexOf(stopAt(progress)) + 1];
+    const following = active === 'atlas' && stops[stops.indexOf(stopAt(shown.p)) + 1];
     if (following) (following.cloud ? cityTargets(following) : globeTargets()).catch(() => {});
   }
 
@@ -539,7 +626,7 @@ function start({ gl, hdr }) {
     pointer.moved = false;
   });
   addEventListener('pointerup', event => {
-    if (pointer.down && !pointer.moved && chapters[active].pointer && !reduced.matches && !state.paused) shock();
+    if (pointer.down && !pointer.moved && chapters[active].pointer && !reduced.matches && !state.paused && state.cursor !== 'off') shock();
     pointer.down = null;
     if (event.pointerType !== 'mouse') setTimeout(() => { pointer.active = 0; }, 600);
   });
@@ -603,6 +690,13 @@ function start({ gl, hdr }) {
       for (const other of document.querySelectorAll('[data-mode]')) other.setAttribute('aria-pressed', String(other === button));
     });
   }
+  // Cursor size, shared by both chapters' controls and remembered in this browser.
+  try { state.cursor = ['off', 's', 'm', 'l'].includes(localStorage.getItem('lab-cursor')) ? localStorage.getItem('lab-cursor') : 's'; } catch {}
+  const syncCursor = () => { for (const button of document.querySelectorAll('[data-cursor]')) button.setAttribute('aria-pressed', String(button.dataset.cursor === state.cursor)); };
+  for (const button of document.querySelectorAll('[data-cursor]')) {
+    button.addEventListener('click', () => { state.cursor = button.dataset.cursor; syncCursor(); try { localStorage.setItem('lab-cursor', state.cursor); } catch {} });
+  }
+  syncCursor();
   const motion = $('#lab-motion');
   motion.hidden = false;
   const syncMotion = () => {
@@ -646,7 +740,8 @@ function start({ gl, hdr }) {
 
   // ---- Frame loop -----------------------------------------------------------------------------
   function resize() {
-    dpr = Math.min(devicePixelRatio || 1, tier >= 4 ? 1.75 : 2);
+    // One resolution at every tier: a change of particle count must not also change the picture's sharpness.
+    dpr = Math.min(devicePixelRatio || 1, 2);
     viewWidth = Math.max(1, Math.round(canvas.clientWidth * dpr));
     viewHeight = Math.max(1, Math.round(canvas.clientHeight * dpr));
     canvas.width = viewWidth;
@@ -674,7 +769,7 @@ function start({ gl, hdr }) {
     timing.changing = true;
     resize();
     chapters[active].targets().then(set => {
-      particles.allocate(set.count, set);
+      particles.allocate(set.count, set, { carry: true });
       wanted = null;
       retarget();
     }).catch(error => console.error(error)).finally(() => { timing.changing = false; timing.frames = -60; timing.sum = 0; });
@@ -690,7 +785,8 @@ function start({ gl, hdr }) {
     const average = timing.sum / timing.frames;
     timing.sum = timing.frames = 0;
     if ((gpu ? average > 11 : average > 30) && tier > 0) { timing.ceiling = tier - 1; changeTier(tier - 1); }
-    else if ((gpu ? average < 4.5 : average < 17.5) && tier < timing.ceiling) changeTier(tier + 1);
+    // Growing waits until the opening burst has landed and nothing is mid-morph, so it never interrupts a transition.
+    else if ((gpu ? average < 4.5 : average < 17.5) && tier < timing.ceiling && time > 6 && particles.morph >= 1 && particles.flight < .05) changeTier(tier + 1);
   }
   function measureGpu(interval) {
     if (!timer) { if (!document.hidden && interval < 250) record(interval, false); return; }
@@ -716,7 +812,18 @@ function start({ gl, hdr }) {
     if (moving) time += dt;
     measure();
     const chapter = chapters[active];
-    const desired = chapter.camera(progress, time);
+    // Toward the scrolled-to step at the chapter's pace (faster across long jumps), so every move plays out and then rests.
+    const gap = progress - shown.p, pace = chapter.pace || .3;
+    shown.p = reduced.matches ? progress : shown.p + Math.sign(gap) * Math.min(Math.abs(gap), Math.max(pace, Math.abs(gap) * 1.5) * dt);
+    if (chapter.phase) {
+      const phase = chapter.phase(shown.p);
+      if (phase !== activePhase) {
+        activePhase = phase;
+        if (active === 'atlas') state.dragAzimuth = state.dragElevation = 0;
+        retarget();
+      }
+    }
+    const desired = chapter.camera(shown.p, time);
     const view = camera.follow(desired, dt, reduced.matches ? 30 : 3.2);
     // Exposure compensation: a close view of a sparse cloud spreads few points over the frame, so it is opened up, like a lens.
     state.ev += ((desired.ev || 0) - state.ev) * Math.min(1, dt * (reduced.matches ? 30 : 3.2));
@@ -729,17 +836,19 @@ function start({ gl, hdr }) {
     const shockData = new Float32Array(16).fill(-1);
     shocks.forEach((s, i) => shockData.set([...s.at, s.age], i * 4));
     const sim = chapter.sim;
-    const reach = view.focus * .034;
+    // The pointer's reach: small by default, chosen in Ignite and Sculpt, and gentler on the sculpted relief.
+    const cursorScale = { off: 0, s: .4, m: 1, l: 1.8 }[state.cursor] * (active === 'sculpt' ? .6 : 1);
+    const reach = view.focus * .034 * cursorScale;
     particles.step(moving ? dt : 0, {
       uTime: time, uStiffness: sim.stiffness, uDamping: sim.damping, uTurbulence: sim.turbulence, uFlightTurbulence: sim.flight, uNoiseScale: sim.noiseScale,
-      uRayOrigin: ray.origin, uRayDir: ray.dir, uRayRadius: Math.max(.08, reach), uRayForce: chapter.pointer && moving && pointer.active ? 34 : 0,
+      uRayOrigin: ray.origin, uRayDir: ray.dir, uRayRadius: Math.max(.03, reach), uRayForce: chapter.pointer && moving && pointer.active && cursorScale > 0 ? 34 : 0,
       uShock: shockData, uShockSpeed: 2.4, uShockWidth: .24, uShockForce: 26, uSnap: snap > 0 ? 1 : 0
     });
     if (snap > 0) snap--;
 
     // Long exposure: the chosen shutter in Ignite, and a short automatic one while particles are in flight so morphs leave light trails.
     const flight = moving ? particles.flight : 0;
-    const exposureTime = Math.max(active === 'ignite' && moving ? shutterTime() : 0, flight * .16);
+    const exposureTime = Math.max(active === 'ignite' && moving ? shutterTime() : 0, flight * .05);
     const decay = exposureTime > 1 / 50 ? Math.exp(-dt / exposureTime) : 0;
     const contourTarget = active === 'develop' && state.mode !== 'photo' ? 1 : 0;
     state.contours += (contourTarget - state.contours) * Math.min(1, dt * 4);
@@ -783,6 +892,8 @@ function start({ gl, hdr }) {
       gl.drawArrays(gl.POINTS, 0, 1);
       gl.disable(gl.BLEND);
     }
+    drawStation(view, frame.viewProjection);
+    drawMinimap(view);
     showPrint(view);
     post.finish({
       decay, exposure: 1, bloom: .055, halation: .03, grain: .02, tanCorner: frame.tanCorner, aberration: .0035,
@@ -792,6 +903,47 @@ function start({ gl, hdr }) {
     if (Math.round(now / 66) !== Math.round((now - interval) / 66)) readout(view, frame);
   }
 
+  for (const { id, element } of sections) {
+    for (const p of chapters[id].steps()) {
+      const mark = document.createElement('i');
+      mark.className = 'lab-snap';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.style.top = (p * 100).toFixed(3) + '%';
+      element.append(mark);
+    }
+  }
+  // One wheel gesture or key press, one step. The wheel is read as intent (accumulated past a small threshold) and the page
+  // glides to the next resting step; a short lock keeps a trackpad's long tail of small deltas from skipping steps.
+  // Touch keeps the browser's own snapping, which already moves a swipe to the next point.
+  const restingTops = () => {
+    const tops = [0, document.documentElement.scrollHeight - innerHeight];
+    for (const mark of document.querySelectorAll('.lab-snap')) tops.push(mark.getBoundingClientRect().top + scrollY - innerHeight / 2);
+    return tops.map(Math.round).sort((a, b) => a - b);
+  };
+  let wheelAccumulated = 0, wheelLockedUntil = 0;
+  const step = direction => {
+    const tops = restingTops(), here = scrollY;
+    const next = direction > 0 ? tops.find(top => top > here + 4) : [...tops].reverse().find(top => top < here - 4);
+    if (next === undefined) return;
+    scrollTo({ top: next, behavior: reduced.matches ? 'auto' : 'smooth' });
+    wheelLockedUntil = performance.now() + 650;
+  };
+  addEventListener('wheel', event => {
+    if (event.ctrlKey || event.defaultPrevented) return;
+    event.preventDefault();
+    if (performance.now() < wheelLockedUntil) { wheelAccumulated = 0; return; }
+    wheelAccumulated += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
+    if (Math.abs(wheelAccumulated) < 30) return;
+    step(Math.sign(wheelAccumulated));
+    wheelAccumulated = 0;
+  }, { passive: false });
+  addEventListener('keydown', event => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest?.('input, select, textarea, button')) return;
+    const direction = { ArrowDown: 1, PageDown: 1, ' ': event.shiftKey ? -1 : 1, ArrowUp: -1, PageUp: -1 }[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    step(direction);
+  });
   addEventListener('scroll', measure, { passive: true });
   measure();
   introTargets().then(set => {

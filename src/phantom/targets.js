@@ -125,57 +125,99 @@ export function markSet({ count, pixels, width, height, relief = false, seed = 1
     bright[(y + 1) * w + x + 1] = value;
   }
   const fit = Math.min(2.9 / width, 2.0 / height);
-  const thickness = .15 / fit, bevel = .09 / fit;
-  // Relief height follows a quarter-circle bevel of the distance to the outline. The distance is interpolated at each
-  // point's own sub-pixel position (the outline sits half a pixel outside the last lit pixel), so the bevel is smooth
-  // rather than stepped, and front and back faces meet exactly at the silhouette.
-  const inside = relief ? insideDistance(bright.map(value => value > .25 ? 1 : 0), w, h) : null;
+  const shapes = count - dustCount(count);
+  if (!relief) {
+    const weights = new Float32Array(w * h);
+    for (let i = 0; i < weights.length; i++) weights[i] = bright[i];
+    const { cdf, total } = cumulative(weights);
+    for (let n = 0; n < shapes; n++) {
+      const i = pick(cdf, rand() * total), b = bright[i];
+      const x = (i % w + rand() - .5 - w / 2) * fit, y = -(Math.floor(i / w) + rand() - .5 - h / 2) * fit;
+      const rgb = GOLD.map((g, k) => g + (WARM[k] - g) * b);
+      // Uneven brightness per point keeps the grain of a million separate lights visible inside a solid stroke.
+      put(set, n, x, y, (rand() - .5) * .025, 1, rgb, (.3 + b * .9) * (.25 + 1.5 * rand() ** 2));
+    }
+    fillDust(set, shapes, rand);
+    return set;
+  }
+  // An extrusion with crisp edges: flat front and back faces, vertical walls, and a narrow 45-degree chamfer around the
+  // front that catches the light. Distances to the outline come from the distance transform, read at each point's own
+  // sub-pixel position (the outline sits half a pixel outside the last lit pixel).
+  const half = .12, chamfer = .022, cpx = chamfer / fit;
+  // Dry-brush gaps inside a stroke would pit the faces with holes; a small closing (grow, then shrink back) fills them
+  // and leaves the outline where it was.
+  const closed = (mask, r) => {
+    const pass = (src, grow, horizontal) => {
+      const out = new Float32Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        let v = grow ? 0 : 1;
+        for (let k = -r; k <= r; k++) {
+          const xx = horizontal ? x + k : x, yy = horizontal ? y : y + k;
+          const s = xx < 0 || yy < 0 || xx >= w || yy >= h ? 0 : src[yy * w + xx];
+          v = grow ? Math.max(v, s) : Math.min(v, s);
+        }
+        out[y * w + x] = v;
+      }
+      return out;
+    };
+    return pass(pass(pass(pass(mask, true, true), true, false), false, true), false, false);
+  };
+  const inside = insideDistance(closed(bright.map(value => value > .25 ? 1 : 0), 2), w, h);
   const distanceAt = (fx, fy) => {
     const x0 = Math.max(0, Math.min(w - 2, Math.floor(fx))), y0 = Math.max(0, Math.min(h - 2, Math.floor(fy)));
     const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0));
     const i = y0 * w + x0;
     return (inside[i] * (1 - tx) + inside[i + 1] * tx) * (1 - ty) + (inside[i + w] * (1 - tx) + inside[i + w + 1] * tx) * ty;
   };
-  const heightAt = (fx, fy) => {
-    const t = Math.min(Math.max(distanceAt(fx, fy) - .5, 0) / bevel, 1);
-    return thickness * Math.sqrt(1 - (1 - t) ** 2);
+  // The outward normal in the scene's x-right, y-up plane (image y runs down).
+  const outward = (fx, fy) => {
+    const gx = distanceAt(fx + .5, fy) - distanceAt(fx - .5, fy), gy = distanceAt(fx, fy + .5) - distanceAt(fx, fy - .5);
+    const l = Math.hypot(gx, gy) || 1;
+    return [-gx / l, gy / l];
   };
-  const weights = new Float32Array(w * h);
-  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-    const i = y * w + x;
-    if (!relief) { weights[i] = bright[i]; continue; }
-    if (inside[i] <= 0) continue;
-    const gx = (heightAt(x + .5, y) - heightAt(x - .5, y)), gy = (heightAt(x, y + .5) - heightAt(x, y - .5));
-    // Sample by surface area so the steep bevels are as dense as the faces.
-    weights[i] = Math.min(6, Math.sqrt(1 + gx * gx + gy * gy)) * (.35 + .65 * bright[i]);
+  const face = new Float32Array(w * h), rim = new Float32Array(w * h), wall = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const d = inside[i];
+    if (d > .5) face[i] = 1;
+    if (d > 0 && d < 1.5 + cpx) rim[i] = 1;
+    if (d > 0 && d < 1.6) wall[i] = 1;
   }
-  const { cdf, total } = cumulative(weights);
-  const shapes = count - dustCount(count);
-  const light = [-.45, .55, .7];
-  const norm = Math.hypot(...light);
+  const parts = [cumulative(face), cumulative(rim), cumulative(wall)];
+  const light = [-.45, .55, .7], norm = Math.hypot(...light);
+  const lit = (nx, ny, nz) => Math.max(0, (nx * light[0] + ny * light[1] + nz * light[2]) / norm);
   for (let n = 0; n < shapes; n++) {
-    const i = pick(cdf, rand() * total);
-    const px = i % w + rand() - .5, py = Math.floor(i / w) + rand() - .5;
-    const x = (px - w / 2) * fit, y = -(py - h / 2) * fit;
-    if (!relief) {
-      const b = bright[i];
-      const rgb = GOLD.map((g, k) => g + (WARM[k] - g) * b);
-      // Uneven brightness per point keeps the grain of a million separate lights visible inside a solid stroke.
-      put(set, n, x, y, (rand() - .5) * .025, 1, rgb, (.3 + b * .9) * (.25 + 1.5 * rand() ** 2));
-      continue;
+    // Shares by role rather than by area, so the edges that draw the letterforms are never starved of points.
+    const roll = rand(), part = roll < .4 ? 0 : roll < .55 ? 3 : roll < .73 ? 1 : 2;
+    const { cdf, total } = parts[part === 3 ? 0 : part];
+    let px, py, d, tries = 0;
+    do {
+      const i = pick(cdf, rand() * total);
+      px = i % w + rand() - .5; py = Math.floor(i / w) + rand() - .5; d = distanceAt(px, py);
+    } while (++tries < 8 && ((part === 0 && d < .5 + cpx) || (part === 3 && d < .5) || (part === 1 && (d < .5 || d > .5 + cpx))));
+    let x = (px - w / 2) * fit, y = -(py - h / 2) * fit, z, shade, rgb = WARM;
+    if (part === 0) {
+      z = half;
+      shade = .2 + .85 * lit(0, 0, 1);
+    } else if (part === 3) {
+      z = -half;
+      shade = .12 + .2 * lit(0, 0, -1);
+    } else {
+      const [ox, oy] = outward(px, py);
+      // Move the point onto the outline or the chamfer surface exactly, along the normal.
+      const to = part === 1 ? Math.max(.5, Math.min(.5 + cpx, d)) : .5;
+      x += ox * (d - to) * fit; y += oy * (d - to) * fit;
+      if (part === 1) {
+        z = half - (.5 + cpx - to) * fit;
+        const l = Math.SQRT2;
+        shade = .15 + 1.6 * lit(ox / l, oy / l, 1 / l);
+        rgb = GOLD;
+      } else {
+        z = -half + (rand() * (2 * half - chamfer));
+        shade = .1 + .9 * lit(ox, oy, 0);
+        rgb = GOLD.map((g, k) => (g + WARM[k]) / 2);
+      }
     }
-    const front = rand() < .62;
-    const gx = heightAt(px + .35, py) - heightAt(px - .35, py), gy = heightAt(px, py + .35) - heightAt(px, py - .35);
-    // Surface normal of z = h(x, y); image y runs down, so its slope flips sign in world space.
-    let nx = -gx / .7, ny = gy / .7, nz = front ? 1 : -1;
-    const len = Math.hypot(nx, ny, nz);
-    nx /= len; ny /= len; nz /= len;
-    const diffuse = Math.max(0, (nx * light[0] + ny * light[1] + nz * light[2]) / norm);
-    const rim = Math.pow(1 - Math.abs(nz), 2.5);
-    const z = heightAt(px, py) * fit * (front ? 1 : -1);
-    const shade = front ? .16 + .95 * diffuse + .55 * rim : .1 + .25 * diffuse + .35 * rim;
-    const rgb = rim > .3 ? GOLD : WARM;
-    put(set, n, x, y, z, 1, rgb, shade * (.7 + .5 * bright[i]) * (.45 + rand() * 1.1));
+    put(set, n, x, y, z, 1, rgb, shade * (.55 + rand() * .9));
   }
   fillDust(set, shapes, rand);
   return set;
