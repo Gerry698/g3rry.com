@@ -548,3 +548,6 @@ void main() {
   color += (hash12(gl_FragCoord.xy + fract(uTime) * 91.7) - .5) * (1.5 / 255. + .018 * (1. - luma));
   outColor = vec4(color * uFade, 1.);
 }`;
+
+// Shared pieces for the water shaders (water-shaders.js).
+export const chunks = { header, noise, atmosphere, lighting, corners };

@@ -267,7 +267,7 @@ await output('404.html', render(
 const mountainScript = mountainFiles.find(file => file.endsWith('/main.js'));
 // The skyline of the mountain's first view for the loading line, one per field of view (portrait and landscape
 // screens). Tracing it takes a few seconds, so it is cached with the image encodes, keyed by the code that shapes it.
-const ridgeSources = await Promise.all(['src/mountain/terrain.js', 'src/mountain/camera.js', 'src/mountain/math.js', 'scripts/mountain-ridge.mjs'].map(file => readFile(path.join(root, file))));
+const ridgeSources = await Promise.all(['src/mountain/terrain.js', 'src/mountain/water.js', 'src/mountain/camera.js', 'src/mountain/math.js', 'scripts/mountain-ridge.mjs'].map(file => readFile(path.join(root, file))));
 const ridge = JSON.parse(await cachedImage('mountain-ridge-' + digest(Buffer.concat(ridgeSources)) + '.json',
   async () => Buffer.from(JSON.stringify({ portrait: ridgePaths(FOV.portrait, 1.05), landscape: ridgePaths(FOV.landscape, 3) }))));
 // Two layers: the faint outline with the summit light, and the bright line that is uncovered from both edges.
