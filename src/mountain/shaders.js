@@ -105,14 +105,21 @@ out float vAo;
 void main() {
   float c = cos(aExtra.x), s = sin(aExtra.x);
   vec3 p = aPosition * aInstance.w;
+  // No two alike: each instance a little taller or squatter than the shape (detail.js shares this shader).
+  p.y *= .88 + .24 * fract(aExtra.y * 13.7);
   p.xz = mat2(c, -s, s, c) * p.xz;
-  p.x += sin(uTime * 1.1 + aExtra.y * 40.) * .012 * aPosition.y * aPosition.y;
+  // aPart: 0 bark, 1 needles, 2 leaves, 3 stone. Stone stays put in the wind.
+  float stone = step(2.5, aPart);
+  p.x += sin(uTime * 1.1 + aExtra.y * 40.) * .012 * aPosition.y * aPosition.y * (1. - stone);
   vWorld = aInstance.xyz + p;
   vec3 needles = mix(vec3(.028, .062, .046), vec3(.06, .11, .06), aExtra.y) * (.75 + .45 * aPosition.y);
-  vAlbedo = aPart < .5 ? vec3(.08, .05, .035) : needles;
-  float snowy = smoothstep(1.4, 2.5, aInstance.y + aExtra.y * .4) * step(.5, aPart) * smoothstep(.5, .95, fract(aPosition.y * 2.4));
+  vec3 leaves = mix(vec3(.05, .088, .034), vec3(.105, .125, .045), aExtra.y) * (.75 + .4 * aPosition.y);
+  vec3 rock = mix(vec3(.085, .08, .075), vec3(.19, .18, .165), aExtra.y);
+  vAlbedo = aPart < .5 ? vec3(.08, .05, .035) : aPart < 1.5 ? needles : aPart < 2.5 ? leaves : rock;
+  float high = smoothstep(1.4, 2.5, aInstance.y + aExtra.y * .4);
+  float snowy = high * (stone > .5 ? step(.4, aPosition.y) : step(.5, aPart) * smoothstep(.5, .95, fract(aPosition.y * 2.4)));
   vAlbedo = mix(vAlbedo, vec3(.72, .76, .84), snowy * .75);
-  vAo = mix(.45, 1., clamp(aPosition.y * 1.2, 0., 1.));
+  vAo = mix(.45, 1., clamp(aPosition.y * (stone > .5 ? 2.2 : 1.2), 0., 1.));
   gl_Position = uViewProj * vec4(vWorld, 1.);
 }`;
 
@@ -140,6 +147,7 @@ uniform mat4 uLightViewProj;
 void main() {
   float c = cos(aExtra.x), s = sin(aExtra.x);
   vec3 p = aPosition * aInstance.w;
+  p.y *= .88 + .24 * fract(aExtra.y * 13.7);
   p.xz = mat2(c, -s, s, c) * p.xz;
   gl_Position = uLightViewProj * vec4(aInstance.xyz + p, 1.);
 }`;

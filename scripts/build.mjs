@@ -266,10 +266,11 @@ await output('404.html', render(
 // The full-screen pages (mountain, lab) have their own shells but share the site's Content-Security-Policy.
 const mountainScript = mountainFiles.find(file => file.endsWith('/main.js'));
 // The skyline of the mountain's first view for the loading line, one per field of view (portrait and landscape
-// screens). Tracing it takes a few seconds, so it is cached with the image encodes, keyed by the code that shapes it.
+// screens), with the camps' ledges cut in as on the page. Tracing it takes a few seconds, so it is cached with the image
+// encodes, keyed by the code that shapes it and the number of camps.
 const ridgeSources = await Promise.all(['src/mountain/terrain.js', 'src/mountain/camera.js', 'src/mountain/math.js', 'scripts/mountain-ridge.mjs'].map(file => readFile(path.join(root, file))));
-const ridge = JSON.parse(await cachedImage('mountain-ridge-' + digest(Buffer.concat(ridgeSources)) + '.json',
-  async () => Buffer.from(JSON.stringify({ portrait: ridgePaths(FOV.portrait, 1.05), landscape: ridgePaths(FOV.landscape, 3) }))));
+const ridge = JSON.parse(await cachedImage('mountain-ridge-' + digest(Buffer.concat([...ridgeSources, Buffer.from('camps ' + mountain.camps.length)])) + '.json',
+  async () => Buffer.from(JSON.stringify({ portrait: ridgePaths(FOV.portrait, 1.05, mountain.camps.length), landscape: ridgePaths(FOV.landscape, 3, mountain.camps.length) }))));
 // Two layers: the faint outline with the summit light, and the bright line that is uncovered from both edges.
 const ridgeLayer = draw => Object.entries(ridge).map(([kind, line]) => '<g class="ridge ridge-' + kind + '">' + draw(line) + '</g>').join('');
 const ridgeBase = ridgeLayer(({ left, right, summit }) => '<path class="ridge-base" d="' + left + '"/><path class="ridge-base" d="' + right + '"/>'
