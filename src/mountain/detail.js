@@ -8,9 +8,9 @@ import { treeLineAt, forestAt } from './terrain.js';
 
 const GROVES = noise2(31), CLUMPS = noise2(32);
 
-// Where nothing may stand: the camps, the trail and anything already there. Everything placed below goes through
-// open(), so a later feature that keeps ground clear (a stream, say) only has to be added here.
-function clearance(camps, trail, pines) {
+// Where nothing may stand: the camps, the trail, the water and anything already there. Everything placed below goes
+// through open(), so a later feature that keeps ground clear only has to be added here.
+function clearance(camps, trail, pines, wet) {
   // Footprints in buckets a quarter unit wide; none is wider than 0.3, so a search reaches r + 0.3 around a spot.
   const cell = .25, size = Math.ceil(56 / cell), slots = new Array(size * size);
   const slot = v => Math.min(size - 1, Math.max(0, Math.floor((v + 28) / cell)));
@@ -20,6 +20,7 @@ function clearance(camps, trail, pines) {
   return {
     open(x, z, r) {
       for (const camp of camps) if (Math.hypot(camp.x - x, camp.z - z) < (camp.summit ? 1.4 : 1.15)) return false;
+      if (wet?.(x, z, r + .1)) return false;
       const i0 = slot(x - r - .3), i1 = slot(x + r + .3), j0 = slot(z - r - .3), j1 = slot(z + r + .3);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
         const list = slots[j * size + i];
@@ -34,9 +35,10 @@ function clearance(camps, trail, pines) {
   };
 }
 
-// counts: { spruce, broadleaf, shrub, boulder }; trail: points [x, y, z, s]; pines: the pine instances.
-export function scatterDetail(camps, counts, surface, trail, pines, seed = 13) {
-  const next = random(seed), space = clearance(camps, trail, pines), out = { spruce: [], broadleaf: [], shrub: [], boulder: [] };
+// counts: { spruce, broadleaf, shrub, boulder }; trail: points [x, y, z, s]; pines: the pine instances;
+// wet(x, z, margin): whether a spot is within margin of the water.
+export function scatterDetail(camps, counts, surface, trail, pines, wet, seed = 13) {
+  const next = random(seed), space = clearance(camps, trail, pines, wet), out = { spruce: [], broadleaf: [], shrub: [], boulder: [] };
   // Heights and slopes come from the drawn surface: cheaper than the terrain function, and what things stand on.
   const slope = (x, z, y) => Math.hypot(surface(x + .15, z) - y, surface(x, z + .15) - y) / .15;
   const place = (kind, x, z, size, sink, footprint) => {

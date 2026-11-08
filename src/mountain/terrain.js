@@ -1,5 +1,6 @@
 import { TAU, clamp, lerp, smoothstep, noise2, fbm, ridged, random, hexToLinear } from './math.js';
 import { refineGrid, cellFacets, facetCount, snapToCrests } from './refine.js';
+import { createWater } from './water.js';
 
 // The massif is a smooth union of faceted peaks. Each peak blends a round cone with a k-sided pyramid,
 // so arêtes run out from the summit along the pyramid's corners; uneven face weights keep it asymmetric.
@@ -84,7 +85,8 @@ export function createTerrain(seed = 11) {
   }
 
   function height(x, z) {
-    let h = base(x, z);
+    // The waterfall, its pool and the river are cut into the ground (water.js); camp ledges stay level over them.
+    let h = water.carve(x, z, base(x, z));
     for (const ledge of ledges) {
       const d = Math.hypot(x - ledge.x, z - ledge.z);
       if (d < ledge.r) h = lerp(h, ledge.y, smoothstep(ledge.r, ledge.r * .35, d) * .9);
@@ -107,7 +109,8 @@ export function createTerrain(seed = 11) {
     return Math.hypot(sample(x + e, z) - sample(x - e, z), sample(x, z + e) - sample(x, z - e)) / (2 * e);
   }
 
-  return { base, height, radiusAt, slope, get ledges() { return ledges; }, setLedges(list) { ledges = list; } };
+  const water = createWater(base);
+  return { base, height, radiusAt, slope, water, get ledges() { return ledges; }, setLedges(list) { ledges = list; } };
 }
 
 // Camps spiral upward, one revolution from trailhead to the last camp below the summit.
@@ -178,7 +181,8 @@ export function meshSurface(mesh, terrain, extent = 26, cell = .25) {
 
 // The trail is the cheapest walk over the drawn surface from camp to camp. Steep grades cost far more
 // than distance, so it follows contours and switchbacks up steep ground instead of taking the fall line.
-export function buildTrail(camps, surface, spacing = .11) {
+// avoid(x, z): ground the trail must not walk through (the water).
+export function buildTrail(camps, surface, spacing = .11, avoid = () => false) {
   const step = .15, extent = 14, n = Math.round(2 * extent / step) + 1, coord = i => -extent + i * step;
   const ground = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) ground[j * n + i] = surface(coord(i), coord(j));
@@ -187,6 +191,7 @@ export function buildTrail(camps, surface, spacing = .11) {
   for (let j = 1; j < n - 1; j++) for (let i = 1; i < n - 1; i++) {
     const k = j * n + i, s = Math.hypot(ground[k + 1] - ground[k - 1], ground[k + n] - ground[k - n]) / (2 * step);
     rough[k] = 1 + .5 * Math.max(0, s - 1) ** 2;
+    if (avoid(coord(i), coord(j))) rough[k] = 400;
   }
   const MOVES = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1], [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1]]
     .map(([di, dj]) => ({ di, dj, d: Math.hypot(di, dj) * step }));
@@ -453,6 +458,7 @@ export function scatterTrees(terrain, camps, quality, surface, seed = 9) {
     if (y > treeLine - .15 || y < .05 || terrain.slope(x, z) > .6) continue;
     if (next() > forestAt(x, z) ** 1.5 * .95 + .012) continue;
     if (camps.some(camp => Math.hypot(camp.x - x, camp.z - z) < 1.1)) continue;
+    if (terrain.water.wet(x, z, .35)) continue;
     const size = .17 + next() * .17 + (1 - smoothstep(0, treeLine, y)) * .06;
     out.push(x, surface(x, z) - .02, z, size, next() * TAU, next());
   }

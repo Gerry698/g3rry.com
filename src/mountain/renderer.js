@@ -1,6 +1,7 @@
 import { program, precompile, vertexArray, texture, framebuffer, renderbuffer } from './gl.js';
 import * as shaders from './shaders.js';
 import { detailShapes } from './detail.js';
+import { createWaterRenderer, warmUpWater } from './water-renderer.js';
 import { orthographic, lookAt, multiply, add, scale, dot, TAU } from './math.js';
 
 // A low-poly pine: a short trunk under three stacked six-sided cones. aPart is 0 for bark, 1 for needles.
@@ -37,7 +38,7 @@ const PROGRAMS = {
   down: ['fullscreenVertex', 'downsampleFragment'], up: ['fullscreenVertex', 'upsampleFragment'], composite: ['fullscreenVertex', 'compositeFragment']
 };
 // Starts compiling them before the scene exists; createRenderer() then picks them up finished.
-export const warmUp = gl => precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [shaders[vertex], shaders[fragment]]));
+export const warmUp = gl => Promise.all([precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [shaders[vertex], shaders[fragment]])), warmUpWater(gl)]);
 
 export function createRenderer(gl, scene, quality) {
   const float = Boolean(gl.getExtension('EXT_color_buffer_float'));
@@ -64,6 +65,7 @@ export function createRenderer(gl, scene, quality) {
   });
   const drawDetails = () => { for (const kind of details) { gl.bindVertexArray(kind.array.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, kind.shape.count, kind.count); } };
   const trail = vertexArray(gl, [{ data: new Float32Array(scene.trail.flat()), size: 4, divisor: 1 }]);
+  const water = createWaterRenderer(gl, scene.water);
   // One glow per camp, one for the climber, then the props' own lights (fire, lamps).
   const lights = scene.props.lights, lightCount = lights.length / 8;
   const glowCount = scene.camps.length + 1 + lightCount;
@@ -176,6 +178,7 @@ export function createRenderer(gl, scene, quality) {
     gl.bindVertexArray(trees.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, tree.count, treeCount);
     drawDetails();
+    if (!frame.hide?.has('water')) water.drawOpaque(common);
 
     // Soft particles read the opaque depth, which needs a single-sample copy when rendering with MSAA.
     let soft = 0, depth = dummyDepth;
@@ -191,6 +194,7 @@ export function createRenderer(gl, scene, quality) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
+    if (!frame.hide?.has('water')) water.drawMist(common);
     for (let i = 0; i < cloudCount; i++) {
       const dx = scene.clouds[i * 5] - frame.eye[0], dy = scene.clouds[i * 5 + 1] - frame.eye[1], dz = scene.clouds[i * 5 + 2] - frame.eye[2];
       cloudDistance[i] = dx * dx + dy * dy + dz * dz;
