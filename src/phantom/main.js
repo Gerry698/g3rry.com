@@ -13,10 +13,12 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const coarse = matchMedia('(pointer: coarse)');
 const $ = selector => document.querySelector(selector);
 
+// Pages entered through a transition (veil.js) stay black until this fires: after the first frame, or at once without WebGL.
+const ready = () => dispatchEvent(new Event('g3:ready'));
 const context = createContext(canvas);
 if (context) {
-  try { start(context); } catch (error) { console.error(error); root.classList.remove('lab-gl'); }
-}
+  try { start(context); } catch (error) { console.error(error); root.classList.remove('lab-gl'); ready(); }
+} else ready();
 
 function start({ gl, hdr }) {
   root.classList.add('lab-gl');
@@ -947,5 +949,6 @@ function start({ gl, hdr }) {
     particles.allocate(set.count, set, { burst: !reduced.matches });
     retarget();
     requestAnimationFrame(loop);
-  }).catch(error => { console.error(error); root.classList.remove('lab-gl'); });
+    requestAnimationFrame(() => requestAnimationFrame(ready));
+  }).catch(error => { console.error(error); root.classList.remove('lab-gl'); ready(); });
 }

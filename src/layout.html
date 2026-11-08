@@ -2,7 +2,7 @@
 <html lang="{{LANGUAGE}}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#101a24">
@@ -21,6 +21,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="{{STYLES}}">
+  <script src="{{VEIL}}"></script>
   {{HEAD_EXTRA}}
 </head>
 <body class="{{PAGE_CLASS}}">
@@ -30,9 +31,8 @@
     <nav aria-label="Main navigation">
       <a href="/" {{HOME_CURRENT}}>Home</a>
       <a href="/photos/" {{PHOTOS_CURRENT}}>Photography</a>
+      <a href="/phantom/">The Phantom</a>
       <a href="/guestbook/" {{GUESTBOOK_CURRENT}}>Guestbook</a>
-      <a href="/mountain/">The Ascent</a>
-      <a href="/#phantom">The Phantom <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
   <main id="main">{{BODY}}</main>
