@@ -1,4 +1,6 @@
 // GLSL sources. Lighting is done in linear HDR; the composite pass tone-maps and grades.
+// Weather below the cloud deck (weather.js): its chunks are spliced in where marked "weather".
+import { weatherAir, weatherBasics, weatherLight } from './weather-shaders.js';
 
 const header = '#version 300 es\nprecision highp float;\nprecision highp sampler2DShadow;\n';
 
@@ -20,6 +22,7 @@ float vnoise3(vec3 p) {
 const atmosphere = `
 uniform vec3 uCamPos, uSunDir, uGlow, uZenith, uHorizon, uBelow;
 uniform vec2 uFog;
+${weatherAir}
 vec3 skyColor(vec3 d) {
   float e = d.y;
   // Blend in a perceptual (square-root) space so warm horizons and blue zeniths don't meet in grey.
@@ -42,7 +45,7 @@ vec3 atmosphere(vec3 color, vec3 world) {
   float heightFog = uFog.y * 2.5 * exp(-uCamPos.y * falloff) * (abs(k) > 1e-4 ? (1. - exp(-k * dist)) / k : dist);
   float amount = 1. - exp(-max(dist - 10., 0.) * uFog.x - heightFog);
   vec3 haze = mix(uHorizon, skyColor(normalize(vec3(d.x, max(d.y, .0), d.z))), .65);
-  return mix(color, haze, clamp(amount, 0., 1.));
+  return lowAir(color, haze, amount, world);
 }
 `;
 
@@ -52,18 +55,20 @@ uniform sampler2DShadow uShadow;
 uniform mat4 uLightMatrix;
 uniform float uShadowSize;
 float shadowAt(vec3 world, vec3 n) {
+  float below = underDeck(world);  // weather: below the deck its own light casts the shadows
+  if (below > .999) return lowShadow(world, n);
   vec3 c = (uLightMatrix * vec4(world + n * .035, 1.)).xyz * .5 + .5;
   if (any(lessThan(c, vec3(0))) || any(greaterThan(c, vec3(1)))) return 1.;
   float texel = 1.4 / uShadowSize, sum = 0.;
   for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) sum += texture(uShadow, vec3(c.xy + vec2(x, y) * texel, c.z - .0006));
-  return sum / 9.;
+  return mix(sum / 9., below > 0. ? lowShadow(world, n) : 0., below);
 }
 vec3 light(vec3 albedo, vec3 n, float ao, float wrap, float shadow) {
   float diffuse = clamp((dot(n, uKeyDir) + wrap) / (1. + wrap), 0., 1.);
   vec3 ambient = mix(uAmbGround, uAmbSky, n.y * .5 + .5) * ao;
   return albedo * (uKeyColor * diffuse * shadow + ambient);
 }
-`;
+${weatherLight}`;
 
 export const terrainVertex = header + `
 layout(location = 0) in vec3 aPosition;
@@ -86,13 +91,13 @@ void main() {
   if (n.y < 0.) n = -n;
   float shadow = shadowAt(vWorld, n);
   float snow = smoothstep(.45, .7, dot(vColor.rgb, vec3(.3, .5, .2)));
-  vec3 color = light(vColor.rgb, n, vColor.a, .2 + snow * .25, shadow);
+  vec3 color = light(weathered(vColor.rgb, n, vWorld), n, vColor.a, .2 + snow * .25, shadow, vWorld);
   vec3 v = normalize(uCamPos - vWorld);
   color += uKeyColor * pow(max(dot(n, normalize(uKeyDir + v)), 0.), 36.) * .14 * snow * shadow;
   outColor = vec4(atmosphere(color, vWorld), 1.);
 }`;
 
-export const treeVertex = header + `
+export const treeVertex = header + weatherBasics + `
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in float aPart;
 layout(location = 2) in vec4 aInstance;
@@ -116,7 +121,8 @@ void main() {
   vec3 leaves = mix(vec3(.05, .088, .034), vec3(.105, .125, .045), aExtra.y) * (.75 + .4 * aPosition.y);
   vec3 rock = mix(vec3(.085, .08, .075), vec3(.19, .18, .165), aExtra.y);
   vAlbedo = aPart < .5 ? vec3(.08, .05, .035) : aPart < 1.5 ? needles : aPart < 2.5 ? leaves : rock;
-  float high = smoothstep(1.4, 2.5, aInstance.y + aExtra.y * .4);
+  // Snow up high, and below the cloud deck when the day's weather brings it (weather.js).
+  float high = max(smoothstep(1.4, 2.5, aInstance.y + aExtra.y * .4), uLowAir.w * underDeck(aInstance.xyz));
   float snowy = high * (stone > .5 ? step(.4, aPosition.y) : step(.5, aPart) * smoothstep(.5, .95, fract(aPosition.y * 2.4)));
   vAlbedo = mix(vAlbedo, vec3(.72, .76, .84), snowy * .75);
   vAo = mix(.45, 1., clamp(aPosition.y * (stone > .5 ? 2.2 : 1.2), 0., 1.));
@@ -130,7 +136,7 @@ in float vAo;
 out vec4 outColor;
 void main() {
   vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
-  vec3 color = light(vAlbedo, n, vAo, .35, shadowAt(vWorld, n));
+  vec3 color = light(weathered(vAlbedo, n, vWorld), n, vAo, .35, shadowAt(vWorld, n), vWorld);
   outColor = vec4(atmosphere(color, vWorld), 1.);
 }`;
 
@@ -210,7 +216,7 @@ void main() {
     color += uMoon * (vec3(1., .97, .9) * disc * (2.6 - crater * 2.) + vec3(.55, .65, 1.) * (pow(max(m, 0.), 900.) * .5 + pow(max(m, 0.), 24.) * .04));
   }
   if (uAurora > 0.) color += aurora(d) * uAurora;
-  outColor = vec4(color, 1.);
+  outColor = vec4(lowBackdrop(color, d), 1.);
 }`;
 
 // Camera-facing quads for instanced sprites, two triangles per instance.
@@ -351,7 +357,7 @@ out vec4 outColor;
 uniform float uTime;
 void main() {
   vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
-  vec3 color = light(vAlbedo, n, 1., .4, shadowAt(vWorld, n));
+  vec3 color = light(weathered(vAlbedo, n, vWorld), n, 1., .4, shadowAt(vWorld, n), vWorld);
   // Emissive faces (fire, lamps, the lit register) glow on their own; flames flicker.
   float flicker = 1. + (sin(uTime * 11. + vWorld.x * 37.) * .18 + sin(uTime * 17.3 + vWorld.z * 23.) * .12) * smoothstep(.9, 1., vGlow);
   color = mix(color, vAlbedo * 7. * flicker, vGlow);
@@ -403,7 +409,7 @@ void main() {
   outColor = vec4(color * a * vAlpha * uSparkPower, 0.);
 }`;
 
-export const cloudVertex = header + corners + `
+export const cloudVertex = header + corners + weatherBasics + `
 layout(location = 0) in vec4 aCloud;
 layout(location = 1) in float aSeed;
 uniform mat4 uViewProj;
@@ -434,7 +440,9 @@ void main() {
   // Puffs between the lens and the camp in view (uFocus.xyz, strength w) part so low cloud never hides it;
   // those in front of the summit thin out too, but only partly, so the sky keeps some weather.
   vClear = (1. - uFocus.w * parting(center, uFocus.xyz, aCloud.w)) * (1. - uFocus.w * .75 * parting(center, uSummit, aCloud.w));
+  vClear *= deckPuff(aSeed);  // weather: the deck's puffs come and go with its cover
   vWorld = center + (c.x * uRight * 1.5 + c.y * uUp) * aCloud.w;
+  if (vClear < .001) vWorld = center;  // a hidden puff draws nothing
   gl_Position = uViewProj * vec4(vWorld, 1.);
 }`;
 
@@ -455,13 +463,13 @@ void main() {
   float bottom = smoothstep(-.9, .4, vCorner.y);
   shape *= mix(.55, 1., bottom) * softEdge(1.2);
   float lit = clamp(.35 + vCorner.y * .45 + max(dot(uKeyDir, normalize(vec3(vCorner.x, 1., 0.))), 0.) * .3, 0., 1.);
-  vec3 color = uCloud * mix(uAmbSky * 1.1, uKeyColor * .55 + uAmbSky * .6, lit);
+  vec3 color = lowCloud(uCloud * mix(uAmbSky * 1.1, uKeyColor * .55 + uAmbSky * .6, lit), lit, vWorld);
   color = atmosphere(color, vWorld);
   float alpha = shape * .85 * uCloudAmount * vNear * vClear;
   outColor = vec4(color * alpha, alpha);
 }`;
 
-export const snowVertex = header + noise + `
+export const snowVertex = header + noise + weatherBasics + `
 uniform mat4 uViewProj;
 uniform vec3 uCamPos;
 uniform float uTime, uHeight;
@@ -474,6 +482,7 @@ void main() {
   vec3 p = mod(seed * box + drift - uCamPos, box) - box * .5 + uCamPos;
   float dist = length(p - uCamPos);
   vAlpha = smoothstep(.3, 1.2, dist) * (1. - smoothstep(5., 8., dist)) * (.5 + seed.z * .5);
+  vAlpha *= 1. - underDeck(p);  // weather: below the deck its own rain and snow take over
   gl_Position = uViewProj * vec4(p, 1.);
   gl_PointSize = clamp(uHeight * (.012 + seed.z * .014) / max(dist, .1), 1., 9.);
 }`;
@@ -557,5 +566,5 @@ void main() {
   outColor = vec4(color * uFade, 1.);
 }`;
 
-// Shared pieces for the water shaders (water-shaders.js).
+// The shared pieces, for passes built outside this file (water-shaders.js, weather.js).
 export const chunks = { header, noise, atmosphere, lighting, corners };

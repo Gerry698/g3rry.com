@@ -37,21 +37,24 @@ void main() {
   if (n.y < 0.) n = -n;
   vec3 v = normalize(uCamPos - world);
   float shadow = shadowAt(world, n);
+  // Below the cloud deck the valley's own hour and weather light the water (weather-shaders.js).
+  float low = underDeck(world);
+  vec3 keyDir = normalize(mix(uKeyDir, uLowKeyDir, low)), keyColor = mix(uKeyColor, uLowKeyColor, low);
   // Each facet mirrors the sky in its own direction, steepened a little so it picks up the deeper sky rather than the
   // haze at the horizon, and the Fresnel term has a floor, so even seen from above the water reads as a strip of sky.
   vec3 r = reflect(-v, n);
   r = normalize(vec3(r.x, abs(r.y) * 1.35, r.z));
-  vec3 sky = skyColor(r);
+  vec3 sky = mix(skyColor(r), lowSky(r), low);
   float fresnel = .04 + .96 * pow(1. - max(dot(n, v), 0.), 5.);
   // Below the surface the water takes the sky's own deep colour, lighter in the shallows, a little different facet by facet.
   float depth = vFacet.z;
-  vec3 body = mix(uHorizon, uZenith, .92) * mix(.62, .22, smoothstep(.02, .35, depth));
-  vec3 ambient = mix(uAmbGround, uAmbSky, .8);
-  float diffuse = max(dot(n, uKeyDir), 0.);
-  vec3 color = mix(body + uKeyColor * diffuse * shadow * .015, sky, .16 + .84 * fresnel) * (.86 + .28 * hash12(vFacet.xy * 17.3));
+  vec3 body = mix(mix(uHorizon, uZenith, .92), mix(uLowHorizon, uLowZenith, .92), low) * mix(.62, .22, smoothstep(.02, .35, depth));
+  vec3 ambient = mix(mix(uAmbGround, uAmbSky, .8), mix(uLowAmbGround, uLowAmbSky, .8), low);
+  float diffuse = max(dot(n, keyDir), 0.);
+  vec3 color = mix(body + keyColor * diffuse * shadow * .015, sky, .16 + .84 * fresnel) * (.86 + .28 * hash12(vFacet.xy * 17.3));
   // Glints of sun or moon on facets turned just right.
-  float glint = max(dot(reflect(-v, n), uKeyDir), 0.);
-  color += uKeyColor * (pow(glint, 60.) * 1.4 + pow(glint, 8.) * .1) * shadow;
+  float glint = max(dot(reflect(-v, n), keyDir), 0.);
+  color += keyColor * (pow(glint, 60.) * 1.4 + pow(glint, 8.) * .1) * shadow;
   // Foam: whole facets turn white where the water is shallow against a bank, where it runs fast, and where it churns under
   // the fall; the pattern steps downstream with the flow. A thin line marks the water's edge itself.
   float speed = vFacet.w;
@@ -61,7 +64,7 @@ void main() {
   float pick = hash12(vec2(floor(flow + vFacet.y * 1.7), floor(vFacet.y * 4. + 7.)));
   float white = step(1. - foam * .8, pick) * (.55 + .45 * foam);
   float edge = smoothstep(.04, 0., vWorld.w) * (.45 + .55 * step(.35, hash12(vec2(floor(flow * 1.3 + vFacet.y * 3.), 5.))));
-  vec3 froth = vec3(.9, .94, 1.) * (ambient * 1.35 + uKeyColor * (diffuse * .65 + .12) * shadow);
+  vec3 froth = vec3(.9, .94, 1.) * (ambient * 1.35 + keyColor * (diffuse * .65 + .12) * shadow);
   color = mix(color, froth, max(white, edge * .5));
   outColor = vec4(atmosphere(color, world), 1.);
 }`;
@@ -100,8 +103,9 @@ void main() {
   // Ragged sides where a streak thins out.
   if (abs(a) > .78 && run < .32) discard;
   vec3 albedo = mix(vec3(.4, .52, .6), vec3(.86, .92, .97), streak * .7 + f * .25);
-  vec3 color = light(albedo, n, 1., .6, shadowAt(vWorld, n));
-  color = mix(color, skyColor(reflect(-v, n)), .15);
+  vec3 color = light(albedo, n, 1., .6, shadowAt(vWorld, n), vWorld);
+  vec3 r = reflect(-v, n);
+  color = mix(color, mix(skyColor(r), lowSky(r), underDeck(vWorld)), .15);
   outColor = vec4(atmosphere(color, vWorld), 1.);
 }`;
 
@@ -134,6 +138,6 @@ uniform vec3 uKeyColor, uAmbSky;
 void main() {
   float a = smoothstep(1., .1, length(vCorner));
   a *= a * vAlpha;
-  vec3 color = atmosphere(uAmbSky * 1.5 + uKeyColor * .35 + .02, vWorld);
+  vec3 color = atmosphere(mix(uAmbSky * 1.5 + uKeyColor * .35, uLowAmbSky * 1.5 + uLowKeyColor * .35, underDeck(vWorld)) + .02, vWorld);
   outColor = vec4(color * a, a);
 }`;
