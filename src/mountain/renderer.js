@@ -1,6 +1,9 @@
 import { program, precompile, vertexArray, texture, framebuffer, renderbuffer } from './gl.js';
 import * as shaders from './shaders.js';
+import { detailShapes } from './detail.js';
+import { createWaterRenderer, warmUpWater } from './water-renderer.js';
 import { orthographic, lookAt, multiply, add, scale, dot, TAU } from './math.js';
+import { createWeather, weatherSources } from './weather.js';
 
 // A low-poly pine: a short trunk under three stacked six-sided cones. aPart is 0 for bark, 1 for needles.
 function treeGeometry() {
@@ -36,13 +39,15 @@ const PROGRAMS = {
   down: ['fullscreenVertex', 'downsampleFragment'], up: ['fullscreenVertex', 'upsampleFragment'], composite: ['fullscreenVertex', 'compositeFragment']
 };
 // Starts compiling them before the scene exists; createRenderer() then picks them up finished.
-export const warmUp = gl => precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [shaders[vertex], shaders[fragment]]));
+export const warmUp = gl => Promise.all([precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [shaders[vertex], shaders[fragment]]).concat(weatherSources)), warmUpWater(gl)]);
 
 export function createRenderer(gl, scene, quality) {
   const float = Boolean(gl.getExtension('EXT_color_buffer_float'));
   const colorFormat = float ? gl.RGBA16F : gl.RGBA8, colorType = float ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
   const samples = Math.min(quality.samples, gl.getParameter(gl.MAX_SAMPLES));
   const programs = Object.fromEntries(Object.entries(PROGRAMS).map(([name, [vertex, fragment]]) => [name, program(gl, shaders[vertex], shaders[fragment], name)]));
+  // Weather below the cloud deck; it adds the deck's puffs to scene.clouds, so it comes before the cloud buffers.
+  const weather = createWeather(gl, scene, quality);
 
   const terrain = vertexArray(gl, [{ data: scene.mesh.positions, size: 3 }, { data: scene.mesh.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }]);
   const props = vertexArray(gl, [{ data: scene.props.positions, size: 3 }, { data: scene.props.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }, { data: scene.props.flags, size: 4 }]);
@@ -54,7 +59,16 @@ export function createRenderer(gl, scene, quality) {
     extra.set(scene.trees.subarray(i * 6 + 4, i * 6 + 6), i * 2);
   }
   const trees = vertexArray(gl, [{ data: tree.positions, size: 3 }, { data: tree.parts, size: 1 }, { data: placement, size: 4, divisor: 1 }, { data: extra, size: 2, divisor: 1 }]);
+  // Spruces, broadleaves, shrubs and boulders (detail.js), each kind instanced like the pines and drawn with them.
+  const shapes = detailShapes();
+  const details = Object.entries(scene.detail || {}).filter(([kind, list]) => shapes[kind] && list.length).map(([kind, list]) => {
+    const shape = shapes[kind], count = list.length / 6, place = new Float32Array(count * 4), more = new Float32Array(count * 2);
+    for (let i = 0; i < count; i++) { place.set(list.subarray(i * 6, i * 6 + 4), i * 4); more.set(list.subarray(i * 6 + 4, i * 6 + 6), i * 2); }
+    return { shape, count, array: vertexArray(gl, [{ data: shape.positions, size: 3 }, { data: shape.parts, size: 1 }, { data: place, size: 4, divisor: 1 }, { data: more, size: 2, divisor: 1 }]) };
+  });
+  const drawDetails = () => { for (const kind of details) { gl.bindVertexArray(kind.array.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, kind.shape.count, kind.count); } };
   const trail = vertexArray(gl, [{ data: new Float32Array(scene.trail.flat()), size: 4, divisor: 1 }]);
+  const water = createWaterRenderer(gl, scene.water);
   // One glow per camp, one for the climber, then the props' own lights (fire, lamps).
   const lights = scene.props.lights, lightCount = lights.length / 8;
   const glowCount = scene.camps.length + 1 + lightCount;
@@ -78,11 +92,11 @@ export function createRenderer(gl, scene, quality) {
   const shadowMap = texture(gl, shadowSize, shadowSize, { internal: gl.DEPTH_COMPONENT24, format: gl.DEPTH_COMPONENT, type: gl.UNSIGNED_INT, compare: true });
   const shadowTarget = framebuffer(gl, { depth: shadowMap });
   let lightMatrix = null, shadowKey = null;
-  function renderShadow(keyDir) {
+  function renderShadow(keyDir, target = shadowTarget) {
     const center = [0, 4.2, 0];
     const view = lookAt(add(center, scale(keyDir, 60)), center, Math.abs(keyDir[1]) > .98 ? [0, 0, 1] : [0, 1, 0]);
     lightMatrix = multiply(orthographic(-17, 17, -17, 17, 28, 96), view);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowTarget);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target);
     gl.viewport(0, 0, shadowSize, shadowSize);
     gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
@@ -95,8 +109,17 @@ export function createRenderer(gl, scene, quality) {
     programs.treeDepth.use().set({ uLightViewProj: lightMatrix });
     gl.bindVertexArray(trees.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, tree.count, treeCount);
+    drawDetails();
     gl.disable(gl.POLYGON_OFFSET_FILL);
     shadowKey = keyDir.slice();
+  }
+  // The valley's own shadow map (weather.js), drawn the same way; the climb's light matrix and key stay as they were.
+  function renderValleyShadow(keyDir, target) {
+    const saved = [lightMatrix, shadowKey];
+    renderShadow(keyDir, target);
+    const matrix = lightMatrix;
+    [lightMatrix, shadowKey] = saved;
+    return matrix;
   }
 
   let targets = null;
@@ -144,6 +167,7 @@ export function createRenderer(gl, scene, quality) {
       uLantern: LANTERN, uPennants: m.pennants, uProgress: m.progress, uAhead: m.ahead, uFocus: m.focus, uSummit: [scene.camps.at(-1).x, scene.camps.at(-1).y, scene.camps.at(-1).z], uCloud: p.cloud, uCloudAmount: 1, uSnow: p.snow, uHeight: targets.height,
       uResolution: [targets.width, targets.height], uClip: [NEAR, FAR]
     };
+    Object.assign(common, weather.update(frame, renderValleyShadow));
     const sceneTarget = targets.multisampled || targets.resolved;
     gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
     gl.viewport(0, 0, targets.width, targets.height);
@@ -165,6 +189,8 @@ export function createRenderer(gl, scene, quality) {
     programs.trees.use().set(common);
     gl.bindVertexArray(trees.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, tree.count, treeCount);
+    drawDetails();
+    if (!frame.hide?.has('water')) water.drawOpaque(common);
 
     // Soft particles read the opaque depth, which needs a single-sample copy when rendering with MSAA.
     let soft = 0, depth = dummyDepth;
@@ -180,6 +206,8 @@ export function createRenderer(gl, scene, quality) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
+    if (!frame.hide?.has('water')) water.drawMist(common);
+    weather.drawUnderClouds(common, frame.hide);
     for (let i = 0; i < cloudCount; i++) {
       const dx = scene.clouds[i * 5] - frame.eye[0], dy = scene.clouds[i * 5 + 1] - frame.eye[1], dz = scene.clouds[i * 5 + 2] - frame.eye[2];
       cloudDistance[i] = dx * dx + dy * dy + dz * dz;
@@ -235,6 +263,7 @@ export function createRenderer(gl, scene, quality) {
       gl.bindVertexArray(empty);
       gl.drawArrays(gl.POINTS, 0, quality.snow);
     }
+    weather.drawPrecipitation(common);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
 

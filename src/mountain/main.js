@@ -5,6 +5,7 @@ import { createRenderer, warmUp } from './renderer.js';
 import { PALETTES, TIMES, blend } from './palettes.js';
 import { perspective, lookAt, multiply, invert, transform, clamp, lerp, easeInOut, smoothstep, mix3 } from './math.js';
 import { eyeOf, idlePose, stationPose, sway, travelTime, interpolate, clampToGround, FOV } from './camera.js';
+import { conditions } from './weather.js';
 
 const root = document.documentElement;
 const canvas = document.querySelector('#mountain-canvas');
@@ -110,6 +111,8 @@ async function start() {
   const terrain = createTerrain();
   terrain.setLedges(scene.ledges);
   const renderer = createRenderer(gl, scene, quality);
+  // Below the cloud deck: the visitor's local hour and the day's weather (weather.js; ?weather= and ?hour= override).
+  const weather = conditions(params, reduced);
   loading.reach(.95, .99);
   root.classList.add('mountain-live');
 
@@ -372,7 +375,7 @@ async function start() {
       progress: state.progress, settled, pillar: [here.x, here.y, here.z, settled], climber: trailAt(state.progress), climberPower: smoothstep(-.4, 0, state.progress) * ahead,
       ahead, focus: [...(focus || [0, 0, 0]), clearing], pennants, form, pointer: [pointerTarget[0], -pointerTarget[1], reduced.matches ? 0 : pointerPower]
     };
-    renderer.render({ eye, view, viewProj, invViewProj: invert(viewProj), fov, time: clock, palette, fade, markers, hide: debugHide, canvasWidth: canvas.width, canvasHeight: canvas.height });
+    renderer.render({ eye, view, viewProj, invViewProj: invert(viewProj), fov, time: clock, palette, fade, markers, weather: weather.now(), hide: debugHide, canvasWidth: canvas.width, canvasHeight: canvas.height });
 
     // The canvas may reach under the browser's bars, so screen positions are measured on its own box.
     const box = [canvas.clientWidth, canvas.clientHeight];
@@ -435,6 +438,10 @@ async function start() {
     terrain, camps, stations, data, PALETTES, go,
     pose(angle, radius, y, target = [0, 4.3, 0]) { debugPose = angle === undefined ? null : { angle: angle * Math.PI / 180, radius, y, target }; },
     time(name) { debugPalette = name ? PALETTES[name] : null; },
+    // Weather below the deck: weather('rain', .8) or weather() for the day's own; hour(22.5) or hour() for the clock.
+    weather(kind, intensity) { weather.set(kind, intensity); return this.settle(); },
+    hour(value) { weather.setHour(value); return this.settle(); },
+    get sky() { return weather.now(); },
     get current() { return current; },
     get state() { return { ...state, travel: state.travel && { to: state.travel.to, progress: state.travel.progress } }; },
     // Average milliseconds per frame with the GPU forced to finish each one.

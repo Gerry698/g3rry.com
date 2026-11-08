@@ -1,4 +1,6 @@
 import { TAU, clamp, lerp, smoothstep, noise2, fbm, ridged, random, hexToLinear } from './math.js';
+import { refineGrid, cellFacets, facetCount, snapToCrests } from './refine.js';
+import { createWater } from './water.js';
 
 // The massif is a smooth union of faceted peaks. Each peak blends a round cone with a k-sided pyramid,
 // so arêtes run out from the summit along the pyramid's corners; uneven face weights keep it asymmetric.
@@ -83,7 +85,8 @@ export function createTerrain(seed = 11) {
   }
 
   function height(x, z) {
-    let h = base(x, z);
+    // The waterfall, its pool and the river are cut into the ground (water.js); camp ledges stay level over them.
+    let h = water.carve(x, z, base(x, z));
     for (const ledge of ledges) {
       const d = Math.hypot(x - ledge.x, z - ledge.z);
       if (d < ledge.r) h = lerp(h, ledge.y, smoothstep(ledge.r, ledge.r * .35, d) * .9);
@@ -106,7 +109,8 @@ export function createTerrain(seed = 11) {
     return Math.hypot(sample(x + e, z) - sample(x - e, z), sample(x, z + e) - sample(x, z - e)) / (2 * e);
   }
 
-  return { base, height, radiusAt, slope, get ledges() { return ledges; }, setLedges(list) { ledges = list; } };
+  const water = createWater(base);
+  return { base, height, radiusAt, slope, water, get ledges() { return ledges; }, setLedges(list) { ledges = list; } };
 }
 
 // Camps spiral upward, one revolution from trailhead to the last camp below the summit.
@@ -141,7 +145,7 @@ export function placeCamps(terrain, count, startAngle = 1.95) {
 
 // Height of the drawn surface. The facets cut straight across ridges that the analytic height rounds
 // over, so anything resting on the ground samples this instead, or it would float above the crests.
-export function meshSurface(mesh, terrain, extent = 26, cell = .5) {
+export function meshSurface(mesh, terrain, extent = 26, cell = .25) {
   const { positions } = mesh, size = Math.ceil(2 * extent / cell), triangles = mesh.count / 3;
   const slot = v => Math.floor((v + extent) / cell);
   // Buckets of triangle indices per grid cell, packed as offsets into one list.
@@ -177,7 +181,8 @@ export function meshSurface(mesh, terrain, extent = 26, cell = .5) {
 
 // The trail is the cheapest walk over the drawn surface from camp to camp. Steep grades cost far more
 // than distance, so it follows contours and switchbacks up steep ground instead of taking the fall line.
-export function buildTrail(camps, surface, spacing = .11) {
+// avoid(x, z): ground the trail must not walk through (the water).
+export function buildTrail(camps, surface, spacing = .11, avoid = () => false) {
   const step = .15, extent = 14, n = Math.round(2 * extent / step) + 1, coord = i => -extent + i * step;
   const ground = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) ground[j * n + i] = surface(coord(i), coord(j));
@@ -186,6 +191,7 @@ export function buildTrail(camps, surface, spacing = .11) {
   for (let j = 1; j < n - 1; j++) for (let i = 1; i < n - 1; i++) {
     const k = j * n + i, s = Math.hypot(ground[k + 1] - ground[k - 1], ground[k + n] - ground[k - n]) / (2 * step);
     rough[k] = 1 + .5 * Math.max(0, s - 1) ** 2;
+    if (avoid(coord(i), coord(j))) rough[k] = 400;
   }
   const MOVES = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1], [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1]]
     .map(([di, dj]) => ({ di, dj, d: Math.hypot(di, dj) * step }));
@@ -282,9 +288,14 @@ const COLORS = Object.fromEntries(Object.entries({
   rockLow: '#4c4b52', scree: '#857f7a', tundra: '#7b7a58', meadow: '#5b7a43', meadowDry: '#7f8150', forest: '#2e4a35', moss: '#3f5c3c'
 }).map(([name, hex]) => [name, hexToLinear(hex)]));
 
+// refine: the mesh refinement (refine.js) — cells within `reach` are split where their facets miss the surface by more
+// than `tolerance`, or where they are wider than `coarse` within `coarseReach` (the valley floor near the cameras);
+// `snap` moves vertices onto crests and peaks. detail: how many of each kind detail.js scatters (at most).
 export const QUALITY = {
-  high: { cell: .19, trees: 4200, shadow: 2048, samples: 4, snow: 1800, clouds: 260, dpr: 1.5 },
-  low: { cell: .27, trees: 1600, shadow: 1024, samples: 0, snow: 700, clouds: 140, dpr: 1.5 }
+  high: { cell: .19, trees: 4200, shadow: 2048, samples: 4, snow: 1800, clouds: 260, dpr: 1.5, refine: { reach: 24, tolerance: .07, coarse: .5, coarseReach: 21, snap: { reach: 15.5, floor: 1.5, bend: .3 } },
+    detail: { spruce: 900, broadleaf: 600, shrub: 1400, boulder: 450 } },
+  low: { cell: .27, trees: 1600, shadow: 1024, samples: 0, snow: 700, clouds: 140, dpr: 1.5, refine: { reach: 24, tolerance: .09, coarse: .62, coarseReach: 21, snap: { reach: 15.5, floor: 1.5, bend: .42 } },
+    detail: { spruce: 350, broadleaf: 250, shrub: 500, boulder: 180 } }
 };
 
 // Builds non-indexed triangles so every facet carries its own colour; alpha holds ambient occlusion.
@@ -296,7 +307,7 @@ export function buildTerrainMesh(terrain, quality, seed = 3) {
   const m = Math.round(L / quality.cell), s0 = 1 / (1 + Math.log(extent / L) / stretch), M = Math.round(m / s0), n = 2 * M + 1;
   const tau = s0 / stretch;
   const radius = s => s <= s0 ? s * L / s0 : L * Math.exp((s - s0) / tau);
-  const px = new Float32Array(n * n), pz = new Float32Array(n * n), py = new Float32Array(n * n);
+  let px = new Float32Array(n * n), pz = new Float32Array(n * n), py = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const k = j * n + i, qx = (i - M) / M, qz = (j - M) / M, s = Math.max(Math.abs(qx), Math.abs(qz));
     const scale = s > 0 ? radius(s) / s : L / s0;
@@ -308,32 +319,45 @@ export function buildTerrainMesh(terrain, quality, seed = 3) {
     pz[k] = qz * scale + (next() - .5) * .62 * spacing;
     py[k] = terrain.height(px[k], pz[k]);
   }
-  // Tangents along the two grid directions, spanning ±s vertices.
+  // Tangents along the two grid directions, spanning ±s vertices, into one reused record (no garbage per vertex).
+  const tangent = { ux: 0, uy: 0, uz: 0, vx: 0, vy: 0, vz: 0, mean: 0 };
   const tangents = (i, j, s) => {
     const i0 = Math.max(0, i - s), i1 = Math.min(n - 1, i + s), j0 = Math.max(0, j - s), j1 = Math.min(n - 1, j + s);
     const a = j * n + i0, b = j * n + i1, c = j0 * n + i, d = j1 * n + i;
-    return { u: [px[b] - px[a], py[b] - py[a], pz[b] - pz[a]], v: [px[d] - px[c], py[d] - py[c], pz[d] - pz[c]], mean: (py[a] + py[b] + py[c] + py[d]) / 4 };
+    tangent.ux = px[b] - px[a]; tangent.uy = py[b] - py[a]; tangent.uz = pz[b] - pz[a];
+    tangent.vx = px[d] - px[c]; tangent.vy = py[d] - py[c]; tangent.vz = pz[d] - pz[c];
+    tangent.mean = (py[a] + py[b] + py[c] + py[d]) / 4;
+    return tangent;
   };
   // Cavity term from the height grid at several scales: creases darken, crests stay bright.
-  const ao = new Float32Array(n * n);
+  let ao = new Float32Array(n * n);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const k = j * n + i;
     let cavity = 0;
     for (const s of [1, 3, 7]) {
-      const { u, v, mean } = tangents(i, j, s);
-      const span = Math.max(.05, (Math.hypot(u[0], u[2]) + Math.hypot(v[0], v[2])) / 4);
+      const { ux, uz, vx, vz, mean } = tangents(i, j, s);
+      const span = Math.max(.05, (Math.hypot(ux, uz) + Math.hypot(vx, vz)) / 4);
       cavity += clamp((mean - py[k]) / span, -1, 1) / s ** .35;
     }
     ao[k] = clamp(1 - cavity * .55, .5, 1.12);
   }
   // Materials follow a smoothed slope so snowfields and rock bands read as areas, not speckles.
-  const smooth = new Float32Array(n * n * 3);
+  let smooth = new Float32Array(n * n * 3);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-    const { u, v } = tangents(i, j, 2);
-    let nx = v[1] * u[2] - v[2] * u[1], ny = v[2] * u[0] - v[0] * u[2], nz = v[0] * u[1] - v[1] * u[0];
-    const l = (ny < 0 ? -1 : 1) * (Math.hypot(nx, ny, nz) || 1);
-    smooth.set([nx / l, ny / l, nz / l], (j * n + i) * 3);
+    const { ux, uy, uz, vx, vy, vz } = tangents(i, j, 2);
+    const nx = vy * uz - vz * uy, ny = vz * ux - vx * uz, nz = vx * uy - vy * ux;
+    const l = (ny < 0 ? -1 : 1) * (Math.hypot(nx, ny, nz) || 1), k = (j * n + i) * 3;
+    smooth[k] = nx / l; smooth[k + 1] = ny / l; smooth[k + 2] = nz / l;
   }
+  // Vertices next to a crest or a peak step onto it (refine.js), so arêtes and peaks keep their edge. Occlusion,
+  // the smoothed normals above and the facet colours below come from the regular grid as it was before, so snowfields
+  // and rock bands stay where they were and the finer geometry shows in the light.
+  const N = n * n, ox = px.slice(), oy = py.slice(), oz = pz.slice();
+  snapToCrests(terrain, { n, px, py, pz }, quality.refine.snap);
+  // Extra vertices where the cells' facets miss the surface or the cells are coarse near the cameras (refine.js);
+  // from here on the vertex arrays include them.
+  const plan = refineGrid(terrain, { n, px, py, pz, ao, smooth }, quality.refine);
+  ({ px, py, pz, ao, smooth } = plan);
   // Far out a facet is several units across, and one colour per facet turns the snow line into teeth.
   // There each vertex gets its own colour and the GPU blends them across the facet.
   const far = new Float32Array(n * n * 3).fill(-1);
@@ -341,40 +365,59 @@ export function buildTerrainMesh(terrain, quality, seed = 3) {
     if (far[k * 3] < 0) far.set(surfaceColor(px[k], py[k], pz[k], smooth[k * 3], smooth[k * 3 + 1], smooth[k * 3 + 2], (Math.imul(k, 2654435761) >>> 0) / 4294967296), k * 3);
     return far.subarray(k * 3, k * 3 + 3);
   };
-  const triangles = (n - 1) * (n - 1) * 2;
+  let triangles = 0;
+  for (let c = 0; c < (n - 1) * (n - 1); c++) triangles += facetCount(c, n, plan);
   const positions = new Float32Array(triangles * 9), colors = new Uint8Array(triangles * 12);
   let t = 0;
-  const face = (a, b, c) => {
-    const ax = px[a], ay = py[a], az = pz[a], bx = px[b], by = py[b], bz = pz[b], cx = px[c], cy = py[c], cz = pz[c];
+  // Written straight into the typed arrays: this runs for every facet, and temporary arrays here cost more than the maths.
+  const corner = (v, own, occlusion) => {
+    colors[v] = toByte(own[0]); colors[v + 1] = toByte(own[1]); colors[v + 2] = toByte(own[2]); colors[v + 3] = occlusion;
+  };
+  // The colour of a facet of the regular grid (vertex indices below N), at the vertices' places before snapping.
+  const tint = (a, b, c, jitter) => {
+    const ax = ox[a], ay = oy[a], az = oz[a], bx = ox[b], by = oy[b], bz = oz[b], cx = ox[c], cy = oy[c], cz = oz[c];
     const ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
     let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
     const length = Math.hypot(nx, ny, nz) || 1;
     if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
     nx /= length; ny /= length; nz /= length;
     const mx = (ax + bx + cx) / 3, my = (ay + by + cy) / 3, mz = (az + bz + cz) / 3;
-    const sm = i => (smooth[a * 3 + i] + smooth[b * 3 + i] + smooth[c * 3 + i]) / 3;
-    const color = surfaceColor(mx, my, mz, lerp(sm(0), nx, .25), lerp(sm(1), ny, .25), lerp(sm(2), nz, .25), next());
-    const occlusion = (ao[a] + ao[b] + ao[c]) / 3;
-    positions.set([ax, ay, az, bx, by, bz, cx, cy, cz], t * 9);
+    const sx = (smooth[a * 3] + smooth[b * 3] + smooth[c * 3]) / 3, sy = (smooth[a * 3 + 1] + smooth[b * 3 + 1] + smooth[c * 3 + 1]) / 3, sz = (smooth[a * 3 + 2] + smooth[b * 3 + 2] + smooth[c * 3 + 2]) / 3;
+    return surfaceColor(mx, my, mz, lerp(sx, nx, .25), lerp(sy, ny, .25), lerp(sz, nz, .25), jitter);
+  };
+  // A split cell's small facets take the colour of whichever of the cell's two plain facets they lie in, each with its
+  // own touch of brightness, so splitting adds light and shade but no new speckles of snow.
+  let cell = -1, cached = -1, halves = null;
+  const inherited = (x, z, jitter) => {
+    const i = cell % (n - 1), j = (cell - i) / (n - 1), a = j * n + i, b = a + 1, d0 = a + n, d = d0 + 1;
+    if (cached !== cell) { cached = cell; halves = [tint(a, d0, b, .5), tint(b, d0, d, .5)]; }
+    const side = (ox[d0] - ox[b]) * (z - oz[b]) - (oz[d0] - oz[b]) * (x - ox[b]), sideOfA = (ox[d0] - ox[b]) * (oz[a] - oz[b]) - (oz[d0] - oz[b]) * (ox[a] - ox[b]);
+    const half = halves[(side > 0) === (sideOfA > 0) ? 0 : 1], v = .9 + jitter * .2;
+    return [half[0] * v, half[1] * v, half[2] * v];
+  };
+  const face = (a, b, c) => {
+    const ax = px[a], ay = py[a], az = pz[a], bx = px[b], by = py[b], bz = pz[b], cx = px[c], cy = py[c], cz = pz[c];
+    const mx = (ax + bx + cx) / 3, mz = (az + bz + cz) / 3;
+    const color = a < N && b < N && c < N ? tint(a, b, c, next()) : inherited(mx, mz, next());
+    const occlusion = Math.round((ao[a] + ao[b] + ao[c]) / 3 / 1.12 * 255);
+    const o = t * 9;
+    positions[o] = ax; positions[o + 1] = ay; positions[o + 2] = az; positions[o + 3] = bx; positions[o + 4] = by; positions[o + 5] = bz;
+    positions[o + 6] = cx; positions[o + 7] = cy; positions[o + 8] = cz;
     const blend = mx * mx + mz * mz > 70 * 70;
-    [a, b, c].forEach((k, v) => {
-      const own = blend ? vertexColor(k) : color;
-      colors.set([toByte(own[0]), toByte(own[1]), toByte(own[2]), Math.round(occlusion / 1.12 * 255)], t * 12 + v * 4);
-    });
+    corner(t * 12, blend ? vertexColor(a) : color, occlusion);
+    corner(t * 12 + 4, blend ? vertexColor(b) : color, occlusion);
+    corner(t * 12 + 8, blend ? vertexColor(c) : color, occlusion);
     t++;
   };
-  for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
-    const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
-    if (next() < .5) { face(a, c, b); face(b, c, d); } else { face(a, c, d); face(a, d, b); }
-  }
+  for (cell = 0; cell < (n - 1) * (n - 1); cell++) cellFacets(cell, n, plan, next, face);
   return { positions, colors, count: triangles * 3, grid: { n, px, py, pz } };
 }
 const toByte = v => Math.round(clamp(Math.sqrt(v), 0, 1) * 255);
 
 // Shared by the ground colours and the tree scatter so forests sit on forest floor.
 const MOTTLE = noise2(23), PATCHES = noise2(24);
-const treeLineAt = (x, z) => 2.5 + fbm(MOTTLE, x * .22, z * .22, 3) * .7;
-const forestAt = (x, z) => smoothstep(-.1, .25, fbm(PATCHES, x * .16, z * .16, 3));
+export const treeLineAt = (x, z) => 2.5 + fbm(MOTTLE, x * .22, z * .22, 3) * .7;
+export const forestAt = (x, z) => smoothstep(-.1, .25, fbm(PATCHES, x * .16, z * .16, 3));
 
 function surfaceColor(x, y, z, nx, ny, nz, jitter) {
   const m = fbm(MOTTLE, x * .22, z * .22, 3), local = MOTTLE(x * 1.9 + 40, z * 1.9), drift = MOTTLE(x * .6 - 13, z * .6);
@@ -415,6 +458,7 @@ export function scatterTrees(terrain, camps, quality, surface, seed = 9) {
     if (y > treeLine - .15 || y < .05 || terrain.slope(x, z) > .6) continue;
     if (next() > forestAt(x, z) ** 1.5 * .95 + .012) continue;
     if (camps.some(camp => Math.hypot(camp.x - x, camp.z - z) < 1.1)) continue;
+    if (terrain.water.wet(x, z, .35)) continue;
     const size = .17 + next() * .17 + (1 - smoothstep(0, treeLine, y)) * .06;
     out.push(x, surface(x, z) - .02, z, size, next() * TAU, next());
   }
@@ -444,9 +488,9 @@ export function scatterClouds(terrain, quality, seed = 17) {
 // Camps sit on the drawn surface; the summit flag goes on the highest point the mesh actually has,
 // which can be a little off the analytic summit.
 export function snapCamps(camps, mesh, surface) {
-  const { n, px, py, pz } = mesh.grid, summit = camps.at(-1);
+  const { px, py, pz } = mesh.grid, summit = camps.at(-1);
   let best = -1;
-  for (let k = 0; k < n * n; k++) if (Math.hypot(px[k] - summit.x, pz[k] - summit.z) < 2 && (best < 0 || py[k] > py[best])) best = k;
+  for (let k = 0; k < px.length; k++) if (Math.hypot(px[k] - summit.x, pz[k] - summit.z) < 2 && (best < 0 || py[k] > py[best])) best = k;
   if (best >= 0) Object.assign(summit, { x: px[best], y: py[best], z: pz[best], r: Math.hypot(px[best], pz[best]) });
   for (const camp of camps) if (!camp.summit) camp.y = surface(camp.x, camp.z);
 }
