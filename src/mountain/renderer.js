@@ -1,5 +1,6 @@
 import { program, precompile, vertexArray, texture, framebuffer, renderbuffer } from './gl.js';
 import * as shaders from './shaders.js';
+import { detailShapes } from './detail.js';
 import { orthographic, lookAt, multiply, add, scale, dot, TAU } from './math.js';
 
 // A low-poly pine: a short trunk under three stacked six-sided cones. aPart is 0 for bark, 1 for needles.
@@ -54,6 +55,14 @@ export function createRenderer(gl, scene, quality) {
     extra.set(scene.trees.subarray(i * 6 + 4, i * 6 + 6), i * 2);
   }
   const trees = vertexArray(gl, [{ data: tree.positions, size: 3 }, { data: tree.parts, size: 1 }, { data: placement, size: 4, divisor: 1 }, { data: extra, size: 2, divisor: 1 }]);
+  // Spruces, broadleaves, shrubs and boulders (detail.js), each kind instanced like the pines and drawn with them.
+  const shapes = detailShapes();
+  const details = Object.entries(scene.detail || {}).filter(([kind, list]) => shapes[kind] && list.length).map(([kind, list]) => {
+    const shape = shapes[kind], count = list.length / 6, place = new Float32Array(count * 4), more = new Float32Array(count * 2);
+    for (let i = 0; i < count; i++) { place.set(list.subarray(i * 6, i * 6 + 4), i * 4); more.set(list.subarray(i * 6 + 4, i * 6 + 6), i * 2); }
+    return { shape, count, array: vertexArray(gl, [{ data: shape.positions, size: 3 }, { data: shape.parts, size: 1 }, { data: place, size: 4, divisor: 1 }, { data: more, size: 2, divisor: 1 }]) };
+  });
+  const drawDetails = () => { for (const kind of details) { gl.bindVertexArray(kind.array.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, kind.shape.count, kind.count); } };
   const trail = vertexArray(gl, [{ data: new Float32Array(scene.trail.flat()), size: 4, divisor: 1 }]);
   // One glow per camp, one for the climber, then the props' own lights (fire, lamps).
   const lights = scene.props.lights, lightCount = lights.length / 8;
@@ -95,6 +104,7 @@ export function createRenderer(gl, scene, quality) {
     programs.treeDepth.use().set({ uLightViewProj: lightMatrix });
     gl.bindVertexArray(trees.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, tree.count, treeCount);
+    drawDetails();
     gl.disable(gl.POLYGON_OFFSET_FILL);
     shadowKey = keyDir.slice();
   }
@@ -165,6 +175,7 @@ export function createRenderer(gl, scene, quality) {
     programs.trees.use().set(common);
     gl.bindVertexArray(trees.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, tree.count, treeCount);
+    drawDetails();
 
     // Soft particles read the opaque depth, which needs a single-sample copy when rendering with MSAA.
     let soft = 0, depth = dummyDepth;

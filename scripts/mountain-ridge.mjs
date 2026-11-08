@@ -2,14 +2,17 @@
 // the loading line can be drawn exactly where the ridge will appear. Coordinates are clip space at aspect 1 with y
 // pointing down: x spans ±aspect across the window and y spans ±1 down its height, so an SVG with this viewBox and
 // preserveAspectRatio="xMidYMid slice" lands on the canvas pixel for pixel.
-import { createTerrain } from '../src/mountain/terrain.js';
+import { createTerrain, placeCamps } from '../src/mountain/terrain.js';
 import { perspective, lookAt, multiply, transform } from '../src/mountain/math.js';
 import { eyeOf, idlePose, clampToGround } from '../src/mountain/camera.js';
 
 // fovDegrees: the page's vertical field of view (camera.js FOV); halfWidth: how far across, in units of the window's
-// height, the line runs either side of the centre (a screen's half-aspect at most).
-export function traceRidge(fovDegrees, halfWidth, columns = Math.round(170 * halfWidth)) {
+// height, the line runs either side of the centre (a screen's half-aspect at most); camps: how many camps the page has.
+// Each camp levels a small ledge into the slope, and one sits just below the summit, so the line traces the terrain
+// with those ledges, as the page draws it.
+export function traceRidge(fovDegrees, halfWidth, camps = 0, columns = Math.round(170 * halfWidth)) {
   const terrain = createTerrain();
+  if (camps) placeCamps(terrain, camps);
   const pose = idlePose(0);
   const eye = clampToGround(eyeOf(pose), terrain);
   const viewProj = multiply(perspective(fovDegrees * Math.PI / 180, 1, .05, 600), lookAt(eye, pose.target));
@@ -50,8 +53,8 @@ function simplify(points, tolerance) {
 
 // The ridge split at its summit into two strokes that start at the window's edges, so the line can climb from both
 // sides and meet at the top. Returns SVG path data and the summit.
-export function ridgePaths(fovDegrees, halfWidth) {
-  const points = traceRidge(fovDegrees, halfWidth);
+export function ridgePaths(fovDegrees, halfWidth, camps = 0) {
+  const points = traceRidge(fovDegrees, halfWidth, camps);
   let summit = 0;
   points.forEach((point, i) => { if (point[1] < points[summit][1]) summit = i; });
   const path = list => 'M' + list.map(([x, y]) => x.toFixed(3) + ' ' + y.toFixed(3)).join('L');
