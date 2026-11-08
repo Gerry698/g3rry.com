@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   {{CSP}}
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="theme-color" content="#0a1130">
+  <meta name="theme-color" content="#000000">
   <title>{{TITLE}}</title>
   <meta name="description" content="{{DESCRIPTION}}">
   <link rel="canonical" href="{{CANONICAL}}">
@@ -21,11 +21,24 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="{{STYLES}}">
+  <script src="{{VEIL}}"></script>
   {{PRELOADS}}
 </head>
 <body class="mountain-page">
   <a class="mountain-skip" href="#mountain-route">Skip to the camps</a>
-  <canvas class="mountain-canvas" id="mountain-canvas" aria-hidden="true"></canvas>
+  <div class="mountain-stage" aria-hidden="true">
+    <canvas class="mountain-canvas" id="mountain-canvas"></canvas>
+    <div class="mountain-loader" id="mountain-loader">
+      <svg viewBox="-4 -1 8 2" preserveAspectRatio="xMidYMid slice" focusable="false">
+        <defs><radialGradient id="ridge-halo-glow"><stop offset="0" stop-color="#ffcf7d" stop-opacity=".9"/><stop offset=".35" stop-color="#ffcf7d" stop-opacity=".28"/><stop offset="1" stop-color="#ffcf7d" stop-opacity="0"/></radialGradient></defs>
+        {{RIDGE_BASE}}
+      </svg>
+      <svg class="ridge-lines" viewBox="-4 -1 8 2" preserveAspectRatio="xMidYMid slice" focusable="false">
+        <defs><linearGradient id="ridge-glow" gradientUnits="userSpaceOnUse" x1="0" y1="-.62" x2="0" y2=".2"><stop offset="0" stop-color="#ffcf7d"/><stop offset=".4" stop-color="#f7f3ec" stop-opacity=".9"/><stop offset="1" stop-color="#f7f3ec" stop-opacity=".5"/></linearGradient></defs>
+        {{RIDGE_LINE}}
+      </svg>
+    </div>
+  </div>
   <header class="mountain-top">
     <a class="mountain-mark" href="/">{{NAME}}<span aria-hidden="true">.</span></a>
     <p class="mountain-meter" aria-hidden="true"><span>Alt</span> <b id="mountain-altitude">—</b> <span>m</span></p>
@@ -35,7 +48,7 @@
       <p class="mountain-kicker">{{INTRO_KICKER}}</p>
       <h1 id="mountain-title">{{INTRO_TITLE}}</h1>
       <p class="mountain-lede">{{INTRO_DESCRIPTION}}</p>
-      <button class="mountain-begin" id="mountain-begin" type="button" hidden>{{INTRO_HINT}} <span aria-hidden="true">↓</span></button>
+      <button class="mountain-begin" id="mountain-begin" type="button">{{INTRO_HINT}} <span aria-hidden="true">↓</span></button>
     </section>
     <section class="mountain-card" id="mountain-card" aria-live="polite" hidden>
       <p class="mountain-kicker" id="mountain-card-kicker"></p>

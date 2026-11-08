@@ -1,4 +1,4 @@
-import { program, vertexArray, texture, framebuffer, renderbuffer } from './gl.js';
+import { program, precompile, vertexArray, texture, framebuffer, renderbuffer } from './gl.js';
 import * as shaders from './shaders.js';
 import { orthographic, lookAt, multiply, add, scale, dot, TAU } from './math.js';
 
@@ -27,28 +27,22 @@ function treeGeometry() {
 const LANTERN = [1, .6, .26];
 const NEAR = .05, FAR = 600;
 
+// Every program the renderer draws with, as [vertex shader, fragment shader] names in shaders.js.
+const PROGRAMS = {
+  terrain: ['terrainVertex', 'terrainFragment'], trees: ['treeVertex', 'treeFragment'], props: ['propVertex', 'propFragment'],
+  terrainDepth: ['terrainDepthVertex', 'depthFragment'], treeDepth: ['treeDepthVertex', 'depthFragment'], sky: ['fullscreenVertex', 'skyFragment'],
+  trail: ['trailVertex', 'trailFragment'], glow: ['glowVertex', 'glowFragment'], pillar: ['pillarVertex', 'pillarFragment'],
+  cloud: ['cloudVertex', 'cloudFragment'], snow: ['snowVertex', 'snowFragment'], spark: ['sparkVertex', 'sparkFragment'],
+  down: ['fullscreenVertex', 'downsampleFragment'], up: ['fullscreenVertex', 'upsampleFragment'], composite: ['fullscreenVertex', 'compositeFragment']
+};
+// Starts compiling them before the scene exists; createRenderer() then picks them up finished.
+export const warmUp = gl => precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [shaders[vertex], shaders[fragment]]));
+
 export function createRenderer(gl, scene, quality) {
   const float = Boolean(gl.getExtension('EXT_color_buffer_float'));
   const colorFormat = float ? gl.RGBA16F : gl.RGBA8, colorType = float ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
   const samples = Math.min(quality.samples, gl.getParameter(gl.MAX_SAMPLES));
-  const build = (name, vertex, fragment) => program(gl, shaders[vertex], shaders[fragment], name);
-  const programs = {
-    terrain: build('terrain', 'terrainVertex', 'terrainFragment'),
-    trees: build('trees', 'treeVertex', 'treeFragment'),
-    props: build('props', 'propVertex', 'propFragment'),
-    terrainDepth: build('terrain depth', 'terrainDepthVertex', 'depthFragment'),
-    treeDepth: build('tree depth', 'treeDepthVertex', 'depthFragment'),
-    sky: build('sky', 'fullscreenVertex', 'skyFragment'),
-    trail: build('trail', 'trailVertex', 'trailFragment'),
-    glow: build('glow', 'glowVertex', 'glowFragment'),
-    pillar: build('pillar', 'pillarVertex', 'pillarFragment'),
-    cloud: build('clouds', 'cloudVertex', 'cloudFragment'),
-    snow: build('snow', 'snowVertex', 'snowFragment'),
-    spark: build('spark', 'sparkVertex', 'sparkFragment'),
-    down: build('bloom down', 'fullscreenVertex', 'downsampleFragment'),
-    up: build('bloom up', 'fullscreenVertex', 'upsampleFragment'),
-    composite: build('composite', 'fullscreenVertex', 'compositeFragment')
-  };
+  const programs = Object.fromEntries(Object.entries(PROGRAMS).map(([name, [vertex, fragment]]) => [name, program(gl, shaders[vertex], shaders[fragment], name)]));
 
   const terrain = vertexArray(gl, [{ data: scene.mesh.positions, size: 3 }, { data: scene.mesh.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }]);
   const props = vertexArray(gl, [{ data: scene.props.positions, size: 3 }, { data: scene.props.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }, { data: scene.props.flags, size: 4 }]);
@@ -280,8 +274,40 @@ export function createRenderer(gl, scene, quality) {
     programs.composite.use().set({ uScene: targets.color, uBloom: bloomTexture, uBloomStrength: targets.bloom.length ? .14 : 0, uExposure: p.exposure, uSaturation: p.saturation, uTint: p.tint, uTime: frame.time, uFade: frame.fade,
       uFxaa: targets.multisampled ? 0 : 1, uTexel: [1 / targets.width, 1 / targets.height] });
     fullscreen();
+    sampleEdge(frame.canvasWidth, frame.canvasHeight);
   }
   const fullscreen6 = () => { gl.bindVertexArray(empty); gl.drawArrays(gl.TRIANGLES, 0, 6); };
 
-  return { resize, render, setSparkShape, float, samples, near: NEAR, far: FAR };
+  // The colour along the top edge of the finished frame, read back without stalling: the top row is copied into a
+  // buffer in one go and collected a few frames later, once a fence says the GPU is done with it.
+  const probe = { buffer: gl.createBuffer(), data: null, sync: null, wait: 0, color: null };
+  function sampleEdge(width, height) {
+    if (probe.sync) {
+      if (gl.getSyncParameter(probe.sync, gl.SYNC_STATUS) !== gl.SIGNALED) return;
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, probe.buffer);
+      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, probe.data);
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      gl.deleteSync(probe.sync);
+      probe.sync = null;
+      // Four points along the row, the middle two per channel, so a star on the edge does not flicker the colour.
+      const row = probe.data, columns = row.length / 4;
+      probe.color = [0, 1, 2].map(c => {
+        const v = [.2, .4, .6, .8].map(x => row[Math.floor(columns * x) * 4 + c]).sort((a, b) => a - b);
+        return Math.round((v[1] + v[2]) / 2);
+      });
+      probe.wait = 20;
+      return;
+    }
+    if (probe.wait-- > 0) return;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, probe.buffer);
+    if (!probe.data || probe.data.length !== width * 4) {
+      probe.data = new Uint8Array(width * 4);
+      gl.bufferData(gl.PIXEL_PACK_BUFFER, probe.data.length, gl.STREAM_COPY);
+    }
+    gl.readPixels(0, height - 1, width, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    probe.sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+  }
+
+  return { resize, render, setSparkShape, edgeColor: () => probe.color, float, samples, near: NEAR, far: FAR };
 }

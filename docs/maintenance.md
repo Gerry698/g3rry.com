@@ -4,25 +4,26 @@
 
 | 目标 | 文件 |
 | --- | --- |
-| 首页文案、粒子图案、站点信息 | `content/site.json` |
+| 站点信息、粒子图案、旧首页文案 | `content/site.json` |
 | 照片顺序、描述、精选 | `content/photos.json`（优先用 `npm run photos`） |
 | 共用页面结构、导航、页脚 | `src/layout.html` |
-| 首页、摄影页结构 | `src/index.html`、`src/photos.html` |
+| 旧首页（`/legacy/`）、摄影页结构 | `src/index.html`、`src/photos.html` |
 | 外观与响应式布局 | `src/styles.css` |
 | 粒子效果 / 画廊交互 | `src/particles.js` / `src/gallery.js` |
-| 山形目录页 | `content/mountain.json`、`src/mountain/`（见下文"山"） |
+| 首页（雪山） | `content/mountain.json`、`src/mountain/`（见下文"山"） |
 | 留言板页面、文案 | `src/guestbook.html`、`src/guestbook.js`、`content/site.json` 的 `guestbook` |
 | 留言板后端与后台 | `guestbook/`，见[留言板手册](guestbook.md) |
+| 页面转场（进出页的黑场） | `src/veil.js`、`src/veil.css`（见下文"转场与刘海屏"） |
 | 构建与检查 | `scripts/build.mjs`、`scripts/check.mjs` |
 
 页面带有 Content-Security-Policy（由 `scripts/build.mjs` 的 `policy()` 生成，写进 `src/layout.html` 的 meta）：只允许本站资源和 Cloudflare Web Analytics，留言页额外放行 Turnstile。引入任何外部脚本、字体或图片前，先在那里放行，否则浏览器会拦截。
 
-`site.json` 里 `hero.photoId` 指定首屏照片，`phantom.shapes` 的第一项是默认图案。图片 `sizes` 定义在 `build.mjs` 顶部的 `sizes` 对象里，修改 `styles.css` 的网格列数或断点时同步更新它。
+首页是雪山（见下文"山"）。原来的首页（首屏照片、精选、粒子小实验）保留在 `/legacy/`：`noindex`、不进 sitemap、站内没有任何链接，`check.mjs` 会检查这三点；它的文案仍在 `site.json` 的 `hero`、`photography.featuredTitle` 和 `phantom`。`site.json` 里 `hero.photoId` 指定那张首屏照片（也是普通页面的分享图），`phantom.shapes` 的第一项是默认图案。图片 `sizes` 定义在 `build.mjs` 顶部的 `sizes` 对象里，修改 `styles.css` 的网格列数或断点时同步更新它。
 
 ## 照片
 
 - 数组顺序就是画廊顺序；`move` 不改 ID。每张照片有自己的页面 `/photos/<id>/`（见下文 Phantom）；旧的单张链接 `/photos/#photo-p16` 仍在画廊里打开快速预览，预览里有到照片页的入口。
-- `featured: true` 的照片进首页精选，至少保留一张。
+- `featured: true` 的照片进雪山 Photography 营地的三张小图和旧首页精选，至少保留一张。
 - `add` 生成网页母版（长边 ≤ 3200px，无元数据），不保存相机原片。所有修改命令都支持 `--dry-run`。
 - 工具运行时持有 `.cache/photos.lock`；进程异常退出后，确认没有照片命令在跑再删掉它。
 - 构建用 `sharp` 生成 320–1920 共六档宽度的 AVIF 和 WebP，外加一份 1920 宽 JPEG（无 JS 时的链接和"Open image"目标）。编码结果缓存在 `.cache/images`，CI 也会复用。
@@ -32,16 +33,25 @@
 
 素材放 `image/`（PNG 或 JPG，亮且不透明的区域会变成粒子），在 `site.json` 的 `phantom.shapes` 中登记。构建时会缩到 900px 以内并压缩，原图不必预先处理。
 
-## 山（/mountain/）
+## 山（首页 /）
 
-一个用 WebGL2 画的雪山目录页（目标是以后当主页）：打开时镜头绕山缓慢旋转，滚轮、点击、方向键或手机上下滑动，镜头沿螺旋小径一站一站爬到峰顶，时辰随海拔从拂晓走到星夜。主导航里的 "The Ascent" 指向它，也在 sitemap 里；分享链接时的预览图是 `src/mountain/social.jpg`（1200×630，用 `?debug&clean` 渲染截取），山形或配色大改后重截一张。
+首页是一个用 WebGL2 画的雪山目录页：打开时镜头绕山缓慢旋转，滚轮、点击、方向键或手机上下滑动，镜头沿螺旋小径一站一站爬到峰顶，时辰随海拔从拂晓走到星夜。它以前在 `/mountain/`，那个地址现在是一张转向页（`noindex`，用一小段脚本带上 `#营地` 跳到 `/#营地`，没有脚本时 meta refresh 到首页）。其他页面的主导航是 Home、Photography、The Phantom、Guestbook；分享链接时的预览图是 `src/mountain/social.jpg`（1200×630，用 `?debug&clean` 渲染截取），山形或配色大改后重截一张。
 
 - 文案和营地在 `content/mountain.json`：`intro` 是标题屏，`camps` 按山脚到峰顶排列（3–9 个，最后一个是峰顶）。每个营地有 `id`（也是 `#id` 深链接）、`title`、`description`，可选 `kicker`、`href`（站内路径或 `https://*.g3rry.com/`，缺省时显示 "Trail under construction"）、`time`（`dawn` / `morning` / `noon` / `golden` / `dusk` / `night`）、`model`（营地的主题模型，见下）。
 - 主题模型（`props.js`）：`trailhead` 路标、背包和篝火；`photography` 三脚架相机和一排晾着的照片，颜色取自精选照片里最鲜艳的色调（构建时算）；`phantom` 一圈立石，上方的光点平时散着飘，到站时聚成 `site.json` 第一个 Phantom 图案（构建时从 `image/` 取点），鼠标划过会被冲散；`mailboxes` 一排信箱和一盏灯；`summit` 峰顶旗、发光的登顶簿和一串三角旗，旗数等于留言板已公开的留言数（运行时读 `/api/guestbook`，最多 12 面）。峰顶卡片同时显示最新一条留言，Photography 卡片显示三张精选照片。
 - 代码在 `src/mountain/`，原生 ES module，无运行时依赖：`terrain.js` 生成山体、营地位置、小径、树和云；`camera.js` 定每站机位和转场；`renderer.js` + `shaders.js` 负责渲染（阴影、雾、天空、云、泛光）；`palettes.js` 是各时辰配色；`props.js` 是帐篷、旗和各营地的主题模型；`scene.js` 把这些组装起来，`worker.js` 在后台线程里跑它（不支持模块 Worker 时退回主线程）；`main.js` 管交互和状态。没有多重采样的低画质档（手机）在合成时做 FXAA 抗锯齿。不支持 WebGL2 时页面显示营地列表，背后铺分享图。
 - 构建把整个目录连同两款 OFL 字体（`@fontsource` 的 Cormorant Garamond、JetBrains Mono 拉丁子集）按内容哈希发布到 `/assets/mountain-<hash>/`，所以模块之间的相对 import 不用改。
 - 山的形状是确定的：同一份代码每次生成同一座山。改 `terrain.js` 里的 `PEAKS` 和噪声参数会整体改变山形和营地位置；远景里那几座独立的远山在 `FAR_PEAKS`。小径是在山体网格上按坡度寻路得出的，陡处自动走之字形，营地之间改了位置会自己重新找路。
+- 加载：页面一出现就是黑底，中间一条细线从屏幕两侧向峰顶爬，画的正是开场镜头里山的天际线（主峰加远山；`scripts/mountain-ridge.mjs` 在构建时按 `camera.js` 的 `FOV` 和待机机位描出，竖屏、横屏各一条，结果和图片编码一起缓存在 `.cache/images`）。线的进度跟着真实步骤走：模块就绪、Worker 建好场景、着色器编译完（驱动支持 `KHR_parallel_shader_compile` 时和场景构建并行）、第一帧画出；两步之间缓慢前移，不会停住。右上角高度表同步从 0 数到开场高度。加载再快，最后一段也用 0.6–1.2 秒画完，不会一下跳满。画到峰顶时峰顶亮起一盏灯，在此之前画面保持全黑、开场镜头停在起点；随后山在这条线下浮现（1.6 s），线停留 0.7 s 后淡出，镜头的环绕从静止用 2.5 s 加速到正常，所以淡出时线和山脊始终对得上。加载期间页面不会跳动：文字一开始就在最终位置（"Scroll or click to climb" 按钮先占位、上线后淡入），两款字体用 `font-display: block` 且已预载，不会先显示较宽的后备字体再换掉；带 `#营地` 打开时加载期间不显示首页文字。改了山形、机位或视场角，构建会自动重描。
+- 进入营地页：卡片的 "Enter"、回车、再点一次当前营地，或 Photography 卡片里的小图，都先用营地自己的转场把画面收成全黑再跳转（光圈 / 光点 / 信封 / 帐篷，见下文"转场与刘海屏"）；到站后会预取该营地的页面，黑场通常很短。画面盖满后山停止渲染，把机器让给下一页；按返回键回来时接着动。
 - 调试参数：`?debug` 暴露 `window.mountain`（`station(i)` 跳到第 i 站、`pose()`、`time('dusk')`、`bench()` 测每帧耗时、`hide('bloom')`、`notes(n, note)` 模拟留言板数据、`pointer(x, y)` 模拟指针）；`?clean` 隐藏文字层；`?timer` 用定时器驱动渲染（后台标签页不跑 requestAnimationFrame 时用）；`?quality=low|high`；`?motion=reduce`。
+## 转场与刘海屏
+
+- **转场。** `src/veil.js` 以普通脚本放在每个页面的 `<head>` 里（第一次绘制前就运行，也负责给 `<html>` 加 `js` 类）。山上进入营地时调用 `g3veil.leave({ effect, href, origin })`：画面按效果收成全黑，再跳转，并在 `sessionStorage` 里记下效果；目标页从第一帧起就是黑的（`veil.css` 的 `html.veil-hold`），等页面准备好再用同一个效果打开。普通页面等字体和首图解码；`<html data-veil-wait>` 的页面（实验页、照片页）等引擎发出 `g3:ready`（首帧之后）。各种情况都有上限（1.8 s / 3.5 s），脚本出错时黑场 4 s 后也会自己撤掉。系统开了"减少动态效果"时一律改成短暂淡入淡出。
+- **效果与营地的对应**在 `src/mountain/main.js` 的 `VEILS`：`photography` 七叶光圈（相机），`phantom` 光点从点击处扩散成金点再变黑，`mailboxes` 信封折起、盖上金色火漆（去外站，只有离场），`summit` 和其他营地是帐篷门（离场时拉链从上往下拉上，到站时从地面往上拉开、两片门帘向两边分开）。效果画在一张 2D 画布上，新效果加在 `veil.js` 的 `effects` 里，`time` 是 [离场, 进场] 毫秒。调效果时在控制台用 `g3veil.still('iris', .6)` 定格任意一帧，`g3veil.clear()` 撤掉。
+- **样式。** `veil.css` 由构建追加到每个页面的样式表末尾（`styles.css`、山和实验页的 CSS），不单独请求。
+- **刘海和下巴。** 所有页面都是 `viewport-fit=cover`，文字和按钮用 `env(safe-area-inset-*)` 避开刘海、圆角和底部横条。手机 Safari（iOS 26 起）遇到贴着屏幕边缘的 `position: fixed` 元素，会在状态栏和工具栏下面填一条纯色，这就是上下两条"不可用边框"的来源。所以山的画布不再是 fixed：它放在一个不滚动的页面里、高 `100lvh`，浏览器就把山画到状态栏和工具栏下面。浏览器自己必须填色的地方（状态栏、Android 的 `theme-color`、回弹区）跟着画面顶边的天色走：渲染器每隔一段时间把顶边四个像素异步读回（`renderer.js` 的 `sampleEdge`，不阻塞 GPU），`main.js` 写进 `--tint` 和 `theme-color`。实验页的画布仍是 fixed，但它的底色和页面同为 `#06080b`，填色看不出来。真机效果只能在手机上确认，桌面浏览器的模拟器没有刘海。
+
 ## Phantom 实验页（/phantom/）与照片页（/photos/<id>/）
 
 两种页面共用一套引擎 `src/phantom/`（原生 WebGL2，无依赖；构建时整个目录按内容取哈希输出到 `assets/phantom-<hash>/`），文案与参数在 `content/phantom.json`。引擎按页面里有哪些 `data-chapter` 段落装配章节，每页的 `lab-config` 只带本页要显示的内容。
@@ -52,7 +62,7 @@
 
 | 章节 | 内容 | 数据 |
 | --- | --- | --- |
-| Ignite | 首页图案的 GPU 粒子版，指针力场、点击冲击波、长曝光快门 | `site.json` 的 `phantom.shapes` |
+| Ignite | 旧首页粒子小实验的 GPU 版，指针力场、点击冲击波、长曝光快门 | `site.json` 的 `phantom.shapes` |
 | Sculpt | 图案挤出成浮雕，物理相机（焦距、光圈、薄透镜景深、九叶光斑）| 同上 |
 | Develop | 每张照片单独的度量深度模型还原成点云；景深按原片的光圈和对焦距离；等亮线 / 等深线（以米计）模式 | `content/phantom/scenes.json`、`content/phantom/scenes/<id>.bin` |
 | Atlas | 地球 → 各地 LiDAR 点云，按拍摄那一刻的太阳打光 → 在拍摄位置把照片投回场景，再收拢成照片自己的深度点云 | `content/phantom/atlas/` |
