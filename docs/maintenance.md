@@ -11,6 +11,7 @@
 | 外观与响应式布局 | `src/styles.css` |
 | 粒子效果 / 画廊交互 | `src/particles.js` / `src/gallery.js` |
 | 山形目录页 | `content/mountain.json`、`src/mountain/`（见下文"山"） |
+| 其他年代 | `content/eras.json`、`scripts/eras/`、`src/eras/`（见下文"其他年代"） |
 | 留言板页面、文案 | `src/guestbook.html`、`src/guestbook.js`、`content/site.json` 的 `guestbook` |
 | 留言板后端与后台 | `guestbook/`，见[留言板手册](guestbook.md) |
 | 构建与检查 | `scripts/build.mjs`、`scripts/check.mjs` |
@@ -128,6 +129,19 @@ node atlas.mjs frames          # 解算各 stop 的相机位置
 - **配套工具：**
   - `tools/phantom-data/resect.mjs`：后方交会，用 LiDAR 里的地标解出机位。
   - `tools/phantom-data/grid.mjs`：带刻度的裁切图，用来读地标和地平线的像素位置。
+
+## 其他年代（/eras/）
+
+同一个站按八个过去的年份各重做一遍：1996、1999、2003、2007、2011、2014、2018、2023，每个版本只用那一年真有的技术，内容来自同一份数据（照片、地点、EXIF、留言板实时读取）。入口是 `/eras/`（全站页脚 "Other years"），它在 sitemap 里；各年份的页面都带 `noindex`。
+
+- 文案在 `content/eras.json`：每年的 `name`、`line`（目录上的一句话）、`colophon`（"How it was built" 的段落），`dial: true` 的年份在目录上有 "Arrive by modem"。年份必须递增，且每年都要有对应的生成模块。
+- 生成：`scripts/eras/index.mjs` 依次调用 `scripts/eras/y<年份>.mjs`，每个模块写自己年份的页面和图片到 `dist/eras/<年份>/`；`src/eras/<年份>/` 里的脚本和样式原样复制（文件名不加哈希，查看源代码本身就是内容的一部分）。照片的派生图走和主站相同的 `.cache/images` 缓存。
+- 早期年份的图都是代码画的：`scripts/eras/pixels.mjs` 是 5×7 点阵字体和 GIF/PNG 输出（标题、88×31 小徽章、施工路障、计数器数字、Phantom 动图）；`scripts/eras/fonts.mjs` 把 @fontsource 的 WOFF 解包成 TTF，供 sharp 渲染 2007 年的光泽 logo（sharp 读不了 WOFF，直接传会静默换成默认字体）。
+- 调制解调器：`src/eras/modem.js` 是作用于 `/eras/` 的 Service Worker，只放慢 1996 和 1999 两年：一条共享的线、最多四个连接、每个响应前 250 ms，速率按"连接速度 ÷ 8 × 0.85"。默认 1996 是 28.8k、1999 是 56K（按 48,000 bps 计）；访客在 `/eras/dialup.html` 或页脚菜单里换速度，设置存在 Cache Storage。拨号音是 `dialup.js` 用 Web Audio 现场合成的。
+- 内容安全策略不变：所有年代都没有内联脚本或内联样式，"当年会写成 onMouseOver 属性"的东西都改成外部脚本挂事件。早期年份的 HTML 用大写标签，`check.mjs` 的正则因此全部不区分大小写。
+- 访客计数器（1996、1999）请求 `/api/counter`，没有这个接口时计数器保持隐藏；接口随解谜游戏的后端一起做。
+- 检查：每年都要有 `index.html`，目录要链接到每一年，年代页都带 `noindex`，年代脚本里不许出现 `innerHTML` 之类把留言文字当 HTML 的写法。
+- 加一个年份：在 `eras.json` 里按顺序加一项，写 `scripts/eras/y<年份>.mjs` 并在 `index.mjs` 的 `builders` 里登记，静态文件放 `src/eras/<年份>/`。各年份页面里的 "Time ring" 会自动接上前后年份。
 
 ## 发布
 

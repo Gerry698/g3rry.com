@@ -23,7 +23,7 @@ async function walk(directory, prefix = '') {
 }
 const files = await walk(dist);
 const exactFiles = new Set(files);
-const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain']);
+const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain', 'eras']);
 for (const file of files) assert(allowedRoots.has(file.split('/')[0]), 'Unexpected published file: ' + file);
 assert.equal(report.photoCount, photos.length, 'Build report must match the current manifest.');
 assert.equal(report.photos.length, photos.length);
@@ -39,11 +39,12 @@ function targetFor(value, from) {
 let checkedLinks = 0;
 for (const [file, html] of htmlByFile) {
   assert(!/\{\{[A-Z_]+\}\}/.test(html), 'Unresolved template in ' + file);
-  assert(/<html lang="[^"]+"/.test(html), 'Missing document language: ' + file);
-  assert(/<title>[^<]+<\/title>/.test(html), 'Missing title: ' + file);
-  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+  assert(/<html lang="[^"]+"/i.test(html), 'Missing document language: ' + file);
+  // Case-insensitive throughout: the pages under /eras/ for the early years are written in upper-case HTML.
+  assert(/<title>[^<]+<\/title>/i.test(html), 'Missing title: ' + file);
+  const ids = [...html.matchAll(/\bid="([^"]+)"/gi)].map(match => match[1]);
   assert.equal(new Set(ids).size, ids.length, 'Duplicate element ID: ' + file);
-  const references = [...html.matchAll(/\b(?:href|src)="([^"]+)"/g)].map(match => match[1]);
+  const references = [...html.matchAll(/\b(?:href|src|background)="([^"]+)"/gi)].map(match => match[1]);
   for (const match of html.matchAll(/\bsrcset="([^"]+)"/g)) references.push(...match[1].split(',').map(candidate => candidate.trim().split(/\s+/)[0]));
   for (const reference of references) {
     const result = targetFor(reference, file);
@@ -54,9 +55,9 @@ for (const [file, html] of htmlByFile) {
     }
     checkedLinks++;
   }
-  for (const match of html.matchAll(/<img\b[^>]*>/g)) {
-    assert(/\balt="[^"]*"/.test(match[0]), 'Image missing alt: ' + file);
-    assert(/\bwidth="\d+"/.test(match[0]) && /\bheight="\d+"/.test(match[0]), 'Image dimensions missing: ' + file);
+  for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
+    assert(/\balt="[^"]*"/i.test(match[0]), 'Image missing alt: ' + file);
+    assert(/\bwidth="\d+"/i.test(match[0]) && /\bheight="\d+"/i.test(match[0]), 'Image dimensions missing: ' + file);
   }
 }
 const home = htmlByFile.get('index.html');
@@ -112,6 +113,22 @@ assert(guestbookScript, 'Guestbook script is missing.');
 assert.doesNotMatch(await readFile(path.join(dist, guestbookScript), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'The guestbook script must not build HTML from strings.');
 // Cloudflare's dummy site keys pass every visitor in the browser and are refused by the production secret.
 if (process.env.CI) assert(!/^[123]x0{20}/.test(siteKey), 'The guestbook still uses a Turnstile testing key.');
+
+// Other years: every year has a home page, its pages stay out of search results, the dial links to each year, and
+// the scripts that show guestbook notes never turn note text into HTML.
+const eraYears = JSON.parse(await readFile(path.join(root, 'content/eras.json'), 'utf8')).eras.map(era => era.year);
+const dial = htmlByFile.get('eras/index.html');
+assert(dial && sitemap.includes(new URL('/eras/', site.url).href) && !dial.includes('noindex'), 'The /eras/ dial is public and in the sitemap.');
+for (const year of eraYears) {
+  assert(htmlByFile.has('eras/' + year + '/index.html'), 'Year without a home page: ' + year);
+  assert(dial.includes('href="/eras/' + year + '/"'), 'The dial does not link to ' + year);
+}
+for (const [file, html] of htmlByFile) {
+  if (file.startsWith('eras/') && file !== 'eras/index.html') assert(/<meta name="robots" content="noindex"/i.test(html), 'Pages of other years are not indexed: ' + file);
+}
+for (const file of files.filter(file => file.startsWith('eras/') && file.endsWith('.js'))) {
+  assert.doesNotMatch(await readFile(path.join(dist, file), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'Era scripts must not build HTML from strings: ' + file);
+}
 
 let derivedBytes = 0;
 for (const photo of photos) {

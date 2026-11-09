@@ -1,0 +1,111 @@
+/* gerry zhao :: style.css
+   fixed 760px layout, two floated columns, sliding-door tabs.
+   tested in IE 6, Mozilla 1.4, Safari 1.0, Opera 7. */
+
+body {
+  margin: 0;
+  padding: 20px 0 30px;
+  background: #3a3a3a url(images/stripes.gif);
+  font: 11px/1.6 Verdana, Tahoma, Arial, sans-serif;
+  color: #444;
+  text-align: center; /* centres the container in IE 5 */
+}
+a { color: #ff6600; text-decoration: none; }
+a:hover { color: #222; text-decoration: underline; }
+img { border: 0; }
+
+#container {
+  width: 760px;
+  margin: 0 auto;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #111;
+}
+#header { background: #222; padding: 18px 20px 6px; }
+#header img { display: block; }
+
+/* sliding doors: the li carries the left edge, the a carries the right, both from tall images */
+#tabs {
+  margin: 0;
+  padding: 8px 20px 0;
+  height: 30px;
+  list-style: none;
+  background: #222;
+  border-bottom: 3px solid #ff6600;
+}
+#tabs li {
+  float: left;
+  margin: 0 3px 0 0;
+  padding: 0 0 0 9px;
+  background: url(images/tab-left.gif) no-repeat left top;
+}
+#tabs a {
+  display: block;
+  padding: 0 16px 0 7px;
+  line-height: 30px;
+  background: url(images/tab-right.gif) no-repeat right top;
+  color: #bbb;
+  font-weight: bold;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: lowercase;
+}
+#tabs a:hover { color: #fff; text-decoration: none; }
+#tabs li.current { background-position: left -30px; }
+#tabs li.current a { background-position: right -30px; color: #fff; }
+
+#content { float: left; width: 480px; padding: 22px 20px 30px; }
+#sidebar { float: right; width: 190px; padding: 22px 20px 30px 0; font-size: 10px; color: #666; }
+#footer { clear: both; padding: 10px 20px; background: #eee; border-top: 1px solid #ddd; font-size: 9px; color: #999; text-transform: lowercase; }
+
+h2 { margin: 0 0 14px; }
+h3.date {
+  margin: 26px 0 8px;
+  padding: 0 0 3px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #999;
+  border-bottom: 1px dotted #ccc;
+}
+h4 { margin: 0 0 8px; font: bold 14px Georgia, "Times New Roman", serif; color: #222; }
+.post { margin-bottom: 18px; }
+.post .photo img { display: block; padding: 4px; border: 1px solid #ddd; background: #fff; }
+.post p { margin: 0 0 8px; }
+.posted { font-size: 9px; color: #999; text-transform: lowercase; }
+
+#sidebar h3 { margin: 18px 0 6px; padding: 0 0 4px; border-bottom: 1px solid #eee; }
+#sidebar h3:first-child { margin-top: 2px; }
+#sidebar h3 img { display: block; }
+#sidebar ul { margin: 0; padding: 0; list-style: none; }
+#sidebar li { padding: 2px 0 2px 10px; background: url(images/bullet.gif) no-repeat 0 7px; }
+#sidebar p { margin: 0 0 6px; }
+.badges img { display: inline; margin: 0 2px 4px 0; vertical-align: top; }
+
+/* gallery */
+#viewer { background: #222; padding: 10px; text-align: center; }
+#frame { height: 400px; line-height: 400px; } /* vertical centring, the old way */
+#frame img { vertical-align: middle; }
+#caption { margin: 8px 0 4px; color: #ccc; font-size: 10px; }
+#caption strong { color: #fff; }
+#controls { margin: 0; font-size: 10px; text-transform: lowercase; }
+#controls a { margin: 0 8px; }
+#filmstrip { margin: 10px 0 0; padding: 0; list-style: none; }
+#filmstrip li { float: left; margin: 0 4px 4px 0; }
+#filmstrip a { display: block; border: 2px solid #ddd; }
+#filmstrip a:hover, #filmstrip a.on { border-color: #ff6600; }
+#filmstrip img { display: block; }
+
+/* comments */
+.comment { margin: 0 0 14px; padding: 0 0 10px; border-bottom: 1px dotted #ccc; }
+.comment p { margin: 0 0 6px; }
+.comment .reply { padding-left: 10px; border-left: 2px solid #ff6600; color: #666; }
+
+/* intro */
+body.intro { background: #111; padding-top: 40px; }
+#stage-wrap { width: 760px; margin: 0 auto; position: relative; }
+#stage { display: block; background: #000; border: 1px solid #333; cursor: default; }
+#intro-links { margin: 6px 0 0; text-align: right; font-size: 9px; letter-spacing: 1px; }
+#intro-links a { color: #666; margin-left: 14px; }
+#intro-links a:hover { color: #ff6600; text-decoration: none; }
+#intro-note { margin: 18px 0 0; font-size: 9px; color: #444; text-align: center; }

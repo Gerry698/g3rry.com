@@ -1,0 +1,176 @@
+/* Gerry Zhao — style.css
+   Linen, leather, cork and paper. CSS3 throughout, with every prefix the browsers of 2011 wanted. */
+
+@font-face {
+  font-family: 'LeagueGothicRegular';
+  src: url('fonts/league-gothic-latin-400-normal.woff2') format('woff2'), url('fonts/league-gothic-latin-400-normal.woff') format('woff');
+  font-weight: normal; font-style: normal;
+}
+@font-face {
+  font-family: 'ReenieBeanieRegular';
+  src: url('fonts/reenie-beanie-latin-400-normal.woff2') format('woff2'), url('fonts/reenie-beanie-latin-400-normal.woff') format('woff');
+  font-weight: normal; font-style: normal;
+}
+
+html { background: #d3d0ca url(images/linen.png); }
+body { margin: 0; font: 15px/1.6 Georgia, "Times New Roman", serif; color: #3b3530; }
+a { color: #8a3b12; }
+a:hover { color: #c0501a; }
+
+/* the leather header, stitched */
+.leather {
+  background: #5b3a26 url(images/leather.png);
+  padding: 10px;
+  -webkit-box-shadow: 0 3px 8px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.12);
+  -moz-box-shadow: 0 3px 8px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.12);
+  box-shadow: 0 3px 8px rgba(0,0,0,.45), inset 0 -1px 0 rgba(255,255,255,.12);
+}
+.stitch {
+  max-width: 940px; margin: 0 auto; padding: 14px 24px 10px;
+  border: 2px dashed rgba(255,230,200,.35);
+  -webkit-border-radius: 6px; -moz-border-radius: 6px; border-radius: 6px;
+}
+.leather h1 { margin: 0; font: 64px/1 'LeagueGothicRegular', 'Arial Narrow', sans-serif; text-transform: uppercase; letter-spacing: 1px; }
+.leather h1 a { color: #2e1c11; text-decoration: none; text-shadow: 0 1px 0 rgba(255,230,200,.28), 0 -1px 0 rgba(0,0,0,.6); }
+.motto { margin: 2px 0 0; font: 22px 'ReenieBeanieRegular', cursive; color: #e9d3b5; }
+
+/* a ribbon across the page, ends folded behind */
+.ribbon { position: relative; max-width: 960px; margin: 22px auto 30px; padding: 0 20px; }
+.ribbon ul {
+  position: relative; margin: 0; padding: 0 18px; list-style: none; height: 44px;
+  background: #b0321e;
+  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#c9452e), to(#962614));
+  background-image: -webkit-linear-gradient(top, #c9452e, #962614);
+  background-image: -moz-linear-gradient(top, #c9452e, #962614);
+  background-image: linear-gradient(to bottom, #c9452e, #962614);
+  -webkit-box-shadow: 0 2px 4px rgba(0,0,0,.35); -moz-box-shadow: 0 2px 4px rgba(0,0,0,.35); box-shadow: 0 2px 4px rgba(0,0,0,.35);
+}
+.ribbon ul::before, .ribbon ul::after { content: ""; position: absolute; top: 10px; border: 22px solid #7e1f10; z-index: -1; }
+.ribbon ul::before { left: -30px; border-left-color: transparent; }
+.ribbon ul::after { right: -30px; border-right-color: transparent; }
+.ribbon li { float: left; }
+.ribbon a {
+  display: block; padding: 0 18px; line-height: 44px; color: #ffe9dc; text-decoration: none;
+  font: 22px/44px 'LeagueGothicRegular', 'Arial Narrow', sans-serif; text-transform: uppercase; letter-spacing: 1px;
+  text-shadow: 0 -1px 0 rgba(0,0,0,.4);
+  border-right: 1px dashed rgba(255,220,200,.35);
+}
+.ribbon li:last-child a { border-right: 0; }
+.ribbon a:hover, .ribbon .current a { color: #fff; background: rgba(0,0,0,.14); }
+
+.sheet { max-width: 960px; margin: 0 auto; padding: 0 20px 20px; overflow: hidden; }
+.sheet.narrow { max-width: 700px; }
+.card {
+  background: #fbf8f0 url(images/paper.png);
+  padding: 22px 26px; margin-bottom: 24px;
+  -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px;
+  -webkit-box-shadow: 0 1px 3px rgba(0,0,0,.25), 0 8px 18px -10px rgba(0,0,0,.4);
+  -moz-box-shadow: 0 1px 3px rgba(0,0,0,.25), 0 8px 18px -10px rgba(0,0,0,.4);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25), 0 8px 18px -10px rgba(0,0,0,.4);
+}
+.welcome { float: left; clear: left; width: 56%; box-sizing: border-box; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; }
+.board.small { float: right; width: 40%; min-height: 300px; padding: 26px 10px 10px; box-sizing: border-box; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; }
+.pad, .elsewhere { clear: left; float: left; width: 56%; box-sizing: border-box; -moz-box-sizing: border-box; -webkit-box-sizing: border-box; }
+.pad.tall { float: none; width: auto; }
+
+h2, h3 { font-weight: normal; margin: 0 0 12px; }
+.letterpress-dark { font: 34px/1.05 'LeagueGothicRegular', 'Arial Narrow', sans-serif; text-transform: uppercase; letter-spacing: 1px; color: #4a3f36; text-shadow: 0 1px 0 #fff; }
+.letterpress { color: #6e6a63; text-shadow: 0 1px 0 rgba(255,255,255,.7); }
+.hand { font: 40px/1 'ReenieBeanieRegular', cursive; color: #1d3c80; }
+
+.button {
+  display: inline-block; padding: 8px 16px; margin: 4px 6px 0 0; color: #fff; text-decoration: none; font: bold 14px Georgia, serif;
+  text-shadow: 0 -1px 0 rgba(0,0,0,.35);
+  background: #8a3b12;
+  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#b45a26), to(#7a3010));
+  background-image: -webkit-linear-gradient(top, #b45a26, #7a3010);
+  background-image: -moz-linear-gradient(top, #b45a26, #7a3010);
+  background-image: linear-gradient(to bottom, #b45a26, #7a3010);
+  border: 1px solid #5e2509;
+  -webkit-border-radius: 5px; -moz-border-radius: 5px; border-radius: 5px;
+  -webkit-box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 1px 2px rgba(0,0,0,.3);
+  -moz-box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 1px 2px rgba(0,0,0,.3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 1px 2px rgba(0,0,0,.3);
+}
+.button:hover { color: #fff; background-image: linear-gradient(to bottom, #c4682f, #85380f); }
+.button.grey { background-image: linear-gradient(to bottom, #8f8a83, #625d57); border-color: #4a4641; }
+
+/* the legal pad: ruled lines and a red margin, all from gradients */
+.pad { background-color: #fdf6a8; background-image: none; }
+.lines {
+  margin: 0; padding: 0 0 0 46px; list-style: none; line-height: 30px;
+  background-image: -webkit-linear-gradient(left, transparent 34px, rgba(220,60,60,.55) 34px, rgba(220,60,60,.55) 36px, transparent 36px), -webkit-linear-gradient(top, transparent 29px, rgba(70,110,190,.35) 29px);
+  background-image: linear-gradient(to right, transparent 34px, rgba(220,60,60,.55) 34px, rgba(220,60,60,.55) 36px, transparent 36px), linear-gradient(to bottom, transparent 29px, rgba(70,110,190,.35) 29px);
+  background-size: 100% 100%, 100% 30px;
+}
+.lines li { font-style: italic; }
+.lines li b { font: normal 26px/30px 'ReenieBeanieRegular', cursive; color: #1d3c80; margin-right: 6px; font-style: normal; }
+.lines .reply { color: #8a3b12; }
+.more { margin: 12px 0 0; text-align: right; }
+.elsewhere ul { margin: 0; padding-left: 18px; }
+
+/* cork and Polaroids */
+.toolbar { max-width: 960px; margin: -10px auto 14px; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; }
+.board {
+  max-width: 960px; margin: 0 auto 30px; padding: 34px 20px 24px; box-sizing: border-box;
+  background: #b98a5a url(images/cork.png);
+  border: 12px solid #8b5e34;
+  -webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px;
+  -webkit-box-shadow: inset 0 0 18px rgba(0,0,0,.45), 0 6px 14px rgba(0,0,0,.35);
+  -moz-box-shadow: inset 0 0 18px rgba(0,0,0,.45), 0 6px 14px rgba(0,0,0,.35);
+  box-shadow: inset 0 0 18px rgba(0,0,0,.45), 0 6px 14px rgba(0,0,0,.35);
+  text-align: center;
+}
+.board.small { border-width: 8px; }
+.polaroid {
+  position: relative; display: inline-block; vertical-align: top; margin: 12px 14px 22px; padding: 10px 10px 0; background: #fffefa; width: 220px;
+  -webkit-box-shadow: 0 3px 8px rgba(0,0,0,.45); -moz-box-shadow: 0 3px 8px rgba(0,0,0,.45); box-shadow: 0 3px 8px rgba(0,0,0,.45);
+  -webkit-transition: -webkit-transform .25s ease-out, box-shadow .25s; -moz-transition: -moz-transform .25s ease-out; transition: transform .25s ease-out, box-shadow .25s;
+}
+.board.small .polaroid { width: 150px; margin: 8px 6px 16px; }
+.board.small .polaroid a img { width: 150px; height: 150px; }
+.polaroid img { display: block; }
+.polaroid .pin { position: absolute; left: 50%; top: -14px; margin-left: -13px; z-index: 2; }
+.polaroid figcaption { font: 26px/48px 'ReenieBeanieRegular', cursive; color: #2b2b2b; height: 48px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.board.small .polaroid figcaption { font-size: 21px; line-height: 38px; height: 38px; }
+.no-captions .polaroid figcaption { visibility: hidden; }
+.polaroid:hover { z-index: 3; -webkit-box-shadow: 0 10px 22px rgba(0,0,0,.5); box-shadow: 0 10px 22px rgba(0,0,0,.5); }
+
+/* the switch, like the one in Settings */
+.switch { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; }
+.switch .track {
+  position: relative; display: inline-block; width: 82px; height: 28px; overflow: hidden;
+  -webkit-border-radius: 6px; -moz-border-radius: 6px; border-radius: 6px; border: 1px solid #8e8a84;
+  background: #f2f0ec; -webkit-box-shadow: inset 0 2px 4px rgba(0,0,0,.25); box-shadow: inset 0 2px 4px rgba(0,0,0,.25);
+}
+.switch .on, .switch .off { position: absolute; top: 0; width: 50%; text-align: center; font: bold 13px/28px Helvetica, Arial, sans-serif; }
+.switch .on { left: 0; color: #fff; background: #3a7bd5; background-image: linear-gradient(to bottom, #2f6cc8, #5a97e8); text-shadow: 0 -1px 0 rgba(0,0,0,.3); }
+.switch .off { right: 0; color: #777; }
+.switch .knob {
+  position: absolute; top: 0; left: 40px; width: 40px; height: 26px; z-index: 2;
+  -webkit-border-radius: 5px; -moz-border-radius: 5px; border-radius: 5px; border: 1px solid #9a968f;
+  background: #fafafa; background-image: linear-gradient(to bottom, #ffffff, #dcdad6);
+  -webkit-transition: left .18s; -moz-transition: left .18s; transition: left .18s;
+}
+.switch input:not(:checked) + .track .knob { left: 0; }
+.switch input:focus-visible + .track { outline: 2px solid #3a7bd5; outline-offset: 2px; }
+
+/* the enlarged Polaroid */
+#zoom { position: fixed; inset: 0; background: rgba(30,24,18,.75); display: flex; align-items: center; justify-content: center; z-index: 10; }
+#zoom figure { margin: 0; padding: 14px 14px 0; background: #fffefa; max-width: 90vw; -webkit-box-shadow: 0 16px 40px rgba(0,0,0,.6); box-shadow: 0 16px 40px rgba(0,0,0,.6); -webkit-transform: rotate(-1.5deg); transform: rotate(-1.5deg); }
+#zoom img { display: block; max-width: calc(90vw - 28px); height: auto; }
+#zoom figcaption { font: 32px/64px 'ReenieBeanieRegular', cursive; text-align: center; }
+
+footer { text-align: center; padding: 10px 20px 40px; font-size: 13px; }
+
+/* a first media query: one column on small screens */
+@media only screen and (max-width: 760px) {
+  .welcome, .board.small, .pad, .elsewhere { float: none; width: auto; }
+  .leather h1 { font-size: 48px; }
+  .ribbon ul { height: auto; overflow: hidden; }
+  .ribbon a { font-size: 18px; padding: 0 10px; }
+  .polaroid { width: 140px; margin: 10px 6px 18px; }
+  .polaroid a img { width: 140px; height: 140px; }
+  .toolbar { flex-wrap: wrap; gap: 10px; }
+}

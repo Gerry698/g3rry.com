@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { validatePhotos } from './photo-data.mjs';
+import { buildEras } from './eras/index.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -198,7 +199,7 @@ const lines = value => escape(value).replace(/\n/g, '<br>');
 const policy = extra => "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com" + (extra ? ' ' + extra : '')
   + "; connect-src 'self' https://cloudflareinsights.com; img-src 'self' data:; style-src 'self'" + (extra ? '; frame-src ' + extra : '')
   + "; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests";
-function render(body, { title, description, route, pageClass, script = '', noindex = false, csp = policy() }) {
+function render(body, { title, description, route, pageClass, script = '', classicScripts = [], head = '', noindex = false, csp = policy() }) {
   return replace(layout, {
     CSP: csp,
     LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(title),
@@ -209,8 +210,8 @@ function render(body, { title, description, route, pageClass, script = '', noind
     HOME_CURRENT: route === '/' ? 'aria-current="page"' : '',
     PHOTOS_CURRENT: route === '/photos/' ? 'aria-current="page"' : '',
     GUESTBOOK_CURRENT: route === '/guestbook/' ? 'aria-current="page"' : '',
-    HEAD_EXTRA: noindex ? '<meta name="robots" content="noindex">' : '',
-    SCRIPTS: script ? '<script type="module" src="' + script + '"></script>' : ''
+    HEAD_EXTRA: (noindex ? '<meta name="robots" content="noindex">' : '') + head,
+    SCRIPTS: (script ? '<script type="module" src="' + script + '"></script>' : '') + classicScripts.map(src => '<script src="' + src + '"></script>').join('')
   });
 }
 
@@ -427,11 +428,13 @@ for (const [index, photo] of generated.entries()) {
     CONFIG: JSON.stringify(config).replace(/</g, '\\u003c')
   }));
 }
+// Other years: the same site rebuilt in earlier years of the web (scripts/eras/).
+await buildEras({ root, dist, output, cachedImage, digest, escape, policy, render, site, lab, photos: generated });
 await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
   + '<meta http-equiv="refresh" content="0;url=/photos/"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(new URL('/photos/', origin).href) + '">'
   + '<title>Photography — ' + escape(site.name) + '</title></head><body><h1>The gallery has moved.</h1><p><a href="/photos/">Explore the photography collection</a></p></body></html>');
 await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/sitemap.xml', origin).href + '\n');
-await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/mountain/', origin).href) + '</loc></url>'
+await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/mountain/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/eras/', origin).href) + '</loc></url>'
   + generated.map(photo => '<url><loc>' + escape(new URL('/photos/' + photo.id + '/', origin).href) + '</loc></url>').join('') + '</urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');

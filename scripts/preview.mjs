@@ -15,7 +15,9 @@ async function proxyGuestbook(request, response) {
   for await (const chunk of request) chunks.push(chunk);
   const headers = Object.fromEntries(['content-type', 'accept', 'origin', 'sec-fetch-site'].filter(name => request.headers[name]).map(name => [name, request.headers[name]]));
   const result = await fetch(guestbookApi + request.url, { method: request.method, headers, body: chunks.length ? Buffer.concat(chunks) : undefined });
-  response.writeHead(result.status, Object.fromEntries(result.headers));
+  // fetch() has already decoded the body, so the upstream encoding and length no longer describe it.
+  const passed = Object.fromEntries([...result.headers].filter(([name]) => !['content-encoding', 'content-length', 'transfer-encoding'].includes(name)));
+  response.writeHead(result.status, passed);
   response.end(Buffer.from(await result.arrayBuffer()));
 }
 http.createServer(async (request, response) => {

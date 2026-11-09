@@ -1,0 +1,23 @@
+/* The dial-up screen: a plain system dialog on a desktop of its time. */
+html { background: #2d6b6b; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 13px/1.4 Tahoma, Verdana, "Segoe UI", sans-serif; color: #000; padding: 16px; box-sizing: border-box; }
+.dialer { width: min(420px, 100%); background: #cfcbc0; border: 2px solid; border-color: #f4f2ec #4a4842 #4a4842 #f4f2ec; box-shadow: 1px 1px 0 #000; }
+.dialer-bar { display: flex; justify-content: space-between; align-items: center; padding: 3px 4px 3px 8px; background: linear-gradient(90deg, #233a6e, #6f8bb8); color: #fff; font-weight: bold; }
+.dialer-close { color: #000; background: #cfcbc0; border: 2px solid; border-color: #f4f2ec #4a4842 #4a4842 #f4f2ec; width: 18px; height: 16px; line-height: 13px; text-align: center; text-decoration: none; font-weight: bold; }
+.dialer-body { padding: 14px 16px 16px; display: grid; gap: 10px; }
+.dialer-icon { width: 60px; height: 48px; }
+.dialer-fields { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; align-items: center; }
+.dialer-fields dt { margin: 0; }
+.dialer-fields dd { margin: 0; background: #fff; border: 2px solid; border-color: #4a4842 #f4f2ec #f4f2ec #4a4842; padding: 2px 5px; font-family: "Courier New", monospace; }
+.dialer-fields dd:has(select) { background: none; border: 0; padding: 0; }
+.dialer select { font: inherit; width: 100%; }
+.dialer-check { display: flex; gap: 6px; align-items: center; }
+.dialer-status { margin: 4px 0 0; min-height: 1.4em; }
+.dialer-meter { height: 14px; border: 2px solid; border-color: #4a4842 #f4f2ec #f4f2ec #4a4842; background: #fff; padding: 1px; }
+.dialer-meter span { display: block; height: 100%; width: 0; background: repeating-linear-gradient(90deg, #233a6e 0 8px, transparent 8px 10px); transition: width .4s linear; }
+.dialer-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.dialer-actions button, .dialer-actions a { font: inherit; color: #000; text-decoration: none; min-width: 76px; padding: 4px 10px; text-align: center; background: #cfcbc0; border: 2px solid; border-color: #f4f2ec #4a4842 #4a4842 #f4f2ec; cursor: pointer; }
+.dialer-actions button:active { border-color: #4a4842 #f4f2ec #f4f2ec #4a4842; }
+.dialer-actions button:disabled { color: #7a776f; cursor: default; }
+.dialer-actions button:focus-visible, .dialer-actions a:focus-visible, .dialer-close:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+.dialer-note { margin: 4px 0 0; font-size: 11px; color: #3a3832; }

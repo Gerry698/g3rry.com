@@ -1,0 +1,109 @@
+/* Gerry Zhao — app.css. Material Design: indigo and pink, Roboto, elevation by shadow. */
+
+@font-face { font-family: Roboto; font-weight: 300; font-display: swap; src: url(fonts/roboto-300.woff2) format('woff2'); }
+@font-face { font-family: Roboto; font-weight: 400; font-display: swap; src: url(fonts/roboto-400.woff2) format('woff2'); }
+@font-face { font-family: Roboto; font-weight: 500; font-display: swap; src: url(fonts/roboto-500.woff2) format('woff2'); }
+
+:root {
+  --primary: #3f51b5; --primary-dark: #303f9f; --accent: #ff4081;
+  --text: rgba(0,0,0,.87); --secondary: rgba(0,0,0,.54); --divider: rgba(0,0,0,.12);
+  --e2: 0 3px 1px -2px rgba(0,0,0,.2), 0 2px 2px 0 rgba(0,0,0,.14), 0 1px 5px 0 rgba(0,0,0,.12);
+  --e8: 0 5px 5px -3px rgba(0,0,0,.2), 0 8px 10px 1px rgba(0,0,0,.14), 0 3px 14px 2px rgba(0,0,0,.12);
+  --e24: 0 11px 15px -7px rgba(0,0,0,.2), 0 24px 38px 3px rgba(0,0,0,.14), 0 9px 46px 8px rgba(0,0,0,.12);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #fafafa; color: var(--text); font: 400 16px/1.5 Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--primary); text-decoration: none; }
+img { max-width: 100%; height: auto; display: block; }
+.secondary { color: var(--secondary); }
+.mi { width: 24px; height: 24px; fill: currentColor; flex: none; }
+
+.app-bar { position: sticky; top: 0; z-index: 10; background: var(--primary); color: #fff; box-shadow: var(--e2); }
+.app-bar-row { display: flex; align-items: center; height: 64px; padding: 0 8px; max-width: 1200px; margin: 0 auto; }
+.app-title { color: #fff; font-size: 20px; font-weight: 500; margin-left: 20px; letter-spacing: .02em; }
+.icon-button { width: 48px; height: 48px; border: 0; border-radius: 50%; background: none; color: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; }
+#drawer-button { display: none; }
+.tabs { display: flex; max-width: 1200px; margin: 0 auto; padding: 0 64px; }
+.tab { position: relative; overflow: hidden; color: rgba(255,255,255,.7); padding: 14px 24px; font-size: 14px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; }
+.tab.active { color: #fff; }
+.tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent); }
+
+.content { max-width: 1200px; margin: 0 auto; padding: 32px 24px 96px; }
+.display { font-size: 45px; font-weight: 400; margin: 8px 0 4px; letter-spacing: -.01em; }
+.headline { font-size: 24px; font-weight: 400; margin: 40px 0 16px; }
+.overline { font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--secondary); margin: 0 0 8px; }
+
+.card { background: #fff; border-radius: 2px; box-shadow: var(--e2); overflow: hidden; }
+.card.elevate { transition: box-shadow .28s cubic-bezier(.4,0,.2,1); }
+.card.elevate:hover { box-shadow: var(--e8); }
+.card-media { display: block; position: relative; overflow: hidden; background: #eee; }
+.card-body { padding: 16px 16px 0; }
+.card-body h3 { margin: 0; font-size: 20px; font-weight: 500; }
+.card-body p { margin: 4px 0 0; font-size: 14px; }
+.card-actions { display: flex; gap: 8px; padding: 8px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; margin-top: 16px; }
+.two-up { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-top: 40px; }
+.story { padding: 24px 32px; }
+.story h2 { font: 700 30px/1.15 Georgia, "Noto Serif", serif; margin: 0 0 12px; letter-spacing: -.01em; }
+.story p { font: 21px/1.58 Georgia, "Noto Serif", serif; color: rgba(0,0,0,.8); margin: 0 0 18px; }
+.drop::first-letter { float: left; font-size: 78px; line-height: .8; padding: 8px 8px 0 0; color: var(--primary); }
+
+.hero { display: grid; grid-template-columns: 1.1fr .9fr; align-items: center; gap: 24px; padding: 40px 48px; }
+.hero h1 { font-size: 48px; font-weight: 300; line-height: 1.08; margin: 16px 0; letter-spacing: -.01em; }
+.hero p { font-size: 18px; color: var(--secondary); margin: 0 0 24px; max-width: 30em; }
+.illustration { width: 100%; height: auto; }
+.chip, .chips span { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 16px; background: #e0e0e0; font-size: 14px; color: var(--text); margin: 0 8px 8px 0; }
+
+.button { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border: 0; border-radius: 2px; background: none; color: var(--primary); font: 500 14px Roboto, sans-serif; letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }
+.button:hover { background: rgba(63,81,181,.08); }
+.button .mi { width: 18px; height: 18px; }
+.button.accent { color: var(--accent); }
+.button.raised { background: var(--accent); color: #fff; box-shadow: var(--e2); }
+.button.raised:hover { box-shadow: var(--e8); background: #f50057; }
+
+.list { list-style: none; margin: 0; padding: 8px 0; }
+.list-item { display: flex; gap: 16px; padding: 12px 16px; align-items: flex-start; }
+.list-item + .list-item { border-top: 1px solid var(--divider); }
+.avatar { width: 40px; height: 40px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 500; flex: none; }
+.list-item p { margin: 0; }
+.list-item .primary { font-weight: 500; }
+.list-item .reply { margin-top: 6px; color: var(--secondary); font-size: 14px; }
+
+.fab { position: fixed; right: 24px; bottom: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: var(--e8); overflow: hidden; z-index: 20; transition: box-shadow .2s; }
+.fab:hover { box-shadow: var(--e24); }
+
+.snackbar { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(720px, 100%); background: #323232; color: #fff; display: flex; align-items: center; gap: 16px; padding: 14px 16px 14px 24px; border-radius: 2px 2px 0 0; z-index: 30; box-shadow: var(--e8); }
+.snackbar p { margin: 0; font-size: 14px; flex: 1; }
+.snackbar .secondary { color: rgba(255,255,255,.6); }
+.snackbar .button { color: #fff; }
+.snackbar .button.accent { color: var(--accent); }
+.snackbar[hidden], .scrim[hidden] { display: none; }
+
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.32); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 24px; }
+.dialog { background: #fff; border-radius: 2px; padding: 24px; max-width: 420px; box-shadow: var(--e24); position: relative; }
+.dialog h2 { margin: 0 0 12px; font-size: 20px; font-weight: 500; }
+.dialog p { margin: 0; color: var(--secondary); }
+.dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.dialog.wide { max-width: min(1000px, 96vw); padding: 0; overflow: hidden; }
+.dialog.wide img { width: 100%; max-height: 72vh; object-fit: contain; background: #111; }
+.viewer-text { padding: 16px 24px 16px; }
+.viewer-text h2 { margin: 0; }
+.chips { margin-top: 12px; }
+.close { position: absolute; top: 8px; right: 8px; color: #fff; background: rgba(0,0,0,.35); }
+
+.ripple .ink { position: absolute; border-radius: 50%; transform: scale(0); background: currentColor; opacity: .25; pointer-events: none; animation: ink .6s cubic-bezier(.4,0,.2,1); }
+@keyframes ink { to { transform: scale(2.6); opacity: 0; } }
+
+.footer { text-align: center; color: var(--secondary); font-size: 14px; padding: 24px 24px 100px; }
+.footer p { margin: 4px 0; }
+
+@media (max-width: 840px) {
+  #drawer-button { display: inline-flex; }
+  .tabs { display: none; flex-direction: column; padding: 0 0 8px; }
+  .tabs.open { display: flex; }
+  .hero, .two-up { grid-template-columns: 1fr; }
+  .hero { padding: 24px; }
+  .hero h1 { font-size: 36px; }
+  .snackbar { flex-direction: column; align-items: flex-start; }
+}

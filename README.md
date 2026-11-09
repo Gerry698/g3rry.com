@@ -38,10 +38,11 @@ npm run photos -- alt p16 "新的描述"
 | `content/site.json` | 首页文案、粒子图案、站点信息 |
 | `content/photos.json` | 照片顺序、描述、是否精选 |
 | `content/mountain.json` | `/mountain/` 山形目录页的文案和营地 |
-| `src/` | 页面模板、样式、粒子动画、画廊交互和留言页；`src/mountain/` 是 WebGL2 山形目录页 |
+| `content/eras.json` | `/eras/` 其他年代：各年份的名称、一句话和建造说明 |
+| `src/` | 页面模板、样式、粒子动画、画廊交互和留言页；`src/mountain/` 是 WebGL2 山形目录页；`src/eras/` 是各年代的脚本和样式 |
 | `Photo/` | 照片网页母版 |
 | `image/` | 粒子图案素材 |
-| `scripts/` | 构建、检查、预览和照片工具 |
+| `scripts/` | 构建、检查、预览和照片工具；`scripts/eras/` 生成各年代的页面和图片 |
 | `guestbook/` | 留言板的两个 Worker、数据库结构和测试 |
 | `.github/workflows/pages.yml` | PR 检查与 `main` 发布 |
 | `.github/workflows/guestbook.yml` | 留言板 Worker 测试 |
