@@ -119,9 +119,18 @@ ${doctype === 'frameset' ? body : '<BODY ' + bodyAttrs + '>\n' + body + '\n' + s
 ${modem}
 <SCRIPT SRC="/eras/modem-client.js"></SCRIPT>`;
   // Every content page is a fixed 560-pixel table inside the main frame.
-  const page = (title, inner, scripts) => doc(title, `<TABLE WIDTH="560" BORDER="0" CELLPADDING="0" CELLSPACING="0">
+  // The banner of the home frame is an image map whose only hotspots are small runs that, together, are letters
+  // (a puzzle of /strata/). The pointer finds them; so does plotting the COORDS.
+  const scale = 6, letterWidth = 6 * scale, mapLeft = Math.round((bannerMeta.width - ctx.puzzles.map.length * letterWidth + scale) / 2), mapTop = 9;
+  const areas = ctx.puzzles.map.flatMap((rows, n) => rows.flatMap((mask, j) => {
+    const runs = [];
+    for (let i = 0; i < 5; i++) if (mask & (16 >> i)) { const last = runs.at(-1); if (last && last[1] === i - 1) last[1] = i; else runs.push([i, i]); }
+    return runs.map(([a, b]) => [mapLeft + n * letterWidth + a * scale, mapTop + j * scale, mapLeft + n * letterWidth + (b + 1) * scale - 1, mapTop + (j + 1) * scale - 1]);
+  }));
+  const bannerMap = '<MAP NAME="banner">\n' + areas.map(r => '<AREA SHAPE="RECT" COORDS="' + r.join(',') + '" HREF="home.html" ALT="" TABINDEX="-1">').join('\n') + '\n</MAP>';
+  const page = (title, inner, scripts, { map = false } = {}) => doc(title, `<TABLE WIDTH="560" BORDER="0" CELLPADDING="0" CELLSPACING="0">
 <TR><TD>${sp(560, 12)}</TD></TR>
-<TR><TD ALIGN="CENTER">${img('images/banner.gif', bannerMeta, 'Gerry Zhao Online')}</TD></TR>
+<TR><TD ALIGN="CENTER">${img('images/banner.gif', bannerMeta, 'Gerry Zhao Online', map ? ' USEMAP="#banner"' : '')}${map ? '\n' + bannerMap : ''}</TD></TR>
 <TR><TD>${sp(560, 12)}</TD></TR>
 <TR><TD>
 ${inner}
@@ -200,7 +209,7 @@ ${heading('ELSEWHERE')}
 <TABLE WIDTH="100%" BORDER="0" CELLPADDING="6" CELLSPACING="0"><TR><TD>${font('&raquo; <A HREF="https://mail.g3rry.com/" TARGET="_top">Free @g3rry.com e-mail</A><BR>&raquo; <A HREF="/phantom/" TARGET="_top">The Phantom</A> (needs a 2026 browser)<BR>&raquo; <A HREF="/mountain/" TARGET="_top">The Ascent</A>', 1)}</TD></TR></TABLE>
 </TD>
 </TR>
-</TABLE>`, ['photos.js', 'scripts.js']);
+</TABLE>`, ['photos.js', 'scripts.js'], { map: true });
   await output('eras/1999/home.html', home);
 
   // Gallery and a page for every photograph.
@@ -234,6 +243,14 @@ ${nav}
 <TABLE WIDTH="100%" BORDER="0" CELLPADDING="5" CELLSPACING="0" ID="entries">
 <TR BGCOLOR="${SAFE.blue}"><TD WIDTH="110">${font('<B>Name</B>', 1, ' COLOR="#FFFFFF"')}</TD><TD WIDTH="90">${font('<B>Date</B>', 1, ' COLOR="#FFFFFF"')}</TD><TD>${font('<B>Message</B>', 1, ' COLOR="#FFFFFF"')}</TD></TR>
 <TR BGCOLOR="#FFFFFF"><TD COLSPAN="3">${font('Loading...', 1)}</TD></TR>
+</TABLE>
+</TD></TR></TABLE>
+${sp(1, 16)}
+${heading('FROM THE OLD GUESTBOOK')}
+<TABLE WIDTH="100%" BORDER="0" CELLPADDING="6" CELLSPACING="0"><TR><TD>${font('Saved from the guestbook CGI before it broke. Some entries did not survive the trip very well.', 1)}</TD></TR></TABLE>
+<TABLE WIDTH="100%" BORDER="0" CELLPADDING="1" CELLSPACING="0" BGCOLOR="${SAFE.navy}"><TR><TD>
+<TABLE WIDTH="100%" BORDER="0" CELLPADDING="5" CELLSPACING="0">
+<TR BGCOLOR="#FFFFFF"><TD WIDTH="110" VALIGN="TOP">${font(ascii(ctx.puzzles.encoding.name), 1)}</TD><TD WIDTH="90" VALIGN="TOP">${font('11/13/1999', 1)}</TD><TD VALIGN="TOP">${font(ascii(ctx.puzzles.encoding.message) + '<BR><I>' + ascii(ctx.puzzles.encoding.browser) + '</I>', 1)}</TD></TR>
 </TABLE>
 </TD></TR></TABLE>`, ['scripts.js', 'guestbook.js']));
 }

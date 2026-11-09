@@ -33,3 +33,6 @@
   .era-dialup { grid-column: 1; margin-left: 6rem; width: max-content; }
   .eras-modem { flex-wrap: wrap; }
 }
+.eras-deeper { margin-top: 3.2rem; color: var(--muted); font-size: .84rem; max-width: 40em; }
+.eras-deeper a { color: var(--gold); border-bottom: 1px solid #c9af775c; white-space: nowrap; }
+.eras-deeper a:hover { color: var(--paper); }

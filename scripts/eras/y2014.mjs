@@ -13,6 +13,11 @@ export default async function build(ctx, era) {
   for (const weight of [300, 400, 600, 800]) await copyFile(path.join(root, 'node_modules/@fontsource/open-sans/files/open-sans-latin-' + weight + '-normal.woff2'), path.join(fontsDir, 'open-sans-' + weight + '.woff2'));
 
   const heroPhoto = photos.find(photo => photo.id === 'p16') || photos[0];
+  // Two layers over the band, alternate pixel rows of one word, sliding in opposite directions as the page scrolls;
+  // they line up only when the band is centred in the window (a puzzle of /strata/).
+  const unit = 8, word = ctx.puzzles.band, wordWidth = word.length * 6 * unit - unit;
+  const depth = parity => '<svg class="depth" data-direction="' + (parity ? -1 : 1) + '" viewBox="0 0 ' + wordWidth + ' ' + 7 * unit + '" width="' + wordWidth + '" height="' + 7 * unit + '">'
+    + word.flatMap((rows, n) => rows.flatMap((mask, j) => j % 2 === parity ? [0, 1, 2, 3, 4].filter(i => mask & (16 >> i)).map(i => '<rect x="' + (n * 6 + i) * unit + '" y="' + j * unit + '" width="' + unit + '" height="' + unit + '"/>') : [])).join('') + '</svg>';
   const bandPhoto = photos.find(photo => photo.id === 'p05') || photos[1];
   await variant(heroPhoto, YEAR, 'img/hero.jpg', image => image.resize({ width: 1600, height: 1000, fit: 'cover' }).jpeg({ quality: 74, progressive: true }).toBuffer());
   await variant(bandPhoto, YEAR, 'img/band.jpg', image => image.resize({ width: 1600, height: 900, fit: 'cover', position: 'attention' }).jpeg({ quality: 70, progressive: true }).toBuffer());
@@ -113,6 +118,7 @@ ${tiles.map(({ photo, tile, full }, i) => `    <a class="tile" href="${full.src}
 
 <section class="parallax" id="band">
   <div class="container"><blockquote>&ldquo;Chasing light. Keeping moments.&rdquo;</blockquote></div>
+  <div class="depths" aria-hidden="true">${depth(0)}${depth(1)}</div>
 </section>
 
 <section class="section notes" id="notes">

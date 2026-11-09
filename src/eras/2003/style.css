@@ -109,3 +109,4 @@ body.intro { background: #111; padding-top: 40px; }
 #intro-links a { color: #666; margin-left: 14px; }
 #intro-links a:hover { color: #ff6600; text-decoration: none; }
 #intro-note { margin: 18px 0 0; font-size: 9px; color: #444; text-align: center; }
+#sidebar .rot { margin-top: 4px; color: #aaa; font-style: italic; }

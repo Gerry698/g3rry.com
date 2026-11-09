@@ -148,6 +148,8 @@ ${scripts.map(src => '<script type="text/javascript" src="' + src + '"></script>
 </body>
 </html>
 `;
+  // Bookmarks, shared the 2007 way. Every name is a domain hack (a puzzle of /strata/); none of them is linked.
+  const bookmarks = '<div class="box delicious"><h3>My del.icio.us</h3><ul class="bookmarks">' + ctx.puzzles.bookmarks.map(item => '<li><span class="bm-title">' + escape(item.title) + '</span> <cite>' + escape(item.domain) + '</cite><br /><span class="bm-meta">saved by ' + item.saves.toLocaleString('en-US') + ' ' + (item.saves === 1 ? 'person' : 'people') + ' &middot; ' + item.tags.map(escape).join(' ') + '</span></li>').join('') + '</ul></div>';
   const notesBox = `<div class="box"><h3>Latest notes</h3><div id="latest-notes" class="ajax">${img('images/spinner.gif', spinner, '', ' class="spinner"')} Loading&hellip;</div></div>`;
   const newest = [...pictures].sort((a, b) => b.photo.taken - a.photo.taken).slice(0, 5);
   await output('eras/2007/index.html', head('gerry zhao (beta)', 'index.html', `<div id="hero">
@@ -163,7 +165,8 @@ ${scripts.map(src => '<script type="text/javascript" src="' + src + '"></script>
 <h2>Recently added</h2>
 <ul class="recent">${newest.map(item => `<li>${img(item.thumb.src, { width: 48, height: 48 }, item.photo.alt)}<p><a href="${item.large.src}" class="lightbox" data-title="${escape(item.photo.place + ', ' + item.photo.city)}">${escape(item.photo.place)}</a><br /><span class="ago" data-time="${item.photo.taken.getTime()}">${item.photo.taken.toISOString().slice(0, 10)}</span> &middot; tagged ${item.tags.slice(0, 3).map(tag => '<a href="photos.html?tag=' + tag + '">' + tag + '</a>').join(', ')}</p></li>`).join('')}</ul>
 </div>`, `<div class="box"><h3>Tags</h3><p class="cloud">${cloud}</p></div>
-${notesBox}`, ['lightbox.js', 'notes.js']));
+${notesBox}
+${bookmarks}`, ['lightbox.js', 'notes.js']));
 
   await output('eras/2007/photos.html', head('Photos | gerry zhao (beta)', 'photos.html', `<div class="box">
 <h2>Photos <span class="count">(${photos.length})</span></h2>

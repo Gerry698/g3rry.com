@@ -19,6 +19,19 @@
   }
   window.addEventListener('scroll', onScroll);
 
+  // Parallax, twice over: the band's photograph stays put while the page moves, and two thin layers over it slide
+  // apart the further the band is from the middle of the window.
+  var band = $('#band'), depths = $$('#band .depth'), queued = false;
+  function slide() {
+    queued = false;
+    var box = band.getBoundingClientRect(), off = (box.top + box.height / 2) - window.innerHeight / 2;
+    depths.forEach(function (layer) { layer.style.setProperty('--shift', (off * 0.9 * Number(layer.getAttribute('data-direction'))).toFixed(1) + 'px'); });
+  }
+  function queue() { if (!queued) { queued = true; window.requestAnimationFrame(slide); } }
+  window.addEventListener('scroll', queue);
+  window.addEventListener('resize', queue);
+  slide();
+
   // Hamburger: a full-screen menu, even on a 27-inch monitor.
   var burger = $('#hamburger'), menu = $('#menu');
   function toggleMenu(open) {

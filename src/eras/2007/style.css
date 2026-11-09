@@ -110,3 +110,9 @@ a.go.small span { font-size: 12px; }
 #lightbox-prev:hover::before, #lightbox-next:hover::before { position: absolute; top: 40%; padding: 6px 12px; background: rgba(0,0,0,.6); color: #fff; font-weight: bold; -moz-border-radius: 6px; -webkit-border-radius: 6px; border-radius: 6px; }
 #lightbox-prev:hover::before { content: "\00ab  Prev"; left: 0; }
 #lightbox-next:hover::before { content: "Next  \00bb"; right: 0; }
+.bookmarks { margin: 0; padding: 0; list-style: none; }
+.bookmarks li { padding: 6px 0; border-bottom: 1px dotted #dfe7ef; font-size: 11px; line-height: 1.4; }
+.bookmarks li:last-child { border-bottom: 0; }
+.bm-title { color: #1166d6; font-weight: bold; }
+.bookmarks cite { font-style: normal; color: #3b9c2a; }
+.bm-meta { color: #999; }

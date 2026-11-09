@@ -110,3 +110,28 @@ dialog::backdrop { background: rgb(0 0 0 / .6); backdrop-filter: blur(6px); }
   .hero, .intro, .note, .newest { grid-column: auto; }
   .hero { grid-row: auto; min-height: 280px; }
 }
+
+/* The Wordle everyone posted: colours only. The letters are there, in the colour of their square, in dark mode. */
+.wordle { display: flex; flex-direction: column; gap: 10px; }
+.wordle-grid { display: grid; gap: 5px; justify-content: start; }
+.wordle-row { display: grid; grid-template-columns: repeat(5, 30px); gap: 5px; }
+.sq { width: 30px; height: 30px; border-radius: 4px; display: grid; place-items: center; font: 700 15px/1 Inter, sans-serif; text-transform: uppercase; }
+.sq.b { background: #3a3a3c; color: #3a3a3c; }
+.sq.y { background: #b59f3b; color: #b59f3b; }
+.sq.g { background: #538d4e; color: #538d4e; }
+
+/* Light mode, for the few who asked their system for it. */
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f4f4f5; --tile: #ffffff; --line: rgb(0 0 0 / .08); --text: #18181b; --muted: #52525b; color-scheme: light; }
+  .top { background: rgb(255 255 255 / .7); }
+  .top nav a:hover, .top nav a[aria-current="page"] { background: rgb(0 0 0 / .05); }
+  .glass { background: rgb(255 255 255 / .6); }
+  a.tile:hover { border-color: rgb(0 0 0 / .16); }
+  .intro h1 { background: linear-gradient(180deg, #18181b, #3f3f46); -webkit-background-clip: text; background-clip: text; }
+  kbd, .kbd-button { background: rgb(0 0 0 / .03); }
+  .blobs { opacity: .3; }
+  .sq.b { background: #787c7e; }
+  .sq.b, .sq.y, .sq.g { color: #fff; }
+  .hero-label { color: #fafafa; }
+  .hero-label .eyebrow { color: #d4d4d8; }
+}

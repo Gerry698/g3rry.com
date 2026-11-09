@@ -46,6 +46,20 @@ export default async function build(ctx, era) {
 
   const ring = around(YEAR);
   const label = item => String(item.year);
+  // A consent manager of 2018. The first tab is honest; the second, as they often did, comes switched on
+  // (a puzzle of /strata/).
+  const vendorRow = (vendor, on, tab) => '<li class="vendor"><label><span class="vendor-text"><span class="vendor-name">' + escape(vendor.name) + '</span><span class="secondary">Keeps data for ' + vendor.days + ' day' + (vendor.days === 1 ? '' : 's') + '</span></span>'
+    + '<input type="checkbox" class="toggle" data-tab="' + tab + '"' + (on ? ' checked' : '') + ' aria-label="' + escape(vendor.name) + '"></label></li>';
+  const consent = `<div class="scrim" id="consent" hidden>
+  <div class="dialog consent elevate-24" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+    <h2 id="consent-title">Your privacy choices</h2>
+    <p>We and our ${ctx.puzzles.vendors.length} partners store and/or access information on a device, such as cookies, and process personal data for measurement and personalised content. You can change your choices at any time.</p>
+    <div class="consent-tabs" role="tablist"><button type="button" role="tab" class="ripple" aria-selected="true" data-show="consent">Consent</button><button type="button" role="tab" class="ripple" aria-selected="false" data-show="legitimate">Legitimate interest</button></div>
+    <ul class="vendors" data-panel="consent">${ctx.puzzles.vendors.map(vendor => vendorRow(vendor, false, 'consent')).join('')}</ul>
+    <ul class="vendors" data-panel="legitimate" hidden>${ctx.puzzles.vendors.map(vendor => vendorRow(vendor, vendor.legitimate, 'legitimate')).join('')}</ul>
+    <div class="dialog-actions"><button type="button" class="button ripple" id="consent-reject">Reject all</button><button type="button" class="button accent ripple" id="consent-save">Save choices</button></div>
+  </div>
+</div>`;
   const page = (title, current, body, scripts = ['app.js']) => `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,6 +85,7 @@ ${body}
 </main>
 <footer class="footer">
   <p>&copy; ${new Date().getUTCFullYear()} Gerry Zhao &middot; <a href="https://mail.g3rry.com/">g3mail</a> &middot; <a href="/phantom/">The Phantom</a> &middot; <a href="/mountain/">The Ascent</a></p>
+  <p class="offline-ready">&#10003; Works offline</p>
   <p>Time ring: <a href="${ring.previous.href}">&larr; ${label(ring.previous)}</a> &middot; <a href="/eras/">All years</a> &middot; <a href="${ring.next.href}">${label(ring.next)} &rarr;</a></p>
 </footer>
 <a class="fab ripple" href="/guestbook/" aria-label="Leave a note" title="Leave a note">${icon('edit')}</a>
@@ -78,6 +93,7 @@ ${body}
   <p>This website uses cookies to ensure you get the best experience. <span class="secondary">(It does not set any. It is 2018, and everyone has a banner.)</span></p>
   <div><button type="button" class="button ripple" id="cookies-manage">Manage</button><button type="button" class="button accent ripple" id="cookies-accept">Accept</button></div>
 </div>
+${consent}
 <div class="scrim" id="newsletter" hidden>
   <div class="dialog elevate-24" role="dialog" aria-modal="true" aria-labelledby="newsletter-title">
     <h2 id="newsletter-title">Never miss a photo</h2>
@@ -134,6 +150,41 @@ ${cards.map(item => card(item).replace('<article class="card elevate"', '<articl
   await output('eras/2018/notes.html', page('Notes · Gerry Zhao', 'notes.html', `<h1 class="display">Notes</h1>
 <p class="secondary">From people who stopped by. Tap the pencil to leave one.</p>
 <div class="card elevate-2"><ul class="list" id="notes"><li class="list-item"><span class="secondary">Loading&hellip;</span></li></ul></div>`, ['app.js', 'notes.js']));
+
+  // Offline: the progressive web app's promise, kept by showing this page when the network is gone.
+  const arm = [null, [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1]];
+  const figure = pair => {
+    const shoulder = [40, 52], length = 30;
+    const arms = pair.map(direction => {
+      const [dx, dy] = arm[direction], norm = Math.hypot(dx, dy), x = shoulder[0] + dx / norm * length, y = shoulder[1] + dy / norm * length;
+      const flag = '<g transform="translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ') rotate(' + (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(0) + ')"><path d="M0 -1 h14 v-12 z" fill="#ffd54f"/><path d="M0 -1 v-12 h14 z" fill="#e53935"/></g>';
+      return '<line x1="' + shoulder[0] + '" y1="' + shoulder[1] + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="#37474f" stroke-width="5" stroke-linecap="round"/>' + flag;
+    }).join('');
+    return '<svg class="signal" viewBox="0 0 80 130" width="108" height="176" aria-hidden="true"><circle cx="40" cy="36" r="10" fill="#ffccbc"/><path d="M28 50 h24 l-2 38 h-20 z" fill="#3f51b5"/>'
+      + '<path d="M34 88 l-4 34 M46 88 l4 34" stroke="#263238" stroke-width="6" stroke-linecap="round"/>' + arms + '</svg>';
+  };
+  await output('eras/2018/offline.html', `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${csp}
+<meta name="robots" content="noindex">
+<title>Offline · Gerry Zhao</title>
+<link rel="stylesheet" href="/eras/2018/app.css">
+</head>
+<body class="offline">
+<main class="content">
+  <div class="card elevate-2 offline-card">
+    <h1 class="display">You&rsquo;re offline</h1>
+    <p class="secondary">No connection right now, but this page was saved for you. While you wait, a climber on the ridge is signalling something.</p>
+    <div class="signals">${ctx.puzzles.semaphore.map(figure).join('')}</div>
+    <p class="secondary">Reconnect and refresh to see the photographs.</p>
+  </div>
+</main>
+</body>
+</html>
+`);
 
   // JSON Feed 1.0, new in 2017.
   const base = new URL('/eras/2018/', site.url).href;

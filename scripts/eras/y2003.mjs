@@ -58,7 +58,7 @@ export default async function build(ctx, era) {
   await art('stripes.gif', await stripes());
   await art('bullet.gif', await gif(canvas(4, 4, hex(ORANGE)), { colours: 2 }));
   const headings = {};
-  for (const [key, text] of [['about', 'ABOUT'], ['archives', 'ARCHIVES'], ['elsewhere', 'ELSEWHERE'], ['ring', 'TIME RING'], ['syndicate', 'SYNDICATE'], ['latest', 'LATEST PHOTOGRAPHS'], ['gallery', 'GALLERY'], ['comments', 'COMMENTS']]) {
+  for (const [key, text] of [['about', 'ABOUT'], ['archives', 'ARCHIVES'], ['elsewhere', 'ELSEWHERE'], ['ring', 'TIME RING'], ['syndicate', 'SYNDICATE'], ['blogroll', 'BLOGROLL'], ['latest', 'LATEST PHOTOGRAPHS'], ['gallery', 'GALLERY'], ['comments', 'COMMENTS']]) {
     headings[key] = await art('h-' + key + '.gif', await pixelHeading(text, key === 'latest' || key === 'gallery' || key === 'comments' ? ORANGE : '#333333'));
   }
   const badges = [['b-xhtml.gif', await art('b-xhtml.gif', await badge('W3C', 'XHTML 1.0', '#336699')), 'XHTML 1.0'],
@@ -66,7 +66,7 @@ export default async function build(ctx, era) {
     ['b-rss.gif', await art('b-rss.gif', await badge('XML', 'RSS 2.0', ORANGE)), 'RSS 2.0']];
   // The intro draws its type with the same 5 × 7 font as the images.
   const used = [...new Set('GERRY ZHAO CHASING LIGHT. KEEPING MOMENTS. LOADING 0123456789% SKIP INTRO ENTER > SOUND ON OFF'.split(''))];
-  await output('eras/2003/pixelfont.js', '// A 5 x 7 pixel font, for the intro.\nvar PIXELFONT = ' + JSON.stringify(Object.fromEntries(used.map(ch => [ch, GLYPHS[ch]]))) + ';\n');
+  await output('eras/2003/pixelfont.js', '// A 5 x 7 pixel font, for the intro, and the touch of each keystroke as the line types itself.\nvar PIXELFONT = ' + JSON.stringify(Object.fromEntries(used.map(ch => [ch, GLYPHS[ch]]))) + ';\nvar TYPING = ' + JSON.stringify(ctx.puzzles.rhythm) + ';\n');
 
   const pictures = [];
   for (const photo of photos) {
@@ -86,6 +86,7 @@ ${csp.replace('>', ' />')}
 <meta name="robots" content="noindex" />
 <title>${escape(title)}</title>
 <link rel="stylesheet" type="text/css" href="style.css" />
+<link rel="alternate stylesheet" type="text/css" href="zen.css" title="Zen" />
 <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="index.xml" />
 ${extra}</head>
 `;
@@ -106,10 +107,28 @@ ${extra}</head>
 <ul><li><a href="https://mail.g3rry.com/">g3mail</a>: free mail</li><li><a href="/phantom/">The Phantom</a></li><li><a href="/mountain/">The Ascent</a></li></ul>
 <h3>${img('images/h-ring.gif', headings.ring, 'Time ring')}</h3>
 <p><a href="${ring.previous.href}">&laquo; ${label(ring.previous)}</a> &middot; <a href="/eras/">all</a> &middot; <a href="${ring.next.href}">${label(ring.next)} &raquo;</a></p>
+<h3>${img('images/h-blogroll.gif', headings.blogroll, 'Blogroll')}</h3>
+<ul id="blogroll">${ctx.puzzles.blogroll.map((name, i) => '<li id="blog' + String(i + 1).padStart(2, '0') + '">' + escape(name) + '</li>').join('')}</ul>
+<p class="rot">(The links rotted years ago.)</p>
 <h3>${img('images/h-syndicate.gif', headings.syndicate, 'Syndicate')}</h3>
 <p><a href="index.xml">RSS 2.0</a> feed of new photographs.</p>
 <p class="badges">${badges.map(([name, meta, alt]) => img('images/' + name, meta, alt)).join(' ')}</p>
 </div>`;
+  const zenIds = ctx.puzzles.zen.map(name => '#blog' + String(ctx.puzzles.blogroll.indexOf(name) + 1).padStart(2, '0'));
+  await output('eras/2003/zen.css', `/* gerry zhao :: zen
+   an alternate style for the same markup (View > Page Style > Zen). less orange, more air. */
+body { background: #f4f1ea; color: #555; font-family: Georgia, "Times New Roman", serif; }
+#container { background: #fbfaf6; border: 0; }
+#header, #tabs { background: none; border: 0; }
+#header img, #tabs, .badges, #sidebar h3 img { opacity: 0.35; }
+#content { font-size: 13px; line-height: 1.9; }
+#sidebar { color: #888; }
+#blogroll { position: relative; height: ${zenIds.length * 2}em; }
+#blogroll li { display: none; }
+${zenIds.map((id, i) => id + ' { display: block; position: absolute; left: 0; top: ' + i * 2 + 'em; }').join('\n')}
+#blogroll li:first-letter { font-size: 18px; color: #222; }
+.rot { display: none; }
+`);
   const page = (title, current, main, scripts = []) => head(title + ' :: gerry zhao') + `<body>
 <div id="container">
 <div id="header"><a href="home.html">${img('images/logo.gif', logoMeta, 'Gerry Zhao')}</a></div>

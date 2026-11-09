@@ -1,0 +1,679 @@
+{
+ "sheet": [
+  {
+   "note": "70 mm · ƒ/2.8 · 1/200 s",
+   "n": 3
+  },
+  {
+   "note": "70 mm · ƒ/4 · 1/640 s",
+   "n": 2
+  },
+  {
+   "note": "200 mm · ƒ/2.8 · 1/640 s",
+   "n": 17
+  },
+  {
+   "note": "104 mm · ƒ/32 · 20″",
+   "n": 3
+  },
+  {
+   "note": "52 mm · ƒ/2.8 · 1/60 s",
+   "n": 1
+  },
+  {
+   "note": "70 mm · ƒ/22 · 1/13 s",
+   "n": 8
+  },
+  {
+   "note": "48 mm · ƒ/3.2 · 1/500 s",
+   "n": 5
+  },
+  {
+   "note": "24 mm · ƒ/2.8 · 1/20 s",
+   "n": 1
+  }
+ ],
+ "wordle": {
+  "title": "Wordle 612 4/6",
+  "rows": [
+   {
+    "letters": "RIDGE",
+    "marks": "yybbb"
+   },
+   {
+    "letters": "TRAIL",
+    "marks": "byyyb"
+   },
+   {
+    "letters": "SCREE",
+    "marks": "byybb"
+   },
+   {
+    "letters": "",
+    "marks": "ggggg"
+   }
+  ]
+ },
+ "vendors": [
+  {
+   "name": "Aerie Analytics",
+   "days": 3,
+   "legitimate": true
+  },
+  {
+   "name": "Bergschrund Bidding",
+   "days": 120,
+   "legitimate": false
+  },
+  {
+   "name": "Couloir Cloud",
+   "days": 400,
+   "legitimate": false
+  },
+  {
+   "name": "Dropline Digital",
+   "days": 21,
+   "legitimate": false
+  },
+  {
+   "name": "Edelweiss Exchange",
+   "days": 30,
+   "legitimate": true
+  },
+  {
+   "name": "Firn Funnel",
+   "days": 10,
+   "legitimate": false
+  },
+  {
+   "name": "Glissade Group",
+   "days": 60,
+   "legitimate": true
+  },
+  {
+   "name": "Hoarfrost Holdings",
+   "days": 75,
+   "legitimate": false
+  },
+  {
+   "name": "Icefall Insights",
+   "days": 5,
+   "legitimate": false
+  },
+  {
+   "name": "Krummholz Kontext",
+   "days": 240,
+   "legitimate": false
+  },
+  {
+   "name": "Ledge & Lintel",
+   "days": 90,
+   "legitimate": true
+  },
+  {
+   "name": "Lookout Labs",
+   "days": 7,
+   "legitimate": true
+  },
+  {
+   "name": "Moraine Metrics",
+   "days": 150,
+   "legitimate": false
+  },
+  {
+   "name": "Névé Networks",
+   "days": 45,
+   "legitimate": true
+  },
+  {
+   "name": "Overhang Optimisation",
+   "days": 180,
+   "legitimate": true
+  },
+  {
+   "name": "Ptarmigan Data",
+   "days": 14,
+   "legitimate": true
+  },
+  {
+   "name": "Rime Retargeting",
+   "days": 1,
+   "legitimate": false
+  },
+  {
+   "name": "Scree Signals",
+   "days": 270,
+   "legitimate": false
+  },
+  {
+   "name": "Talus Tag Manager",
+   "days": 2,
+   "legitimate": false
+  },
+  {
+   "name": "Verglas Vision",
+   "days": 730,
+   "legitimate": false
+  },
+  {
+   "name": "Whiteout Media",
+   "days": 365,
+   "legitimate": true
+  },
+  {
+   "name": "Yeti Yield",
+   "days": 540,
+   "legitimate": false
+  }
+ ],
+ "semaphore": [
+  [
+   1,
+   3
+  ],
+  [
+   1,
+   6
+  ],
+  [
+   2,
+   6
+  ],
+  [
+   1,
+   2
+  ],
+  [
+   4,
+   7
+  ]
+ ],
+ "bookmarks": [
+  {
+   "domain": "pa.th",
+   "title": "Path — trail conditions, updated by hikers",
+   "tags": [
+    "trails",
+    "maps"
+   ],
+   "saves": 212
+  },
+  {
+   "domain": "kilimanja.ro",
+   "title": "Kilimanjaro route planner",
+   "tags": [
+    "africa",
+    "routes"
+   ],
+   "saves": 48
+  },
+  {
+   "domain": "cr.ag",
+   "title": "Crag — climbing photos, rated by everyone",
+   "tags": [
+    "climbing",
+    "photography"
+   ],
+   "saves": 1337
+  },
+  {
+   "domain": "ca.ve",
+   "title": "Cave — the underground photo pool",
+   "tags": [
+    "photography",
+    "dark"
+   ],
+   "saves": 96
+  },
+  {
+   "domain": "scr.ee",
+   "title": "Scree — loose rock, tight edits",
+   "tags": [
+    "photoshop",
+    "tools"
+   ],
+   "saves": 3021
+  },
+  {
+   "domain": "spi.re",
+   "title": "Spire — climbing topo sharing",
+   "tags": [
+    "climbing",
+    "web2.0"
+   ],
+   "saves": 77
+  },
+  {
+   "domain": "crevas.se",
+   "title": "Crevasse — mind the gap (beta)",
+   "tags": [
+    "glaciers",
+    "beta"
+   ],
+   "saves": 5
+  },
+  {
+   "domain": "glaci.er",
+   "title": "Glacier — slow news, every day",
+   "tags": [
+    "news",
+    "slow"
+   ],
+   "saves": 640
+  }
+ ],
+ "rhythm": [
+  [
+   190,
+   90
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   190,
+   90
+  ],
+  [
+   55,
+   420
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   55,
+   420
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   190,
+   420
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   190,
+   90
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   55,
+   420
+  ],
+  [
+   190,
+   90
+  ],
+  [
+   55,
+   90
+  ],
+  [
+   190,
+   1100
+  ]
+ ],
+ "blogroll": [
+  "Asphalt & Altitude",
+  "Coffee at the Col",
+  "Coldwater Contacts",
+  "Daily Shutter",
+  "Elevation Notes",
+  "Field Journal",
+  "Grain and Glass",
+  "Instant Exposure",
+  "Northbound",
+  "Overexposed",
+  "Rangefinder Diaries",
+  "Twelve Frames",
+  "Unfinished Rolls"
+ ],
+ "zen": [
+  "Coffee at the Col",
+  "Overexposed",
+  "Rangefinder Diaries",
+  "Northbound",
+  "Instant Exposure",
+  "Coldwater Contacts",
+  "Elevation Notes"
+ ],
+ "encoding": {
+  "name": "уБЫБ, оПЧПУЙВЙТУЛ",
+  "message": "рТЙЧЕФ У ЧЕТЫЙОЩ! с ЛТЙЛОХМ УЧПЕ ЙНС, Й ЗПТБ ПФЧЕФЙМБ НОЕ ПДОЙН УМПЧПН: ьип.",
+  "browser": "Mozilla/4.06 [ru] (Win95; I)",
+  "date": "Sat, 13 Nov 1999 03:12:44"
+ },
+ "privateFiles": [
+  {
+   "name": "letter-to-self.txt",
+   "date": "1996-02-03 21:14",
+   "size": "1k",
+   "body": "Dear me,\n\nIf you are reading this, the page is still not finished. Finish the photo page.\n\n- me, February"
+  },
+  {
+   "name": "about-me.html",
+   "date": "1996-03-17 16:40",
+   "size": "2k",
+   "body": null
+  },
+  {
+   "name": "notes.txt",
+   "date": "1996-05-02 09:05",
+   "size": "1k",
+   "body": "NOTES\n- buy more film (36 exp)\n- ask the lab about scanning\n- learn TABLE tags\n- get a counter"
+  },
+  {
+   "name": "todo.txt",
+   "date": "1996-06-21 23:58",
+   "size": "1k",
+   "body": "TODO\n[x] starfield background\n[x] under construction sign\n[ ] guestbook\n[ ] webring\n[ ] take the long way round"
+  },
+  {
+   "name": "essay.txt",
+   "date": "1996-08-30 11:22",
+   "size": "4k",
+   "body": "Why I like taking pictures\n\nBecause the light is never the same twice. That is all I have so far."
+  },
+  {
+   "name": "resume.txt",
+   "date": "1996-10-11 14:03",
+   "size": "2k",
+   "body": "GERRY ZHAO\nObjective: to have a home page.\nSkills: HTML 2.0, some HTML 3.2, Netscape Navigator."
+  },
+  {
+   "name": "netscape-bookmarks.html",
+   "date": "1996-12-24 19:31",
+   "size": "6k",
+   "body": null
+  }
+ ],
+ "sign": [
+  [
+   30,
+   17,
+   17,
+   30,
+   17,
+   17,
+   30
+  ],
+  [
+   14,
+   17,
+   17,
+   17,
+   17,
+   17,
+   14
+  ],
+  [
+   17,
+   17,
+   17,
+   17,
+   17,
+   17,
+   14
+  ],
+  [
+   16,
+   16,
+   16,
+   16,
+   16,
+   16,
+   31
+  ],
+  [
+   30,
+   17,
+   17,
+   17,
+   17,
+   17,
+   30
+  ],
+  [
+   31,
+   16,
+   16,
+   30,
+   16,
+   16,
+   31
+  ],
+  [
+   30,
+   17,
+   17,
+   30,
+   20,
+   18,
+   17
+  ]
+ ],
+ "map": [
+  [
+   17,
+   27,
+   21,
+   21,
+   17,
+   17,
+   17
+  ],
+  [
+   14,
+   17,
+   17,
+   31,
+   17,
+   17,
+   17
+  ],
+  [
+   30,
+   17,
+   17,
+   30,
+   20,
+   18,
+   17
+  ],
+  [
+   17,
+   27,
+   21,
+   21,
+   17,
+   17,
+   17
+  ],
+  [
+   14,
+   17,
+   17,
+   17,
+   17,
+   17,
+   14
+  ],
+  [
+   31,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ]
+ ],
+ "cork": [
+  [
+   30,
+   17,
+   17,
+   30,
+   16,
+   16,
+   16
+  ],
+  [
+   14,
+   17,
+   17,
+   31,
+   17,
+   17,
+   17
+  ],
+  [
+   30,
+   17,
+   17,
+   30,
+   20,
+   18,
+   17
+  ],
+  [
+   17,
+   17,
+   17,
+   31,
+   17,
+   17,
+   17
+  ],
+  [
+   31,
+   16,
+   16,
+   30,
+   16,
+   16,
+   31
+  ],
+  [
+   16,
+   16,
+   16,
+   16,
+   16,
+   16,
+   31
+  ],
+  [
+   14,
+   4,
+   4,
+   4,
+   4,
+   4,
+   14
+  ],
+  [
+   14,
+   17,
+   17,
+   17,
+   17,
+   17,
+   14
+  ],
+  [
+   17,
+   17,
+   25,
+   21,
+   19,
+   17,
+   17
+  ]
+ ],
+ "band": [
+  [
+   30,
+   17,
+   17,
+   30,
+   16,
+   16,
+   16
+  ],
+  [
+   16,
+   16,
+   16,
+   16,
+   16,
+   16,
+   31
+  ],
+  [
+   14,
+   17,
+   17,
+   31,
+   17,
+   17,
+   17
+  ],
+  [
+   31,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  [
+   31,
+   16,
+   16,
+   30,
+   16,
+   16,
+   31
+  ],
+  [
+   14,
+   17,
+   17,
+   31,
+   17,
+   17,
+   17
+  ],
+  [
+   17,
+   17,
+   17,
+   17,
+   17,
+   17,
+   14
+  ]
+ ],
+ "dial": "18007867473"
+}

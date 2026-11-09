@@ -23,7 +23,7 @@ async function walk(directory, prefix = '') {
 }
 const files = await walk(dist);
 const exactFiles = new Set(files);
-const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain', 'legacy', 'eras']);
+const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain', 'legacy', 'eras', 'strata']);
 for (const file of files) assert(allowedRoots.has(file.split('/')[0]), 'Unexpected published file: ' + file);
 assert.equal(report.photoCount, photos.length, 'Build report must match the current manifest.');
 assert.equal(report.photos.length, photos.length);
@@ -31,7 +31,8 @@ const htmlFiles = files.filter(file => file.endsWith('.html'));
 const htmlByFile = new Map(await Promise.all(htmlFiles.map(async file => [file, await readFile(path.join(dist, file), 'utf8')])));
 
 function targetFor(value, from) {
-  if (/^(?:https?:|mailto:|tel:|data:)/i.test(value)) return null;
+  // /api/ is answered by Workers (the guestbook, the hunt), not by files.
+  if (/^(?:https?:|mailto:|tel:|data:)/i.test(value) || value.startsWith('/api/')) return null;
   const url = new URL(value.replaceAll('&amp;', '&'), 'https://site.test/' + from);
   const target = decodeURIComponent(url.pathname).replace(/^\//, '');
   return { target: target.endsWith('/') || !target ? target + 'index.html' : target, hash: decodeURIComponent(url.hash.slice(1)) };
@@ -141,6 +142,17 @@ for (const [file, html] of htmlByFile) {
 for (const file of files.filter(file => file.startsWith('eras/') && file.endsWith('.js'))) {
   assert.doesNotMatch(await readFile(path.join(dist, file), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'Era scripts must not build HTML from strings: ' + file);
 }
+
+// Strata (/strata/), the hunt: its hub stays out of the index and the sitemap and is reached from /eras/. The puzzle
+// data comes from the private solution book; the repository holds only keyed hashes of the answers.
+const strataRows = JSON.parse(await readFile(path.join(root, 'content/strata.json'), 'utf8')).rows;
+const hub = htmlByFile.get('strata/index.html');
+assert(hub && hub.includes('name="robots" content="noindex"') && !sitemap.includes('/strata/'), 'The Strata hub is out of the index and the sitemap.');
+assert(dial.includes('href="/strata/"'), 'The /eras/ dial leads to Strata.');
+assert.equal([...hub.matchAll(/<li class="stratum /g)].length, strataRows.length, 'One stratum on the hub per row of content/strata.json.');
+assert((await readFile(path.join(dist, 'robots.txt'), 'utf8')).includes('Disallow: /eras/1996/private/') && htmlByFile.has('eras/1996/private/index.html'), 'robots.txt points at the private folder, and it exists.');
+const answerHashes = await readFile(path.join(root, 'hunt/src/answers.js'), 'utf8');
+for (const row of strataRows) assert(new RegExp('"' + row.id + '": "[0-9a-f]{64}"').test(answerHashes), 'No answer hash for ' + row.id);
 
 let derivedBytes = 0;
 for (const photo of photos) {

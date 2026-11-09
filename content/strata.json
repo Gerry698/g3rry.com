@@ -1,0 +1,165 @@
+{
+  "title": "Strata — Gerry Zhao",
+  "description": "The mountain in cross-section: the site as it is, the years beneath it, and the machinery under those.",
+  "intro": {
+    "kicker": "Off the trail",
+    "title": "Strata",
+    "text": "Cut the mountain open and the site is in layers: this year at the surface, every earlier year below it, and under the oldest, the bedrock that carries every page. Something is buried in each layer. Find it, write it into its stratum, and look down from the summit."
+  },
+  "rows": [
+    {
+      "id": "contact-sheet",
+      "stratum": "2026",
+      "title": "Contact sheet",
+      "where": "This site’s photographs",
+      "flavor": "Eight frames, noted the way a photographer notes them. Find each one, and take the letter its number asks for from the name of the place (letters only).",
+      "bore": 0,
+      "length": 8
+    },
+    {
+      "id": "four-tries",
+      "stratum": "2023",
+      "title": "4/6",
+      "where": "The bento page",
+      "flavor": "Shared without spoilers, as everyone did. Some things show better with the lights on.",
+      "bore": 2,
+      "length": 5
+    },
+    {
+      "id": "legitimate-interest",
+      "stratum": "2018",
+      "title": "Legitimate interest",
+      "where": "The cookie banner",
+      "flavor": "We value your privacy. Some of our partners value it a little less.",
+      "bore": 0,
+      "length": 9
+    },
+    {
+      "id": "works-offline",
+      "stratum": "2018",
+      "title": "Works offline",
+      "where": "Without a connection",
+      "flavor": "The page promises to work with the line down. Hold it to that.",
+      "bore": 2,
+      "length": 5
+    },
+    {
+      "id": "depth-of-field",
+      "stratum": "2014",
+      "title": "Depth of field",
+      "where": "The scrolling page",
+      "flavor": "Two layers, two speeds, and one moment where they agree.",
+      "bore": 6,
+      "length": 7
+    },
+    {
+      "id": "pinned",
+      "stratum": "2011",
+      "title": "Pinned",
+      "where": "The cork board",
+      "flavor": "Every photograph on the board has been moved before. The cork remembers where.",
+      "bore": 0,
+      "length": 9
+    },
+    {
+      "id": "bookmarked",
+      "stratum": "2007",
+      "title": "Bookmarked",
+      "where": "The sidebar",
+      "flavor": "Clever names were cheap in 2007, if you didn’t mind which corner of the world your address came from.",
+      "bore": 0,
+      "length": 8
+    },
+    {
+      "id": "sound-on",
+      "stratum": "2003",
+      "title": "Sound on",
+      "where": "The intro",
+      "flavor": "Don’t skip the intro this time. Turn the sound on and listen to it type.",
+      "bore": 1,
+      "length": 5
+    },
+    {
+      "id": "page-style",
+      "stratum": "2003",
+      "title": "Page style",
+      "where": "The photoblog",
+      "flavor": "In 2003 a page could carry more than one stylesheet, and the browser had a menu for choosing. One still does.",
+      "bore": 6,
+      "length": 7
+    },
+    {
+      "id": "hotspots",
+      "stratum": "1999",
+      "title": "Hotspots",
+      "where": "The home frame",
+      "flavor": "The banner is a map. Not every place on it is marked.",
+      "bore": 0,
+      "length": 6
+    },
+    {
+      "id": "wrong-encoding",
+      "stratum": "1999",
+      "title": "Wrong encoding",
+      "where": "The guestbook",
+      "flavor": "A visitor from far away signed the guestbook in 1999. Their computer and ours disagreed about the alphabet.",
+      "bore": 3,
+      "length": 4
+    },
+    {
+      "id": "under-construction",
+      "stratum": "1996",
+      "title": "Under construction",
+      "where": "The home page",
+      "flavor": "The sign flickers. Look between the blinks.",
+      "bore": 2,
+      "length": 7
+    },
+    {
+      "id": "disallow",
+      "stratum": "1996",
+      "title": "Disallow",
+      "where": "Where robots may not go",
+      "flavor": "Robots are asked to stay out of one folder. You are not a robot.",
+      "bore": 2,
+      "length": 7
+    },
+    {
+      "id": "long-way-round",
+      "stratum": "HTTP",
+      "title": "The long way round",
+      "where": "Below every page",
+      "link": "/api/hunt/trail/watershed",
+      "flavor": "The trail starts here and ends here. Nine turns on the way, and every turn has a number.",
+      "bore": 2,
+      "length": 9
+    },
+    {
+      "id": "ranger",
+      "stratum": "SMTP",
+      "title": "Write to the ranger",
+      "where": "ranger@g3rry.com",
+      "flavor": "The ranger answers every letter, and says everything twice.",
+      "bore": 1,
+      "length": 8
+    },
+    {
+      "id": "dig",
+      "stratum": "DNS",
+      "title": "Dig",
+      "where": "summits.g3rry.com",
+      "flavor": "The peaks are in the directory. Look them up, and climb them in order.",
+      "bore": 3,
+      "length": 8
+    },
+    {
+      "id": "dial-tone",
+      "stratum": "Telephone",
+      "title": "Dial tone",
+      "where": "Arrive by modem",
+      "flavor": "Before the screech, the modem dials a number: the kind of number a company wants you to remember. Listen to it.",
+      "bore": 2,
+      "length": 7
+    }
+  ]
+}

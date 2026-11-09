@@ -39,10 +39,13 @@ npm run photos -- alt p16 "新的描述"
 | `content/photos.json` | 照片顺序、描述、是否精选 |
 | `content/mountain.json` | 首页（雪山）的文案和营地 |
 | `content/eras.json` | `/eras/` 其他年代：各年份的名称、一句话和建造说明 |
-| `src/` | 页面模板、样式、粒子动画、画廊交互和留言页；`src/mountain/` 是首页雪山，`src/eras/` 是其他年代的脚本和样式，`src/index.html` 是收在 `/legacy/` 的旧首页，`src/phantom/` 是实验页和每张照片的页面，`src/veil.js` 是页面之间的黑场转场 |
+| `content/strata.json`、`content/strata/` | `/strata/` 解谜的枢纽页文案和谜面数据（由私有生成器写出，不要手改；答案不在仓库里） |
+| `src/` | 页面模板、样式、粒子动画、画廊交互和留言页；`src/mountain/` 是首页雪山，`src/eras/` 是其他年代的脚本和样式，`src/strata/` 是解谜枢纽页，`src/index.html` 是收在 `/legacy/` 的旧首页，`src/phantom/` 是实验页和每张照片的页面，`src/veil.js` 是页面之间的黑场转场 |
 | `Photo/` | 照片网页母版 |
 | `image/` | 粒子图案素材 |
-| `scripts/` | 构建、检查、预览和照片工具；`scripts/eras/` 生成各年代的页面和图片 |
+| `scripts/` | 构建、检查、预览和照片工具；`scripts/eras/` 生成各年代的页面和图片，`scripts/strata/` 生成解谜枢纽页 |
 | `guestbook/` | 留言板的两个 Worker、数据库结构和测试 |
+| `hunt/` | 解谜和访客计数器的 Worker（答案校验、重定向链、拨号、旗、护林员回信）、数据库结构和测试 |
 | `.github/workflows/pages.yml` | PR 检查与 `main` 发布 |
 | `.github/workflows/guestbook.yml` | 留言板 Worker 测试 |
+| `.github/workflows/hunt.yml` | 解谜 Worker 测试 |

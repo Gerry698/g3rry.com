@@ -174,3 +174,9 @@ footer { text-align: center; padding: 10px 20px 40px; font-size: 13px; }
   .polaroid a img { width: 140px; height: 140px; }
   .toolbar { flex-wrap: wrap; gap: 10px; }
 }
+/* every Polaroid on the big board hangs over its own patch of cork, and can be dragged off it */
+.spot { position: relative; display: inline-block; vertical-align: top; margin: 12px 14px 22px; }
+.spot .holes { position: absolute; left: 0; top: 0; width: 100%; height: auto; pointer-events: none; }
+.spot .polaroid { margin: 0; cursor: move; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.spot .polaroid.dragging { -webkit-transition: none; -moz-transition: none; transition: none; -webkit-box-shadow: 0 16px 30px rgba(0,0,0,.5); box-shadow: 0 16px 30px rgba(0,0,0,.5); }
+@media (max-width: 640px) { .spot { margin: 10px 6px 18px; } }

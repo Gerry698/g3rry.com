@@ -8,13 +8,18 @@ const port = Number(process.env.PORT || 4173);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.avif': 'image/avif', '.svg': 'image/svg+xml', '.xml': 'application/xml', '.txt': 'text/plain; charset=utf-8' };
 try { await stat(path.join(root, 'index.html')); } catch { throw new Error('Build the site first with npm run build.'); }
 const actualRoot = await realpath(root);
-// guestbook/scripts/dev.mjs sets GUESTBOOK_API so the page can reach the local Worker on the same origin, as in production.
+// guestbook/scripts/dev.mjs sets GUESTBOOK_API and hunt/scripts/dev.mjs sets HUNT_API, so the pages reach the local
+// Workers on the same origin, as in production.
 const guestbookApi = process.env.GUESTBOOK_API;
-async function proxyGuestbook(request, response) {
+const huntApi = process.env.HUNT_API;
+const upstream = pathname => (guestbookApi && pathname === '/api/guestbook' ? guestbookApi
+  : huntApi && (pathname.startsWith('/api/hunt') || pathname === '/api/counter') ? huntApi : null);
+async function proxy(api, request, response) {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
   const headers = Object.fromEntries(['content-type', 'accept', 'origin', 'sec-fetch-site'].filter(name => request.headers[name]).map(name => [name, request.headers[name]]));
-  const result = await fetch(guestbookApi + request.url, { method: request.method, headers, body: chunks.length ? Buffer.concat(chunks) : undefined });
+  // Redirects pass through to the browser, as they would from the edge.
+  const result = await fetch(api + request.url, { method: request.method, headers, body: chunks.length ? Buffer.concat(chunks) : undefined, redirect: 'manual' });
   // fetch() has already decoded the body, so the upstream encoding and length no longer describe it.
   const passed = Object.fromEntries([...result.headers].filter(([name]) => !['content-encoding', 'content-length', 'transfer-encoding'].includes(name)));
   response.writeHead(result.status, passed);
@@ -22,7 +27,8 @@ async function proxyGuestbook(request, response) {
 }
 http.createServer(async (request, response) => {
   try {
-    if (guestbookApi && new URL(request.url, 'http://localhost').pathname === '/api/guestbook') { await proxyGuestbook(request, response); return; }
+    const api = upstream(new URL(request.url, 'http://localhost').pathname);
+    if (api) { await proxy(api, request, response); return; }
     if (!['GET', 'HEAD'].includes(request.method)) { response.writeHead(405).end(); return; }
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
     if (pathname.includes('\0') || pathname.includes('\\')) { response.writeHead(400).end(); return; }

@@ -125,3 +125,5 @@ img { max-width: 100%; height: auto; }
 .slider-close { top: 14px; right: 24px; font-size: 48px !important; }
 .slider-prev { left: 20px; } .slider-next { right: 20px; }
 .slider-count { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; color: #bdc3c7; letter-spacing: 3px; font-size: 12px; font-weight: 600; margin: 0; }
+.depths { position: absolute; left: 0; right: 0; bottom: 44px; height: 56px; pointer-events: none; }
+.depth { position: absolute; left: 50%; top: 0; max-width: 88vw; height: auto; fill: rgba(255,255,255,.82); transform: translateX(calc(-50% + var(--shift, 0px))); will-change: transform; }

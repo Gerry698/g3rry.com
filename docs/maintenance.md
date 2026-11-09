@@ -12,6 +12,7 @@
 | 粒子效果 / 画廊交互 | `src/particles.js` / `src/gallery.js` |
 | 首页（雪山） | `content/mountain.json`、`src/mountain/`（见下文"山"） |
 | 其他年代 | `content/eras.json`、`scripts/eras/`、`src/eras/`（见下文"其他年代"） |
+| 解谜（/strata/） | 私有目录 `D:\Claude\g3rry.com-hunt\`、`scripts/strata/`、`src/strata/`、`hunt/`（见下文"解谜"） |
 | 留言板页面、文案 | `src/guestbook.html`、`src/guestbook.js`、`content/site.json` 的 `guestbook` |
 | 留言板后端与后台 | `guestbook/`，见[留言板手册](guestbook.md) |
 | 页面转场（进出页的黑场） | `src/veil.js`、`src/veil.css`（见下文"转场与刘海屏"） |
@@ -154,9 +155,35 @@ node atlas.mjs frames          # 解算各 stop 的相机位置
 - 早期年份的图都是代码画的：`scripts/eras/pixels.mjs` 是 5×7 点阵字体和 GIF/PNG 输出（标题、88×31 小徽章、施工路障、计数器数字、Phantom 动图）；`scripts/eras/fonts.mjs` 把 @fontsource 的 WOFF 解包成 TTF，供 sharp 渲染 2007 年的光泽 logo（sharp 读不了 WOFF，直接传会静默换成默认字体）。
 - 调制解调器：`src/eras/modem.js` 是作用于 `/eras/` 的 Service Worker，只放慢 1996 和 1999 两年：一条共享的线、最多四个连接、每个响应前 250 ms，速率按"连接速度 ÷ 8 × 0.85"。默认 1996 是 28.8k、1999 是 56K（按 48,000 bps 计）；访客在 `/eras/dialup.html` 或页脚菜单里换速度，设置存在 Cache Storage。拨号音是 `dialup.js` 用 Web Audio 现场合成的。
 - 内容安全策略不变：所有年代都没有内联脚本或内联样式，"当年会写成 onMouseOver 属性"的东西都改成外部脚本挂事件。早期年份的 HTML 用大写标签，`check.mjs` 的正则因此全部不区分大小写。
-- 访客计数器（1996、1999）请求 `/api/counter`，没有这个接口时计数器保持隐藏；接口随解谜游戏的后端一起做。
+- 访客计数器（1996、1999）请求 `/api/counter`（hunt Worker，见下文"解谜"），接口不通时计数器保持隐藏。
 - 检查：每年都要有 `index.html`，目录要链接到每一年，年代页都带 `noindex`，年代脚本里不许出现 `innerHTML` 之类把留言文字当 HTML 的写法。
 - 加一个年份：在 `eras.json` 里按顺序加一项，写 `scripts/eras/y<年份>.mjs` 并在 `index.mjs` 的 `builders` 里登记，静态文件放 `src/eras/<年份>/`。各年份页面里的 "Time ring" 会自动接上前后年份。
+
+## 解谜（/strata/）
+
+`/strata/` 是一场藏在站里的解谜游戏的枢纽页：一张山体剖面，地表是现在的站（2026），往下依次是其他年代，最底下是"基岩"（HTTP、邮件、DNS、电话线）。每一层埋着一道题，每道题的答案填进本层的格子；从峰顶往下打的钻孔穿过每层一个字母，连起来是最后一步的指令。走完最后一步的人可以在峰顶插一面旗：只有编号、日期和颜色，没有文字，所以不需要审核。枢纽页带 `noindex`、不进 sitemap，入口在 `/eras/` 页底、404 页的源代码和 `robots.txt`。
+
+- **答案不在这个仓库里。** 仓库是公开的，所以这里只有访客本来就能看到的谜面数据和答案的 HMAC 哈希。答案、解法、只有解出来才该看到的文字（重定向链、护林员的回信、BBS）都在本机私有目录 `D:\Claude\g3rry.com-hunt\`（本地 git，不推送）：`SOLUTIONS.md` 是完整设计和解法，`hunt.mjs` 是唯一来源。
+- **不要手改** `content/strata.json`、`content/strata/puzzles.json`、`hunt/src/answers.js`：它们由 `node D:\Claude\g3rry.com-hunt\hunt.mjs` 生成（生成器会逐题断言提取结果正确）。改谜题、改答案都在私有目录里改，再重新生成、构建。
+- 各年代里埋题的代码都带注释 "a puzzle of /strata/"，在 `scripts/eras/y*.mjs` 和 `src/eras/` 里搜这句就能找到。改这些年代页时注意不要碰坏它们；`check.mjs` 会检查枢纽页、入口、`robots.txt` 指向的目录和每题的答案哈希都在。
+- 发布前在私有目录跑 `node audit.mjs`：它只看 `dist/`，像读源代码的玩家一样把站内能解的题全部解一遍，再扫描整个 `dist/` 有没有答案明文。
+- 拨号页（`/eras/dialup.html`）可以拨别的号码：号码交给 hunt Worker 判断，拨对了由 `src/eras/board.js` 显示一个终端（BBS）。
+- 后端是 `hunt/` 里的 Worker（`g3rry.com/api/hunt*`、`g3rry.com/api/counter*`），D1 数据库 `hunt`：`/api/hunt/check` 校验答案（每个地址每分钟 20 次），`/api/hunt/trail/*` 是一串重定向，`/api/hunt/dial`、`/api/hunt/flag`、`/api/hunt/flags` 是最后一步和旗，`/api/counter` 是 1996、1999 两年的访客计数器。发往 `ranger@g3rry.com` 的邮件由同一个 Worker 自动回信（只回复通过 DMARC 的发件人，每人每天最多 3 封）。测试：`cd hunt; npm test`（Miniflare，用的是假数据）。
+- 本地试玩：先 `npm run build`，再用 `.claude/launch.json` 里的 `hunt-api`（端口 7790，读私有目录的密钥和种子）和 `preview-hunt`（端口 4176）。这台机器上 8770–9680 端口被 Windows 保留，所以本地 API 用 7790。
+
+首次上线（每一步都要主人确认）：
+
+```powershell
+cd hunt
+npx wrangler d1 create hunt                       # 把输出的 database_id 填进 wrangler.jsonc
+npx wrangler d1 migrations apply hunt --remote
+npx wrangler d1 execute hunt --remote --file D:\Claude\g3rry.com-hunt\seed.sql
+npx wrangler secret put HUNT_KEY                  # 值在 D:\Claude\g3rry.com-hunt\secrets.local.json
+npx wrangler secret put IP_PEPPER
+npx wrangler deploy
+```
+
+然后在 Cloudflare 后台：Email Routing 加一条自定义地址 `ranger@g3rry.com` → 发送到 Worker `hunt`（它比 catch-all 优先）；DNS 按 `D:\Claude\g3rry.com-hunt\dns.json` 加 `summits` 的 LOC 和 TXT 记录（仅 DNS，不代理）。改了重定向链、回信或 BBS 的文字，重新生成后再执行一次 `d1 execute ... seed.sql` 即可，不用重新部署。
 
 ## 发布
 

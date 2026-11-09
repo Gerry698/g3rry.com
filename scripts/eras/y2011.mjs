@@ -4,7 +4,7 @@
 import { copyFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
-import { canvas, png, random, hex } from './pixels.mjs';
+import { canvas, png, random, hex, maskCells } from './pixels.mjs';
 
 const YEAR = 2011;
 
@@ -59,6 +59,18 @@ export default async function build(ctx, era) {
   // Each Polaroid sits at its own angle, the same on every visit.
   const next = random(42);
   const tilt = pictures.map(() => Math.round((next() * 8 - 4) * 10) / 10);
+
+  // The cork behind each Polaroid on the big board: old pinholes from years of pinning, and behind every other one,
+  // fresh holes in the shape of a letter (a puzzle of /strata/). A Polaroid is 240 × 278 with its frame.
+  for (const [i] of pictures.entries()) {
+    const scatter = random(2011 + i * 7), holes = [];
+    for (let n = 0, count = 6 + Math.floor(scatter() * 6); n < count; n++) holes.push([14 + scatter() * 212, 14 + scatter() * 250, 1.8 + scatter() * 1.1]);
+    const letter = i % 2 === 0 ? ctx.puzzles.cork[i / 2] : null;
+    if (letter) for (const [x, y] of maskCells(letter)) holes.push([60 + x * 30, 49 + y * 30, 3.4]);
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="278">' + holes.map(([x, y, r]) =>
+      '<circle cx="' + x.toFixed(1) + '" cy="' + (y + 0.8).toFixed(1) + '" r="' + (r + 1.1).toFixed(1) + '" fill="#e3c398" opacity=".5"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="#21130a"/>').join('') + '</svg>';
+    await output('eras/2011/images/cork-' + String(i + 1).padStart(2, '0') + '.png', await sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer());
+  }
 
   const ring = around(YEAR);
   const label = item => String(item.year);
@@ -118,7 +130,7 @@ ${scripts.map(src => '<script src="' + src + '"></script>').join('\n')}
   <label class="switch"><span>Captions</span><input type="checkbox" id="captions" checked><span class="track"><span class="knob"></span><span class="on">ON</span><span class="off">OFF</span></span></label>
 </div>
 <section class="board">
-${pictures.map((item, i) => `  <figure class="polaroid" id="${item.photo.id}" data-tilt="${tilt[i]}"><img class="pin" src="images/pin.png" width="26" height="30" alt=""><a href="${item.large.src}" data-caption="${escape(item.photo.place + ', ' + item.photo.city)}">${img(item.square.src, item.square, item.photo.alt)}</a><figcaption>${escape(item.photo.place)}</figcaption></figure>`).join('\n')}
+${pictures.map((item, i) => `  <span class="spot"><img class="holes" src="images/cork-${String(i + 1).padStart(2, '0')}.png" width="240" height="278" alt=""><figure class="polaroid" id="${item.photo.id}" data-tilt="${tilt[i]}"><img class="pin" src="images/pin.png" width="26" height="30" alt=""><a href="${item.large.src}" data-caption="${escape(item.photo.place + ', ' + item.photo.city)}">${img(item.square.src, item.square, item.photo.alt)}</a><figcaption>${escape(item.photo.place)}</figcaption></figure></span>`).join('\n')}
 </section>`, ['tilt.js', 'board.js']));
 
   await output('eras/2011/notes.html', page('Notes — Gerry Zhao', 'notes.html', `<div class="sheet narrow">

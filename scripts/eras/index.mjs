@@ -69,14 +69,16 @@ export async function buildEras(ctx) {
   const ascii = value => escape(value).replace(/[^\x00-\x7f]/gu, ch => '&#' + ch.codePointAt(0) + ';');
   const csp = '<meta http-equiv="Content-Security-Policy" content="' + ctx.policy() + '">';
 
-  const shared = { ...ctx, content, photos, around, variant, copyStatic, ascii, csp, hero: photos.find(photo => photo.id === ctx.site.hero.photoId) };
+  // The hunt (/strata/) hides one puzzle or two in several years; their data is generated from the private solution book.
+  const puzzles = JSON.parse(await readFile(path.join(root, 'content/strata/puzzles.json'), 'utf8'));
+  const shared = { ...ctx, content, photos, around, variant, copyStatic, ascii, csp, puzzles, hero: photos.find(photo => photo.id === ctx.site.hero.photoId) };
   for (const era of content.eras) {
     await copyStatic(era.year);
     await builders[era.year](shared, era);
   }
 
   // The time machine itself: the modem service worker and the dial-up screen are shared by 1996 and 1999.
-  for (const name of ['modem.js', 'modem-client.js', 'dialup.js', 'dialup.css', 'dial.css', 'dial.js']) {
+  for (const name of ['modem.js', 'modem-client.js', 'dialup.js', 'board.js', 'dialup.css', 'dial.css', 'dial.js']) {
     await output('eras/' + name, await readFile(path.join(root, 'src/eras', name)));
   }
   await output('eras/dialup.html', `<!doctype html>
@@ -97,7 +99,8 @@ export async function buildEras(ctx) {
       <svg class="dialer-icon" viewBox="0 0 40 32" aria-hidden="true"><rect x="2" y="4" width="14" height="11" fill="#d8d4c8" stroke="#222"/><rect x="4" y="6" width="10" height="7" fill="#1d4f7a"/><rect x="5" y="16" width="8" height="3" fill="#bbb6a8" stroke="#222"/><rect x="24" y="14" width="14" height="11" fill="#d8d4c8" stroke="#222"/><rect x="26" y="16" width="10" height="7" fill="#1d4f7a"/><rect x="27" y="26" width="8" height="3" fill="#bbb6a8" stroke="#222"/><path d="M13 21 C18 30 22 6 27 13" fill="none" stroke="#222" stroke-dasharray="2 2"/></svg>
       <dl class="dialer-fields">
         <dt>User name</dt><dd>guest</dd>
-        <dt>Phone number</dt><dd>805-555-0196</dd>
+        <dt>Connection</dt><dd>g3rry.com Online (saved number)</dd>
+        <dt><label for="dialer-number">Other number</label></dt><dd class="dialer-entry"><input id="dialer-number" inputmode="tel" autocomplete="off" maxlength="24" placeholder="Leave empty to use the saved number"></dd>
         <dt><label for="modem-speed">Modem</label></dt>
         <dd><select id="modem-speed" data-modem>
           <option value="14400">14,400 bps</option><option value="28800">28,800 bps</option><option value="33600">33,600 bps</option>
@@ -115,7 +118,9 @@ export async function buildEras(ctx) {
     </div>
   </main>
   <script src="/eras/modem-client.js"></script>
+  <section class="board" id="board" hidden aria-label="Terminal"><pre class="board-screen" id="board-screen" aria-live="polite"></pre><div class="board-keys" id="board-keys"></div></section>
   <script src="/eras/dialup.js"></script>
+  <script src="/eras/board.js"></script>
 </body>
 </html>
 `);
@@ -138,6 +143,7 @@ export async function buildEras(ctx) {
   </ol>
   <p class="eras-modem"><label for="modem-speed">Modem for 1996 and 1999</label>
     <select id="modem-speed" data-modem disabled><option value="">The year's usual</option><option value="14400">14,400 bps</option><option value="28800">28,800 bps</option><option value="33600">33,600 bps</option><option value="48000">56K</option><option value="0">No modem</option></select></p>
+  <p class="eras-deeper">Under the oldest year there is bedrock, the machinery every page stands on, and something is buried in every layer. <a href="/strata/">Cut the mountain open ↘</a></p>
 </section>`;
   await output('eras/index.html', render(body, {
     title: content.title, description: content.description, route: '/eras/', pageClass: 'eras-page',

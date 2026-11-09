@@ -54,6 +54,12 @@ export function canvas(width, height, fill = [0, 0, 0, 0]) {
   return c;
 }
 
+// A 5 × 7 glyph given as seven row masks (bit 4 is the left column), as the hunt's puzzle data stores letters.
+export function drawMask(c, rows, x, y, scale = 1, colour = [255, 255, 255, 255]) {
+  rows.forEach((mask, j) => { for (let i = 0; i < 5; i++) if (mask & (16 >> i)) c.rect(x + i * scale, y + j * scale, scale, scale, colour); });
+}
+export const maskCells = rows => rows.flatMap((mask, j) => [0, 1, 2, 3, 4].filter(i => mask & (16 >> i)).map(i => [i, j]));
+
 export function textWidth(text, scale = 1, spacing = 1) {
   return text.length ? text.length * (5 + spacing) * scale - spacing * scale : 0;
 }

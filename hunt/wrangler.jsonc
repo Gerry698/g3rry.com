@@ -1,0 +1,27 @@
+// Strata (the hunt) and the era hit counters: g3rry.com/api/hunt* and g3rry.com/api/counter*, and mail to the ranger
+// (an Email Routing rule sends ranger@g3rry.com here). Secrets: HUNT_KEY, IP_PEPPER.
+// Answers are kept only as keyed hashes (src/answers.js). Text that must stay unseen until a puzzle is solved (the
+// trail, the ranger's letter, the board) lives in D1, seeded from the private solution book; it is never committed.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hunt",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-15",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "g3rry.com/api/hunt*", "zone_name": "g3rry.com" },
+    { "pattern": "g3rry.com/api/counter*", "zone_name": "g3rry.com" }
+  ],
+  // Replace with the id that `wrangler d1 create hunt` prints.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "hunt", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  "ratelimits": [
+    { "name": "CHECK_LIMIT", "namespace_id": "4201", "simple": { "limit": 20, "period": 60 } },
+    { "name": "DIAL_LIMIT", "namespace_id": "4202", "simple": { "limit": 10, "period": 60 } },
+    { "name": "COUNTER_LIMIT", "namespace_id": "4203", "simple": { "limit": 30, "period": 60 } }
+  ],
+  "vars": { "SITE_ORIGIN": "https://g3rry.com", "RANGER_ADDRESS": "ranger@g3rry.com" },
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } }
+}

@@ -2,7 +2,7 @@
 // progressive JPEGs, a guestbook and a ring of sites. The modem service worker sets the pace.
 import path from 'node:path';
 import sharp from 'sharp';
-import { canvas, drawText, textWidth, gif, animatedGif, random, hex, mix } from './pixels.mjs';
+import { canvas, drawText, drawMask, textWidth, gif, animatedGif, random, hex, mix } from './pixels.mjs';
 
 const YEAR = 1996;
 const date = d => [d.getUTCMonth() + 1, d.getUTCDate(), d.getUTCFullYear() % 100].map(n => String(n).padStart(2, '0')).join('/');
@@ -41,20 +41,24 @@ async function rainbow() {
   return gif(c, { colours: 64 });
 }
 
-async function barricade() {
-  const frames = [true, false].map(lit => {
+// The lamp blinks. Between blinks the board shows one letter for a single 40 ms frame (a puzzle of /strata/).
+async function barricade(sign) {
+  const draw = (lit, letter) => {
     const c = canvas(104, 40);
     c.rect(14, 22, 4, 18, hex('#8a8a8a')); c.rect(86, 22, 4, 18, hex('#8a8a8a'));
     c.rect(10, 38, 12, 2, hex('#5a5a5a')); c.rect(82, 38, 12, 2, hex('#5a5a5a'));
-    c.rect(2, 10, 100, 12, (x, y) => ((x + y) % 14) < 7 ? hex('#ffd400') : hex('#111111'));
+    c.rect(2, 10, 100, 12, (x, y) => letter || ((x + y) % 14) < 7 ? hex('#ffd400') : hex('#111111'));
+    if (letter) drawMask(c, letter, 50, 12, 1, hex('#111111'));
     c.rect(2, 10, 100, 1, hex('#fff6a0')); c.rect(2, 21, 100, 1, hex('#5a4a00'));
     const lamp = lit ? hex('#ff8a00') : hex('#6a3600');
     c.rect(49, 6, 6, 4, hex('#333333'));
     for (let y = 0; y < 6; y++) for (let x = 0; x < 6; x++) if ((x - 2.5) ** 2 + (y - 2.5) ** 2 < 9) c.set(49 + x, y, lamp);
     if (lit) for (const [x, y] of [[46, 1], [58, 1], [45, 4], [59, 4]]) c.set(x, y, hex('#ffd27a'));
     return c;
-  });
-  return animatedGif(frames, { delay: 500, colours: 16 });
+  };
+  const frames = [], delay = [];
+  for (const letter of sign) { frames.push(draw(true), draw(true, letter), draw(false)); delay.push(470, 40, 490); }
+  return animatedGif(frames, { delay, colours: 16 });
 }
 
 async function newBadge() {
@@ -145,7 +149,7 @@ export default async function build(ctx, era) {
   for (const [key, text] of [['home', "GERRY'S HOME PAGE"], ['photos', 'MY PHOTO GALLERY'], ['notes', 'GUESTBOOK']]) titles[key] = await art('title-' + key + '.gif', await title(text));
   await art('stars.gif', await stars());
   const bar = await art('bar.gif', await rainbow());
-  const construction = await art('construction.gif', await barricade());
+  const construction = await art('construction.gif', await barricade(ctx.puzzles.sign));
   const fresh = await art('new.gif', await newBadge());
   const mail = await art('mail.gif', await envelope());
   const buttons = [
@@ -299,4 +303,87 @@ Thanks for stopping by! Here is what other visitors have written.
 <SCRIPT SRC="guestbook.js"></SCRIPT>
 ` + foot;
   await output('eras/1996/guestbook.html', guestbook);
+  await privateFolder(ctx);
 }
+
+// ---- /eras/1996/private/: the folder robots.txt asks robots to stay out of, listed the way Apache listed folders.
+
+async function icon(kind) {
+  const c = canvas(20, 22), ink = hex('#000000'), paper = hex('#ffffff'), grey = hex('#c0c0c0');
+  if (kind === 'back') {
+    c.rect(4, 10, 13, 2, ink);
+    for (let i = 0; i < 6; i++) { c.set(4 + i, 10 - i, ink); c.set(4 + i, 11 + i, ink); }
+    c.rect(15, 4, 2, 7, ink);
+  } else if (kind !== 'blank') {
+    c.rect(3, 1, 12, 20, paper); c.rect(3, 1, 12, 1, ink); c.rect(3, 20, 15, 1, ink); c.rect(3, 1, 1, 20, ink); c.rect(17, 5, 1, 16, ink);
+    for (let i = 0; i < 4; i++) c.set(14 + i, 1 + i, ink);
+    if (kind === 'text') for (let y = 7; y < 19; y += 2) c.rect(6, y, 9, 1, grey);
+    else { c.rect(6, 7, 9, 4, hex('#3366cc')); for (let y = 13; y < 19; y += 2) c.rect(6, y, 9, 1, grey); }
+  }
+  return gif(c, { colours: 8 });
+}
+
+async function privateFolder(ctx) {
+  const { output, csp, ascii, puzzles } = ctx;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const stamp = value => { const [d, t] = value.split(' '), [y, m, day] = d.split('-'); return day + '-' + months[m - 1] + '-' + y + ' ' + t; };
+  for (const kind of ['blank', 'back', 'text', 'layout']) await output('eras/1996/icons/' + kind + '.gif', await icon(kind));
+  const page = (title, body) => `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<HTML lang="en">
+<HEAD>
+${csp}
+<META NAME="robots" CONTENT="noindex">
+<TITLE>${ascii(title)}</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF" TEXT="#000000" LINK="#0000EE" VLINK="#551A8B">
+${body}
+</BODY>
+</HTML>
+`;
+  for (const file of puzzles.privateFiles) {
+    if (file.body !== null) await output('eras/1996/private/' + file.name, file.body.replace(/\n/g, '\r\n') + '\r\n');
+    else if (file.name === 'about-me.html') await output('eras/1996/private/about-me.html', page('About me', `<H1>About me</H1>
+<P>Hi! My name is Gerry. I take pictures, mostly of cities and of light. This is the "about me" page for my home page.
+It is not finished yet, so it is not linked from anywhere.</P>
+<P>Things I like: film, maps, mountains, the smell of the photo lab.</P>
+<P><A HREF="../">Back to my home page</A></P>`));
+    else await output('eras/1996/private/' + file.name, page('Bookmarks for Gerry', `<!-- Netscape bookmark file, saved as a page. -->
+<H1>Bookmarks for Gerry</H1>
+<DL><DT><H3>My pages</H3>
+<DL>
+<DT><A HREF="../">Gerry's Home Page</A>
+<DT><A HREF="../photos.html">My Photo Gallery</A>
+<DT><A HREF="../guestbook.html">Guestbook</A>
+</DL>
+<DT><H3>To read later</H3>
+<DL>
+<DT><A HREF="../../1999/">The future (frames?)</A>
+</DL>
+</DL>`));
+  }
+  const byName = [...puzzles.privateFiles].sort((a, b) => a.name.localeCompare(b.name));
+  const rows = byName.map(file => {
+    const kind = file.name.endsWith('.html') ? ['layout', '[   ]'] : ['text', '[TXT]'];
+    return '<SPAN><IMG SRC="../icons/' + kind[0] + '.gif" ALT="' + kind[1] + '" WIDTH="20" HEIGHT="22"> <A HREF="' + file.name + '">' + file.name + '</A>'
+      + ' '.repeat(Math.max(1, 25 - file.name.length)) + stamp(file.date) + '  ' + file.size.padStart(5) + '  \n</SPAN>';
+  });
+  await output('eras/1996/private/index.html', `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<HTML lang="en">
+ <HEAD>
+${csp}
+  <META NAME="robots" CONTENT="noindex">
+  <TITLE>Index of /eras/1996/private</TITLE>
+ </HEAD>
+ <BODY BGCOLOR="#FFFFFF" TEXT="#000000">
+<H1>Index of /eras/1996/private</H1>
+<PRE ID="listing"><IMG SRC="../icons/blank.gif" ALT="     " WIDTH="20" HEIGHT="22"> <A HREF="index.html?N=D" ID="sort-N">Name</A>                     <A HREF="index.html?M=A" ID="sort-M">Last modified</A>       <A HREF="index.html?S=A" ID="sort-S">Size</A>  <A HREF="index.html?D=A" ID="sort-D">Description</A>
+<HR>
+<IMG SRC="../icons/back.gif" ALT="[DIR]" WIDTH="20" HEIGHT="22"> <A HREF="../">Parent Directory</A>        24-Dec-1996 19:31      -
+${rows.join('')}</PRE><HR>
+<ADDRESS>Apache/1.1.1 Server at www.g3rry.com Port 80</ADDRESS>
+<SCRIPT SRC="sort.js"></SCRIPT>
+ </BODY>
+</HTML>
+`);
+}
+

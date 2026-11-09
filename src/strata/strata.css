@@ -1,0 +1,66 @@
+/* Strata (/strata/): the mountain in cross-section, in the current site's style. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.strata { --cell: min(26px, calc((100vw - 48px) / var(--cells))); padding-block: 86px 120px; }
+.strata-intro h1 { margin-top: 1.6rem; }
+.strata-intro .intro { margin-top: 1.8rem; max-width: 38em; }
+.strata-progress { margin-top: 1.4rem; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); min-height: 1.2em; }
+
+/* The section: text on the left, boxes on the right; the borehole runs down the boxes' column from the summit. */
+.section-view { position: relative; margin-top: 64px; }
+.summit { display: block; width: calc(var(--cells) * var(--cell)); height: auto; margin-left: auto; fill: #1c2b38; overflow: visible; }
+.summit .summit-snow { fill: var(--paper); opacity: .85; }
+.summit-flags rect { stroke: none; }
+.summit-flags line { stroke: var(--paper); stroke-width: 1.2; }
+.strata-list { list-style: none; margin: 0; padding: 0; position: relative; }
+.strata-list::after { content: ""; position: absolute; top: 0; bottom: 0; right: calc((var(--cells) - var(--lead) - .5) * var(--cell)); width: 1px; background: linear-gradient(#c9af77, #c9af7733); pointer-events: none; }
+.stratum { display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--cells) * var(--cell)); gap: 2.5rem; align-items: center; padding: 1.7rem 0 1.6rem; border-top: 1px solid var(--line); }
+.stratum.year { background: linear-gradient(90deg, transparent, #c9af7708); }
+.stratum[data-depth="1"] { background: linear-gradient(90deg, transparent, #b8946208); }
+.stratum.bedrock { background: linear-gradient(90deg, transparent, #ffffff06); }
+.stratum.bedrock:first-of-type, .stratum.bedrock + .stratum.bedrock { border-top-style: dashed; }
+.stratum-label { display: flex; gap: 1rem; align-items: baseline; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.stratum-year { color: var(--gold); min-width: 5.5rem; }
+.stratum-where a { color: var(--muted); border-bottom: 1px solid #c9af775c; }
+.stratum-where a:hover { color: var(--paper); }
+.stratum h2 { font-size: 1.9rem; margin-top: .55rem; }
+.stratum-flavor { color: var(--muted); font-size: .87rem; line-height: 1.8; margin-top: .6rem; max-width: 34em; }
+.stratum.solved h2::after { content: " ✓"; color: var(--gold); font-size: 1rem; vertical-align: middle; }
+
+.boxes { display: flex; }
+.cell { width: var(--cell); height: calc(var(--cell) * 1.15); border: 1px solid #ffffff2e; margin-right: -1px; display: grid; place-items: center; font: 600 calc(var(--cell) * .55)/1 var(--sans); color: var(--paper); background: #0c141d99; }
+.cell.bore { border-color: var(--gold); background: #c9af771f; position: relative; z-index: 1; }
+.stratum.solved .cell.bore { color: var(--gold); }
+
+.contact-sheet { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .4rem .8rem; max-width: 34em; }
+.contact-sheet li { display: flex; gap: .7rem; align-items: baseline; font-size: .8rem; color: var(--paper); border-bottom: 1px dotted var(--line); padding-bottom: .3rem; }
+.frame-number { color: var(--gold); font-variant-numeric: tabular-nums; }
+.frame-note { flex: 1; font-variant-numeric: tabular-nums; }
+.frame-letter { color: var(--muted); font-size: .72rem; }
+
+.answer { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-top: 1rem; }
+.answer input { width: 13rem; background: var(--surface); color: var(--paper); border: 1px solid #ffffff26; border-radius: 0; padding: .55rem .7rem; font: 16px/1.4 var(--sans); text-transform: uppercase; letter-spacing: .08em; }
+.answer input:focus { border-color: var(--gold); outline: none; }
+.answer button { background: none; color: var(--paper); border: 1px solid #c9af775c; padding: .55rem .9rem; font: .72rem/1.4 var(--sans); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+.answer button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.answer button:disabled, .answer input:disabled { opacity: .5; cursor: default; }
+.answer-note { flex-basis: 100%; font-size: .8rem; color: var(--muted); min-height: 1.3em; }
+.answer-note.good { color: var(--gold); }
+.stratum.solved .answer { display: none; }
+
+.borehole, .flags { margin-top: 96px; max-width: 40em; }
+.borehole h2, .flags h2 { font-size: 2.2rem; }
+.borehole .intro, .flags .intro { margin-top: 1rem; }
+.flag-list { list-style: none; margin: 1.4rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; }
+.flag-list li { display: flex; gap: .5rem; align-items: center; font-size: .78rem; color: var(--muted); }
+.flag-mark { width: 14px; height: 10px; display: inline-block; clip-path: polygon(0 0, 100% 25%, 0 50%); }
+.flag-red { background: #d2513f; } .flag-orange { background: #e08a3c; } .flag-yellow { background: #e6c45a; }
+.flag-green { background: #5f9a62; } .flag-blue { background: #4f7fc2; } .flag-white { background: #eee9df; }
+
+@media (max-width: 860px) {
+  .strata { padding-block: 56px 80px; }
+  .stratum { grid-template-columns: 1fr; gap: 1.1rem; }
+  .summit { margin-left: 0; }
+  .strata-list::after { right: auto; left: calc((var(--lead) + .5) * var(--cell)); opacity: .45; }
+  .stratum-text { position: relative; z-index: 1; background: var(--ink); padding-right: .5rem; }
+  .answer input { width: 100%; max-width: 16rem; }
+}

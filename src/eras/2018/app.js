@@ -23,7 +23,21 @@ const cookies = $('#cookies');
 if (!remember('cookies-dismissed')) setTimeout(() => { cookies.hidden = false; }, 900);
 const dismissCookies = () => { cookies.hidden = true; remember('cookies-dismissed', '1'); };
 $('#cookies-accept').addEventListener('click', dismissCookies);
-$('#cookies-manage').addEventListener('click', dismissCookies);
+// Manage opens the consent manager: two tabs of partners, each with a switch.
+const consent = $('#consent');
+const closeConsent = () => { consent.hidden = true; };
+$('#cookies-manage').addEventListener('click', () => { dismissCookies(); consent.hidden = false; });
+$$('.consent-tabs [role="tab"]').forEach(tab => tab.addEventListener('click', () => {
+  $$('.consent-tabs [role="tab"]').forEach(other => other.setAttribute('aria-selected', String(other === tab)));
+  $$('.vendors', consent).forEach(panel => { panel.hidden = panel.dataset.panel !== tab.dataset.show; });
+}));
+// "Reject all" switches off what the first tab shows. That was usually all it did.
+$('#consent-reject').addEventListener('click', () => { $$('.toggle[data-tab="consent"]', consent).forEach(toggle => { toggle.checked = false; }); closeConsent(); });
+$('#consent-save').addEventListener('click', closeConsent);
+consent.addEventListener('click', event => { if (event.target === consent) closeConsent(); });
+
+// A service worker of this year's own, so the site "works offline": without a connection it shows a saved page.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/eras/2018/sw.js', { scope: '/eras/2018/' }).catch(() => {});
 
 // The newsletter modal, once you have read half the page.
 const newsletter = $('#newsletter');
@@ -58,6 +72,6 @@ $$('.card[data-full]').forEach(card => {
 });
 $('#viewer-close').addEventListener('click', () => { viewer.hidden = true; });
 viewer.addEventListener('click', event => { if (event.target === viewer) viewer.hidden = true; });
-document.addEventListener('keydown', event => { if (event.key === 'Escape') { viewer.hidden = true; closeNewsletter(); } });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') { viewer.hidden = true; closeNewsletter(); closeConsent(); } });
 const deep = location.hash && document.getElementById(location.hash.slice(1));
 if (deep && deep.dataset.full) open(deep);

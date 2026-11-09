@@ -94,6 +94,11 @@ ${scripts.map(src => '<script type="module" src="' + src + '"></script>').join('
     <p class="eyebrow">Places</p>
     <ul>${cities.map(city => '<li><span class="pin"></span>' + escape(city) + '<span class="muted"> · ' + photos.filter(photo => photo.city === city).length + '</span></li>').join('')}</ul>
   </section>
+  <section class="tile wordle" aria-label="A Wordle result, shared without spoilers">
+    <p class="eyebrow">${escape(ctx.puzzles.wordle.title)}</p>
+    <div class="wordle-grid">${ctx.puzzles.wordle.rows.map(row => '<div class="wordle-row">' + [...row.marks].map((mark, i) => '<span class="sq ' + mark + '">' + escape(row.letters.charAt(i)) + '</span>').join('') + '</div>').join('')}</div>
+    <p class="muted">Shared from the trailhead at 7:02 am, as one did.</p>
+  </section>
   <section class="tile kit">
     <p class="eyebrow">Kit</p>
     <ul>${lenses.map(lens => '<li>' + escape(lens.replace(/ IS USM$/, '').replace(' L', 'L')) + '</li>').join('')}</ul>
