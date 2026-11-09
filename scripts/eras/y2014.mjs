@@ -28,7 +28,7 @@ export default async function build(ctx, era) {
   const longest = Math.max(...photos.map(photo => /^\d+$/.test(photo.meta.shutter) ? Number(photo.meta.shutter) : 0));
 
   const ring = around(YEAR);
-  const label = item => item.now ? 'Now' : String(item.year);
+  const label = item => String(item.year);
   // Round flat icons with a long shadow falling to the lower right.
   const icon = paths => `<svg class="icon" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="56"/><path class="long" d="M84 40 L160 116 L116 160 L40 84 Z"/>${paths}</svg>`;
   const icons = {

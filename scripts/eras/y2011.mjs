@@ -61,7 +61,7 @@ export default async function build(ctx, era) {
   const tilt = pictures.map(() => Math.round((next() * 8 - 4) * 10) / 10);
 
   const ring = around(YEAR);
-  const label = item => item.now ? 'Now' : String(item.year);
+  const label = item => String(item.year);
   const page = (title, current, body, scripts = []) => `<!DOCTYPE html>
 <html lang="en">
 <head>

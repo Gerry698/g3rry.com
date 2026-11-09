@@ -17,7 +17,7 @@
 .era-notes p { margin-top: .9rem; }
 .era-dialup { grid-column: 2; align-self: start; margin-top: .9rem; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid #c9af775c; padding-bottom: .3rem; }
 .era-dialup:hover { color: var(--paper); }
-.era-now .era-year { color: var(--gold); }
+.era-real .era-year { color: var(--gold); }
 .eras-modem { margin-top: 2.4rem; display: flex; gap: 1rem; align-items: center; color: var(--muted); font-size: .8rem; }
 .eras-modem select { background: var(--surface); color: var(--paper); border: 1px solid var(--line); padding: .45rem .6rem; border-radius: 2px; }
 .site-footer .eras-footer-link { color: var(--muted); }

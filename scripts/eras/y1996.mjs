@@ -168,7 +168,7 @@ export default async function build(ctx, era) {
   const me = await variant(hero, YEAR, 'pics/me.jpg', image => image.resize({ width: 240 }).jpeg({ quality: 55, progressive: true }).toBuffer());
 
   const ring = around(YEAR);
-  const ringLabel = item => item.now ? 'Now' : String(item.year);
+  const ringLabel = item => String(item.year);
   const head = (pageTitle, description) => `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
 <HTML lang="en">
 <HEAD>

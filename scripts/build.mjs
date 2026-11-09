@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { validatePhotos } from './photo-data.mjs';
 import { buildEras } from './eras/index.mjs';
+import { ridgePaths } from './mountain-ridge.mjs';
+import { FOV } from '../src/mountain/camera.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -136,8 +138,11 @@ for (const shape of site.phantom.shapes) {
   shapes.push({ ...shape, url, width: metadata.width, height: metadata.height });
 }
 
+// Every page's stylesheet carries the page-transition rules (src/veil.css) that go with veil.js.
+const veilStyles = await readFile(path.join(root, 'src/veil.css'));
+const withVeil = (file, bytes) => file.endsWith('.css') ? Buffer.concat([bytes, veilStyles]) : bytes;
 async function asset(source, name) {
-  const bytes = await readFile(path.join(root, 'src', source));
+  const bytes = withVeil(source, await readFile(path.join(root, 'src', source)));
   const url = '/assets/' + name + '-' + digest(bytes) + path.extname(source);
   await output(url.slice(1), bytes);
   return url;
@@ -146,6 +151,8 @@ const styles = await asset('styles.css', 'site');
 const galleryScript = await asset('gallery.js', 'gallery');
 const guestbookScript = await asset('guestbook.js', 'guestbook');
 const particleScript = await asset('particles.js', 'particles');
+// Page transitions; a classic script in every page's head, so a page reached through one starts black.
+const veilScript = await asset('veil.js', 'veil');
 // The mountain and the lab are folders of ES modules (the mountain also carries its fonts); hashing a folder
 // as a whole keeps relative imports and url()s intact.
 async function assetFolder(source, name, extra = {}) {
@@ -153,7 +160,7 @@ async function assetFolder(source, name, extra = {}) {
   const sources = Object.fromEntries((await readdir(directory)).filter(file => /\.(js|css)$/.test(file)).map(file => [file, path.join(directory, file)]));
   for (const [file, from] of Object.entries(extra)) sources[file] = path.join(root, from);
   const files = Object.keys(sources).sort();
-  const contents = await Promise.all(files.map(file => readFile(sources[file])));
+  const contents = await Promise.all(files.map(async file => withVeil(file, await readFile(sources[file]))));
   const base = '/assets/' + name + '-' + digest(Buffer.concat(files.flatMap((file, i) => [Buffer.from(file + '\0'), contents[i]]))) + '/';
   for (const [i, file] of files.entries()) await output(base.slice(1) + file, contents[i]);
   return files.map(file => base + file);
@@ -206,7 +213,7 @@ function render(body, { title, description, route, pageClass, script = '', class
     DESCRIPTION: escape(description), CANONICAL: escape(new URL(route, origin).href),
     SOCIAL_IMAGE: escape(new URL(hero.large, origin).href), SOCIAL_ALT: escape(hero.alt),
     SOCIAL_WIDTH: hero.width, SOCIAL_HEIGHT: hero.height,
-    STYLES: styles, PAGE_CLASS: pageClass, BODY: body, YEAR: new Date().getUTCFullYear(),
+    STYLES: styles, VEIL: veilScript, PAGE_CLASS: pageClass, BODY: body, YEAR: new Date().getUTCFullYear(),
     HOME_CURRENT: route === '/' ? 'aria-current="page"' : '',
     PHOTOS_CURRENT: route === '/photos/' ? 'aria-current="page"' : '',
     GUESTBOOK_CURRENT: route === '/guestbook/' ? 'aria-current="page"' : '',
@@ -225,7 +232,9 @@ const home = replace(await readFile(path.join(root, 'src/index.html'), 'utf8'), 
   PHANTOM_OPTIONS: shapes.map(shape => '<option value="' + shape.id + '" data-src="' + shape.url + '">' + escape(shape.label) + '</option>').join(''),
   PHANTOM_DEFAULT: shapes[0].url, PHANTOM_WIDTH: shapes[0].width, PHANTOM_HEIGHT: shapes[0].height
 });
-await output('index.html', render(home, { title: site.title, description: site.description, route: '/', pageClass: 'home-page', script: particleScript }));
+// The earlier home page (hero, featured photographs, the particle toy) is kept at /legacy/: out of the index, the
+// sitemap and the navigation. The mountain is the home page now (below).
+await output('legacy/index.html', render(home, { title: site.title, description: site.description, route: '/legacy/', pageClass: 'home-page', script: particleScript, noindex: true }));
 
 const galleryPhotos = generated.map((photo, index) =>
   '<figure class="photo-card" id="photo-' + photo.id + '"><a data-photo="' + photo.id + '" data-srcset="' + photo.srcset.webp + '" data-large="' + photo.large + '"'
@@ -257,6 +266,17 @@ await output('404.html', render(
   { title: 'Page not found — ' + site.name, description: 'Find your way back to the photographs.', route: '/404.html', pageClass: 'error-page', noindex: true }));
 // The full-screen pages (mountain, lab) have their own shells but share the site's Content-Security-Policy.
 const mountainScript = mountainFiles.find(file => file.endsWith('/main.js'));
+// The skyline of the mountain's first view for the loading line, one per field of view (portrait and landscape
+// screens), with the camps' ledges cut in as on the page. Tracing it takes a few seconds, so it is cached with the image
+// encodes, keyed by the code that shapes it and the number of camps.
+const ridgeSources = await Promise.all(['src/mountain/terrain.js', 'src/mountain/water.js', 'src/mountain/camera.js', 'src/mountain/math.js', 'scripts/mountain-ridge.mjs'].map(file => readFile(path.join(root, file))));
+const ridge = JSON.parse(await cachedImage('mountain-ridge-' + digest(Buffer.concat([...ridgeSources, Buffer.from('camps ' + mountain.camps.length)])) + '.json',
+  async () => Buffer.from(JSON.stringify({ portrait: ridgePaths(FOV.portrait, 1.05, mountain.camps.length), landscape: ridgePaths(FOV.landscape, 3, mountain.camps.length) }))));
+// Two layers: the faint outline with the summit light, and the bright line that is uncovered from both edges.
+const ridgeLayer = draw => Object.entries(ridge).map(([kind, line]) => '<g class="ridge ridge-' + kind + '">' + draw(line) + '</g>').join('');
+const ridgeBase = ridgeLayer(({ left, right, summit }) => '<path class="ridge-base" d="' + left + '"/><path class="ridge-base" d="' + right + '"/>'
+  + '<circle class="ridge-halo" cx="' + summit[0] + '" cy="' + summit[1] + '" r=".05"/><circle class="ridge-summit" cx="' + summit[0] + '" cy="' + summit[1] + '" r=".0075"/>');
+const ridgeLine = ridgeLayer(({ left, right }) => [left, right].map(d => '<path class="ridge-glow" d="' + d + '"/><path class="ridge-line" d="' + d + '"/>').join(''));
 // The Phantom camp floats the first Phantom mark as a cloud of points: its bright, opaque pixels, sampled once here.
 async function phantomPoints(source, count = 2600) {
   const { data, info } = await sharp(path.join(root, source)).resize({ width: 120, height: 120, fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -297,15 +317,23 @@ const camps = await Promise.all(mountain.camps.map(async (camp, index) => '<li i
   + (camp.model ? ' data-model="' + camp.model + '"' + (campData[camp.model] ? await campData[camp.model]() : '') : '') + '>'
   + '<a href="' + escape(camp.href || '#' + camp.id) + '"' + (camp.href ? '' : ' data-pending') + '><span class="camp-number">' + numerals[index] + '</span><span class="camp-title">' + escape(camp.title) + '</span></a>'
   + '<p>' + escape(camp.description) + '</p>' + (campExtras[camp.model] ? campExtras[camp.model]() : '') + '</li>'));
-await output('mountain/index.html', replace(await readFile(path.join(root, 'src/mountain/page.html'), 'utf8'), {
+await output('index.html', replace(await readFile(path.join(root, 'src/mountain/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(mountain.title), DESCRIPTION: escape(mountain.description),
-  CANONICAL: escape(new URL('/mountain/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
-  SOCIAL_IMAGE: escape(new URL(mountainSocial, origin).href), STYLES: mountainFiles.find(file => file.endsWith('.css')), SCRIPT: mountainScript,
+  CANONICAL: escape(origin.href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
+  SOCIAL_IMAGE: escape(new URL(mountainSocial, origin).href), STYLES: mountainFiles.find(file => file.endsWith('.css')), SCRIPT: mountainScript, VEIL: veilScript, RIDGE_BASE: ridgeBase, RIDGE_LINE: ridgeLine,
   PRELOADS: [...mountainFiles.filter(file => file.endsWith('.woff2')).map(file => '<link rel="preload" href="' + file + '" as="font" type="font/woff2" crossorigin>'),
     ...mountainFiles.filter(file => file.endsWith('.js') && file !== mountainScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">')].join('\n  '),
   INTRO_KICKER: escape(mountain.intro.kicker), INTRO_TITLE: lines(mountain.intro.title), INTRO_DESCRIPTION: escape(mountain.intro.description),
   INTRO_HINT: escape(mountain.intro.hint), CAMPS: camps.join('\n        ')
 }));
+// The mountain used to live at /mountain/: old links, camp links (#photography) included, land on the home page.
+const movedCode = Buffer.from("location.replace('/' + location.hash);\n");
+const movedScript = '/assets/moved-' + digest(movedCode) + '.js';
+await output(movedScript.slice(1), movedCode);
+await output('mountain/index.html', '<!doctype html><html lang="' + escape(site.language) + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+  + '<meta http-equiv="Content-Security-Policy" content="' + policy() + '"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(origin.href) + '">'
+  + '<meta http-equiv="refresh" content="0;url=/"><title>' + escape(mountain.title) + '</title><script src="' + movedScript + '"></script></head>'
+  + '<body><p>The mountain is the home page now: <a href="/">' + escape(origin.hostname) + '</a></p></body></html>');
 const labScript = labFiles.find(file => file.endsWith('/main.js'));
 function labPhoto(id) {
   const photo = generated.find(item => item.id === id);
@@ -360,7 +388,7 @@ const developHero = generated.find(photo => photo.id === lab.example.develop);
 await output('phantom/index.html', replace(await readFile(path.join(root, 'src/phantom/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(lab.title), DESCRIPTION: escape(lab.description),
   CANONICAL: escape(new URL('/phantom/', origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
-  STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript,
+  STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript, VEIL: veilScript,
   PRELOADS: labFiles.filter(file => file.endsWith('.js') && file !== labScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">').join('\n  '),
   INTRO_KICKER: escape(lab.intro.kicker), INTRO_TITLE: lines(lab.intro.title), INTRO_TEXT: escape(lab.intro.text), INTRO_HINT: escape(lab.intro.hint),
   ...chapterTokens,
@@ -418,7 +446,7 @@ for (const [index, photo] of generated.entries()) {
   await output('photos/' + photo.id + '/index.html', replace(photoTemplate, {
     LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape('Frame ' + frame(index) + ', ' + meta.place + ' — ' + site.name), DESCRIPTION: escape(photo.alt),
     CANONICAL: escape(new URL(route, origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">', SOCIAL_IMAGE: escape(new URL(photo.large, origin).href),
-    STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript,
+    STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript, VEIL: veilScript,
     PRELOADS: labFiles.filter(file => file.endsWith('.js') && file !== labScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">').join('\n  '),
     FRAME: frame(index), COUNT: frame(generated.length - 1), PLACE: escape(meta.place), HEADING: escape(meta.place) + '<span class="lab-dot" aria-hidden="true">.</span>',
     TAKEN: escape(takenLine(photo.id)), EXPOSURE: escape([meta.focal + ' mm', 'ƒ/' + meta.aperture, meta.shutter, 'ISO ' + meta.iso].join(' · ')),
@@ -434,7 +462,7 @@ await output('Photo/gallery.html', '<!doctype html><html lang="en"><head><meta c
   + '<meta http-equiv="refresh" content="0;url=/photos/"><meta name="robots" content="noindex"><link rel="canonical" href="' + escape(new URL('/photos/', origin).href) + '">'
   + '<title>Photography — ' + escape(site.name) + '</title></head><body><h1>The gallery has moved.</h1><p><a href="/photos/">Explore the photography collection</a></p></body></html>');
 await output('robots.txt', 'User-agent: *\nAllow: /\nSitemap: ' + new URL('/sitemap.xml', origin).href + '\n');
-await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/mountain/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/eras/', origin).href) + '</loc></url>'
+await output('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>' + escape(origin.href) + '</loc></url><url><loc>' + escape(new URL('/photos/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/phantom/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/guestbook/', origin).href) + '</loc></url><url><loc>' + escape(new URL('/eras/', origin).href) + '</loc></url>'
   + generated.map(photo => '<url><loc>' + escape(new URL('/photos/' + photo.id + '/', origin).href) + '</loc></url>').join('') + '</urlset>\n');
 await output('CNAME', origin.hostname + '\n');
 await output('.nojekyll', '');

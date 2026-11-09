@@ -115,7 +115,7 @@ export default async function build(ctx, era) {
   const cloud = Object.keys(counts).sort().map(tag => `<a href="photos.html?tag=${tag}" class="t${Math.max(1, Math.round(counts[tag] / max * 5))}" title="${counts[tag]} photo${counts[tag] > 1 ? 's' : ''}">${tag}</a>`).join(' ');
 
   const ring = around(YEAR);
-  const label = item => item.now ? 'now' : String(item.year);
+  const label = item => String(item.year);
   const head = (title, current, main, side, scripts = []) => `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>

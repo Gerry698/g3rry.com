@@ -1,28 +1,90 @@
 import { createTerrain, QUALITY } from './terrain.js';
 import { buildScene } from './scene.js';
 import { MAX_PENNANTS } from './props.js';
-import { createRenderer } from './renderer.js';
+import { createRenderer, warmUp } from './renderer.js';
 import { PALETTES, TIMES, blend } from './palettes.js';
 import { perspective, lookAt, multiply, invert, transform, clamp, lerp, easeInOut, smoothstep, mix3 } from './math.js';
-import { eyeOf, idlePose, stationPose, sway, travelTime, interpolate, clampToGround } from './camera.js';
+import { eyeOf, idlePose, stationPose, sway, travelTime, interpolate, clampToGround, FOV } from './camera.js';
+import { conditions } from './weather.js';
 
 const root = document.documentElement;
 const canvas = document.querySelector('#mountain-canvas');
 const items = [...document.querySelectorAll('#mountain-route > li')];
-const ui = Object.fromEntries(['intro', 'begin', 'card', 'card-kicker', 'card-title', 'card-text', 'card-extra', 'card-link', 'card-pending', 'altitude', 'hint']
+const ui = Object.fromEntries(['intro', 'begin', 'card', 'card-kicker', 'card-title', 'card-text', 'card-extra', 'card-link', 'card-pending', 'altitude', 'hint', 'loader']
   .map(id => [id, document.querySelector('#mountain-' + id)]));
 const params = new URLSearchParams(location.search);
 const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
 const reduced = { get matches() { return reducedQuery.matches || params.get('motion') === 'reduce'; } };
 const gl = canvas && items.length ? canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance' }) : null;
 const meters = y => Math.round(900 + y * 340);
+// Entering a camp's page closes the mountain into black with the camp's own effect (veil.js).
+const VEILS = { photography: 'iris', phantom: 'points', mailboxes: 'envelope', summit: 'tent', trailhead: 'tent' };
+
+// The loading line climbs as the work is done: modules here, then the scene (built in a worker) and the shaders
+// (compiled by the driver in parallel), then the renderer and the first frame. Between steps it keeps creeping towards
+// the next one, so it never stands still; the altitude meter counts up with it to the height of the first view.
+// When the work is done the line does not jump to the end: it finishes its climb at its own pace, the summit lights,
+// and only then is the mountain revealed under it (see `revealed` in draw()).
+const loading = (() => {
+  const line = ui.loader, start = meters(idlePose(0).y);
+  // ?timer: previews that pause animation frames while hidden.
+  const nextFrame = params.has('timer') ? callback => setTimeout(() => callback(performance.now()), 30) : requestAnimationFrame;
+  let shown = -1, target = 0, ceiling = 0, since = 0, last = 0, frame = 0, finish = null, revealed = !line;
+  const tick = now => {
+    const dt = Math.min(.1, (now - last) / 1000);
+    last = now;
+    if (finish) {
+      const t = Math.min(1, (now - finish.start) / finish.duration);
+      shown = t < 1 ? finish.from + (1 - finish.from) * (1 - Math.pow(1 - t, 3)) : 1;
+    } else {
+      const goal = target + (ceiling - target) * (1 - Math.exp(-(now - since) / 2600));
+      shown += (goal - shown) * (1 - Math.exp(-dt / .42));
+    }
+    line.style.setProperty('--ridge', shown.toFixed(4));
+    if (ui.altitude) ui.altitude.textContent = Math.round(shown * start).toLocaleString('en-US');
+    if (shown < 1) { frame = nextFrame(tick); return; }
+    revealed = true;
+    line.classList.add('is-done');
+    setTimeout(() => line.classList.add('is-gone'), 2600);
+  };
+  const begin = () => {
+    // The first call takes over from the CSS creep that ran before this module loaded.
+    shown = parseFloat(getComputedStyle(line).getPropertyValue('--ridge')) || 0;
+    line.style.animation = 'none';
+    last = performance.now();
+    frame = nextFrame(tick);
+  };
+  return {
+    get active() { return !revealed; },
+    get revealed() { return revealed; },
+    reach(value, next = value) {
+      if (!line || finish) return;
+      if (shown < 0) begin();
+      target = Math.max(target, value); ceiling = Math.max(ceiling, next); since = performance.now();
+    },
+    done() {
+      if (!line || finish) return;
+      if (shown < 0) begin();
+      // The rest of the climb takes 0.6–1.2 s whatever is left, so a fast load still reads as a stroke, not a snap.
+      finish = { from: shown, start: performance.now(), duration: reduced.matches ? 200 : clamp((1 - shown) * 1500, 600, 1200) };
+    },
+    stop() { cancelAnimationFrame(frame); clearTimeout(frame); revealed = true; line?.classList.add('is-gone'); }
+  };
+})();
 
 // Let the page paint its text first, then build the mountain (a few hundred milliseconds of work).
 let started = false;
-const kick = () => { if (!started) { started = true; start(); } };
-if (gl) { requestAnimationFrame(() => setTimeout(kick, 30)); setTimeout(kick, 500); }
+const kick = () => { if (!started) { started = true; start().catch(fallBack); } };
+if (gl) { loading.reach(.24, .4); requestAnimationFrame(() => setTimeout(kick, 30)); setTimeout(kick, 500); }
 // Without WebGL2 the page keeps its plain camp list, over a still picture of the mountain.
-else root.classList.add('mountain-static');
+else fallBack();
+
+function fallBack(error) {
+  if (error) console.error(error);
+  loading.stop();
+  root.classList.remove('mountain-live');
+  root.classList.add('mountain-static');
+}
 
 function sceneInWorker(request) {
   return new Promise((resolve, reject) => {
@@ -37,15 +99,21 @@ async function start() {
   const tier = QUALITY[params.get('quality')] ? params.get('quality') : matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700 ? 'low' : 'high';
   const quality = QUALITY[tier];
   const request = { tier, camps: items.map(item => ({ model: item.dataset.model || null, prints: item.dataset.prints ? item.dataset.prints.split(',') : null })) };
+  // The driver compiles the shaders on its own threads while the worker builds the scene.
+  const warm = warmUp(gl).catch(() => {});
   let scene;
   try { scene = params.has('inline') ? buildScene(request) : await sceneInWorker(request); }
   catch { scene = buildScene(request); }
+  loading.reach(.72, .84);
+  await warm;
+  loading.reach(.86, .95);
   const { camps, trail } = scene;
   const terrain = createTerrain();
   terrain.setLedges(scene.ledges);
-  let renderer;
-  try { renderer = createRenderer(gl, scene, quality); }
-  catch (error) { console.error(error); return; }
+  const renderer = createRenderer(gl, scene, quality);
+  // Below the cloud deck: the visitor's local hour and the day's weather (weather.js; ?weather= and ?hour= override).
+  const weather = conditions(params, reduced);
+  loading.reach(.95, .99);
   root.classList.add('mountain-live');
 
   // The Phantom camp's mark and the guestbook's notes arrive on their own time; the scene starts without them.
@@ -72,7 +140,10 @@ async function start() {
   let layout = innerWidth >= innerHeight * .9 ? 'side' : 'stack';
   let stations = camps.map((camp, i) => stationPose(camp, camps.at(-1), i / Math.max(1, camps.length - 2), terrain, layout));
   const paletteOf = index => PALETTES[index < 0 ? 'idle' : data[index].time];
-  const poseAt = (index, time) => index < 0 ? idlePose(reduced.matches ? 0 : time) : sway(stations[index], reduced.matches ? 0 : time, pointer);
+  // The opening orbit starts from rest once the mountain is revealed and reaches full speed over 2.5 s, so it hardly
+  // drifts from the traced outline while that fades. `lag` is how far the orbit's own time trails the clock.
+  let orbitSpeed = 0, lag = 0;
+  const poseAt = (index, time) => index < 0 ? idlePose(reduced.matches ? 0 : time - lag) : sway(stations[index], reduced.matches ? 0 : time, pointer);
 
   const state = { index: -1, travel: null, started: false, progress: -1, arrived: 0 };
   const phantomIndex = items.findIndex(item => item.dataset.model === 'phantom');
@@ -101,7 +172,39 @@ async function start() {
     state.arrived = clock;
     showCard(index);
     history.replaceState(null, '', index < 0 ? location.pathname + location.search : '#' + data[index].id);
+    if (index >= 0) prefetch(data[index].href);
   }
+
+  // A camp reached is a camp likely entered: fetch its page ahead, so the black after the transition is brief.
+  const prefetched = new Set();
+  function prefetch(href) {
+    if (!href || prefetched.has(href)) return;
+    const url = new URL(href, location.href);
+    if (url.origin !== location.origin) return;
+    prefetched.add(href);
+    document.head.append(Object.assign(document.createElement('link'), { rel: 'prefetch', href: url.pathname }));
+  }
+
+  // Leaving for a camp's page: the transition covers the window, then navigates.
+  const modified = event => event && (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey);
+  function enter(index, href, event) {
+    const origin = event && event.clientX ? [event.clientX / innerWidth, event.clientY / innerHeight] : [.5, .5];
+    if (window.g3veil) window.g3veil.leave({ effect: VEILS[items[index].dataset.model] || 'tent', href, origin });
+    else location.href = href;
+  }
+  ui['card-link']?.addEventListener('click', event => {
+    const camp = data[state.index];
+    if (modified(event) || !camp?.href || state.travel) return;
+    event.preventDefault();
+    enter(state.index, camp.href, event);
+  });
+  // The Photography card's prints open their own pages through the lens.
+  ui['card-extra']?.addEventListener('click', event => {
+    const link = event.target.closest?.('a[href]');
+    if (!link || modified(event) || state.index < 0) return;
+    event.preventDefault();
+    enter(state.index, link.getAttribute('href'), event);
+  });
 
   function showCard(index) {
     if (!ui.card) return;
@@ -163,7 +266,7 @@ async function start() {
   });
   let pointerSeen = -Infinity;
   canvas.addEventListener('pointermove', event => {
-    pointerTarget = [event.clientX / innerWidth * 2 - 1, event.clientY / innerHeight * 2 - 1];
+    pointerTarget = [event.clientX / canvas.clientWidth * 2 - 1, event.clientY / canvas.clientHeight * 2 - 1];
     pointerSeen = performance.now();
   });
   addEventListener('keydown', event => {
@@ -175,15 +278,15 @@ async function start() {
     else if (event.key === 'Home') { event.preventDefault(); go(-1); }
     else if (event.key === 'End') { event.preventDefault(); go(data.length - 1); }
     else if (event.key === 'Escape') go(-1);
-    else if (event.key === 'Enter' && !onLink && state.index >= 0 && data[state.index].href) location.href = data[state.index].href;
+    else if (event.key === 'Enter' && !onLink && state.index >= 0 && !state.travel && data[state.index].href) enter(state.index, data[state.index].href);
   });
   ui.begin?.addEventListener('click', () => go(0));
   // A typed or pasted #camp link climbs (or descends) to that camp.
   addEventListener('hashchange', () => { const index = data.findIndex(camp => '#' + camp.id === location.hash); if (index >= 0) go(index); });
   data.forEach((camp, i) => camp.link.addEventListener('click', event => {
-    if (i === state.index && !state.travel && camp.href) return;
+    if (i === state.index && !state.travel && camp.href && modified(event)) return;
     event.preventDefault();
-    go(i);
+    if (i === state.index && !state.travel && camp.href) enter(i, camp.href, event); else go(i);
   }));
 
   // Position along the trail for a progress value measured in camps.
@@ -219,8 +322,14 @@ async function start() {
   function draw(now) {
     const delta = Math.min(.1, (now - last) / 1000);
     last = now;
-    clock += delta;
-    fadeIn = Math.min(1, fadeIn + delta / 1.4);
+    // Until the loading line has reached the summit the frame stays black and the opening orbit waits at its start,
+    // so the mountain then appears exactly under the outline that was traced for that view.
+    if (loading.revealed || state.index >= 0 || state.travel) {
+      clock += delta;
+      lag += delta * (1 - orbitSpeed);
+      orbitSpeed = Math.min(1, orbitSpeed + delta / 2.5);
+    }
+    if (loading.revealed) fadeIn = Math.min(1, fadeIn + delta / 1.6);
     pointer = pointer.map((v, i) => lerp(v, pointerTarget[i], Math.min(1, delta * 2)));
 
     let pose, palette, fade = easeInOut(fadeIn);
@@ -246,7 +355,7 @@ async function start() {
 
     const eye = clampToGround(eyeOf(pose), terrain);
     const aspect = canvas.width / canvas.height;
-    const fov = (aspect < 1 ? 58 : 40) * Math.PI / 180;
+    const fov = (aspect < 1 ? FOV.portrait : FOV.landscape) * Math.PI / 180;
     const projection = perspective(fov, aspect, renderer.near, renderer.far);
     const view = lookAt(eye, pose.target);
     const viewProj = multiply(projection, view);
@@ -266,13 +375,16 @@ async function start() {
       progress: state.progress, settled, pillar: [here.x, here.y, here.z, settled], climber: trailAt(state.progress), climberPower: smoothstep(-.4, 0, state.progress) * ahead,
       ahead, focus: [...(focus || [0, 0, 0]), clearing], pennants, form, pointer: [pointerTarget[0], -pointerTarget[1], reduced.matches ? 0 : pointerPower]
     };
-    renderer.render({ eye, view, viewProj, invViewProj: invert(viewProj), fov, time: clock, palette, fade, markers, hide: debugHide, canvasWidth: canvas.width, canvasHeight: canvas.height });
+    renderer.render({ eye, view, viewProj, invViewProj: invert(viewProj), fov, time: clock, palette, fade, markers, weather: weather.now(), hide: debugHide, canvasWidth: canvas.width, canvasHeight: canvas.height });
 
+    // The canvas may reach under the browser's bars, so screen positions are measured on its own box.
+    const box = [canvas.clientWidth, canvas.clientHeight];
     projected = camps.map(camp => {
       const p = transform(viewProj, [camp.x, camp.y + .25, camp.z]);
-      return [(p[0] * .5 + .5) * innerWidth, (.5 - p[1] * .5) * innerHeight, p[3] > 0 && Math.abs(p[0]) < 1.1 && Math.abs(p[1]) < 1.1];
+      return [(p[0] * .5 + .5) * box[0], (.5 - p[1] * .5) * box[1], p[3] > 0 && Math.abs(p[0]) < 1.1 && Math.abs(p[1]) < 1.1];
     });
-    if (ui.altitude) ui.altitude.textContent = meters(eye[1]).toLocaleString('en-US');
+    if (ui.altitude && !loading.active) ui.altitude.textContent = meters(eye[1]).toLocaleString('en-US');
+    tint(renderer.edgeColor());
 
     // Adaptive resolution: step down when frames run long, recover slowly.
     if (!params.has('timer')) frameTimes.push(delta);
@@ -283,18 +395,39 @@ async function start() {
       if (Math.abs(next - scaleFactor) > .01) { scaleFactor = next; resize(); }
     }
   }
-  let frames = 0;
+  // The browser's own colour around the page (the status bar, the strip under a toolbar, overscroll) follows the sky
+  // at the top of the frame, so the mountain reads edge to edge even where the browser paints a flat colour.
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  let tinted = [-9, -9, -9];
+  function tint(color) {
+    if (!color || color.every((v, i) => Math.abs(v - tinted[i]) < 3)) return;
+    tinted = color;
+    const hex = '#' + color.map(v => v.toString(16).padStart(2, '0')).join('');
+    root.style.setProperty('--tint', hex);
+    themeMeta?.setAttribute('content', hex);
+  }
+
+  let frames = 0, paused = false;
   // High-refresh screens would otherwise redraw up to 240 times a second; ~80 is plenty for a slow orbit.
   let lastDrawn = -Infinity;
   const frame = now => {
-    if (now - lastDrawn >= 12) { lastDrawn = now; draw(now); frames++; }
+    if (paused) return;
+    if (now - lastDrawn >= 12) {
+      lastDrawn = now; draw(now); frames++;
+      if (frames === 1) loading.done();
+    }
     schedule(frame);
   };
+  // Once a transition has covered the window, the mountain stops drawing and leaves the machine to the next page;
+  // coming back (from the browser's page cache) picks up where it left off.
+  const resume = () => { if (!paused) return; paused = false; last = performance.now(); schedule(frame); };
+  addEventListener('g3:veil', event => { if (event.detail === 'covered') paused = true; else resume(); });
+  addEventListener('pageshow', event => { if (event.persisted) resume(); });
   // ?timer drives frames from a timer, for previews that pause animation frames while hidden.
   const schedule = params.has('timer') ? callback => setTimeout(() => callback(performance.now()), 30) : callback => requestAnimationFrame(callback);
 
   const initial = data.findIndex(camp => '#' + camp.id === location.hash);
-  if (initial >= 0) { state.index = initial; state.progress = initial; state.started = true; root.classList.add('mountain-climbing'); markRoute(initial); showCard(initial); }
+  if (initial >= 0) { state.index = initial; state.progress = initial; state.started = true; root.classList.add('mountain-climbing'); markRoute(initial); showCard(initial); prefetch(data[initial].href); }
   else if (ui.hint) ui.hint.hidden = false;
   if (ui.begin) ui.begin.hidden = false;
   schedule(frame);
@@ -305,6 +438,10 @@ async function start() {
     terrain, camps, stations, data, PALETTES, go,
     pose(angle, radius, y, target = [0, 4.3, 0]) { debugPose = angle === undefined ? null : { angle: angle * Math.PI / 180, radius, y, target }; },
     time(name) { debugPalette = name ? PALETTES[name] : null; },
+    // Weather below the deck: weather('rain', .8) or weather() for the day's own; hour(22.5) or hour() for the clock.
+    weather(kind, intensity) { weather.set(kind, intensity); return this.settle(); },
+    hour(value) { weather.setHour(value); return this.settle(); },
+    get sky() { return weather.now(); },
     get current() { return current; },
     get state() { return { ...state, travel: state.travel && { to: state.travel.to, progress: state.travel.progress } }; },
     // Average milliseconds per frame with the GPU forced to finish each one.

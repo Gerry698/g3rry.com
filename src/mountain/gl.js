@@ -1,21 +1,54 @@
 // Thin WebGL2 helpers: programs with cached uniform locations, vertex arrays, textures and render targets.
 
-export function program(gl, vertexSource, fragmentSource, name) {
-  const compile = (type, source) => {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      const numbered = source.split('\n').map((line, i) => String(i + 1).padStart(3) + ' ' + line).join('\n');
-      throw new Error(name + ' shader: ' + gl.getShaderInfoLog(shader) + '\n' + numbered);
+// Programs already handed to the driver by precompile(), per context and keyed by their sources.
+const compiled = new WeakMap();
+const numbered = source => source.split('\n').map((line, i) => String(i + 1).padStart(3) + ' ' + line).join('\n');
+const shader = (gl, type, source) => { const handle = gl.createShader(type); gl.shaderSource(handle, source); gl.compileShader(handle); return handle; };
+
+// Hands every program to the driver without waiting on any of them. With KHR_parallel_shader_compile the driver
+// compiles them on its own threads and the promise settles once all are done; without it, it settles at once and
+// program() below waits for each one as before.
+export function precompile(gl, pairs) {
+  const cache = compiled.get(gl) || new Map();
+  compiled.set(gl, cache);
+  const handles = pairs.map(([vertexSource, fragmentSource]) => {
+    const key = vertexSource + '\0' + fragmentSource;
+    if (!cache.has(key)) {
+      const vertex = shader(gl, gl.VERTEX_SHADER, vertexSource), fragment = shader(gl, gl.FRAGMENT_SHADER, fragmentSource), handle = gl.createProgram();
+      gl.attachShader(handle, vertex);
+      gl.attachShader(handle, fragment);
+      gl.linkProgram(handle);
+      cache.set(key, { handle, vertex, fragment });
     }
-    return shader;
-  };
-  const handle = gl.createProgram();
-  gl.attachShader(handle, compile(gl.VERTEX_SHADER, vertexSource));
-  gl.attachShader(handle, compile(gl.FRAGMENT_SHADER, fragmentSource));
-  gl.linkProgram(handle);
-  if (!gl.getProgramParameter(handle, gl.LINK_STATUS)) throw new Error(name + ' link: ' + gl.getProgramInfoLog(handle));
+    return cache.get(key).handle;
+  });
+  const parallel = gl.getExtension('KHR_parallel_shader_compile');
+  if (!parallel) return Promise.resolve();
+  return new Promise(resolve => {
+    const check = () => handles.every(handle => gl.getProgramParameter(handle, parallel.COMPLETION_STATUS_KHR)) ? resolve() : setTimeout(check, 16);
+    check();
+  });
+}
+
+export function program(gl, vertexSource, fragmentSource, name) {
+  const key = vertexSource + '\0' + fragmentSource, cache = compiled.get(gl);
+  const early = cache?.get(key);
+  // The pair is used once, so the cache lets go of it.
+  cache?.delete(key);
+  const handle = early ? early.handle : gl.createProgram();
+  const vertex = early ? early.vertex : shader(gl, gl.VERTEX_SHADER, vertexSource);
+  const fragment = early ? early.fragment : shader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+  if (!early) {
+    gl.attachShader(handle, vertex);
+    gl.attachShader(handle, fragment);
+    gl.linkProgram(handle);
+  }
+  if (!gl.getProgramParameter(handle, gl.LINK_STATUS)) {
+    for (const [part, source] of [[vertex, vertexSource], [fragment, fragmentSource]]) {
+      if (!gl.getShaderParameter(part, gl.COMPILE_STATUS)) throw new Error(name + ' shader: ' + gl.getShaderInfoLog(part) + '\n' + numbered(source));
+    }
+    throw new Error(name + ' link: ' + gl.getProgramInfoLog(handle));
+  }
   const locations = {};
   const count = gl.getProgramParameter(handle, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < count; i++) {

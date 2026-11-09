@@ -25,14 +25,14 @@ export default async function build(ctx, era) {
   const newest = [...shots].sort((a, b) => b.photo.taken - a.photo.taken)[0];
 
   const ring = around(YEAR);
-  const label = item => item.now ? 'Now' : String(item.year);
+  const label = item => String(item.year);
   // Everything the command palette can jump to.
   const commands = [
     { group: 'Pages', title: 'Home', href: 'index.html' }, { group: 'Pages', title: 'Photos', href: 'photos.html' },
     { group: 'Pages', title: 'Guestbook', href: '/guestbook/' }, { group: 'Pages', title: 'The Phantom', href: '/phantom/' },
     { group: 'Pages', title: 'The Ascent', href: '/mountain/' }, { group: 'Pages', title: 'g3mail', href: 'https://mail.g3rry.com/' },
     ...shots.map(({ photo }) => ({ group: 'Photos', title: photo.place + ' · ' + photo.city, href: 'photos.html#' + photo.id })),
-    ...ring.all.map(item => ({ group: 'Years', title: item.now ? 'Now (' + item.year + ')' : String(item.year), href: item.href }))
+    ...ring.all.map(item => ({ group: 'Years', title: item.year + ' · ' + item.name, href: item.href }))
   ];
   await output('eras/2023/commands.json', JSON.stringify(commands) + '\n');
 

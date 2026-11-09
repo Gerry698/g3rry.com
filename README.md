@@ -1,8 +1,8 @@
 # g3rry.com
 
-Gerry Zhao 的个人网站：摄影画廊、一个粒子动画小实验和留言板。
+Gerry Zhao 的个人网站：首页是一座用 WebGL2 画的雪山，营地通向摄影画廊、Phantom 光点实验、g3mail 和留言板。
 
-- 网站：[g3rry.com](https://g3rry.com/)，摄影：[g3rry.com/photos/](https://g3rry.com/photos/)，留言板：[g3rry.com/guestbook/](https://g3rry.com/guestbook/)
+- 网站：[g3rry.com](https://g3rry.com/)，摄影：[g3rry.com/photos/](https://g3rry.com/photos/)，实验：[g3rry.com/phantom/](https://g3rry.com/phantom/)，留言板：[g3rry.com/guestbook/](https://g3rry.com/guestbook/)
 - 维护与发布：[维护手册](docs/maintenance.md)，留言板：[留言板手册](docs/guestbook.md)
 
 原生 HTML、CSS 和 JavaScript，浏览器端没有框架；留言页只额外加载 Cloudflare Turnstile。Node.js 负责生成页面、处理照片和检查产物；GitHub Pages 只发布构建出的 `dist/`，前面由 Cloudflare 代理。留言板后端是 `guestbook/` 里的两个 Cloudflare Worker 和一个 D1 数据库。
@@ -35,11 +35,11 @@ npm run photos -- alt p16 "新的描述"
 
 | 路径 | 用途 |
 | --- | --- |
-| `content/site.json` | 首页文案、粒子图案、站点信息 |
+| `content/site.json` | 站点信息、粒子图案、摄影页和留言板文案、旧首页文案 |
 | `content/photos.json` | 照片顺序、描述、是否精选 |
-| `content/mountain.json` | `/mountain/` 山形目录页的文案和营地 |
+| `content/mountain.json` | 首页（雪山）的文案和营地 |
 | `content/eras.json` | `/eras/` 其他年代：各年份的名称、一句话和建造说明 |
-| `src/` | 页面模板、样式、粒子动画、画廊交互和留言页；`src/mountain/` 是 WebGL2 山形目录页；`src/eras/` 是各年代的脚本和样式 |
+| `src/` | 页面模板、样式、粒子动画、画廊交互和留言页；`src/mountain/` 是首页雪山，`src/eras/` 是其他年代的脚本和样式，`src/index.html` 是收在 `/legacy/` 的旧首页，`src/phantom/` 是实验页和每张照片的页面，`src/veil.js` 是页面之间的黑场转场 |
 | `Photo/` | 照片网页母版 |
 | `image/` | 粒子图案素材 |
 | `scripts/` | 构建、检查、预览和照片工具；`scripts/eras/` 生成各年代的页面和图片 |

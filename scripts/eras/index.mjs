@@ -19,10 +19,13 @@ export async function buildEras(ctx) {
   const content = JSON.parse(await readFile(path.join(root, 'content/eras.json'), 'utf8'));
   const years = content.eras.map(era => era.year);
   if (years.some((year, i) => !builders[year] || (i && year <= years[i - 1]))) throw new Error('eras.json years must be known and ascending: ' + years.join(', '));
-  for (const era of content.eras) if (!era.name || !era.line || !Array.isArray(era.colophon) || !era.colophon.length) throw new Error('Era needs a name, a line and a colophon: ' + era.year);
+  // After the rebuilt years come the site's own versions: the earlier home page, then the current one.
+  const versions = content.versions || [];
+  if (versions.some((version, i) => !version.href?.startsWith('/') || version.year <= (i ? versions[i - 1].year : years.at(-1)))) throw new Error('eras.json versions need a local href and years after the last era.');
+  for (const era of [...content.eras, ...versions]) if (!era.name || !era.line || !Array.isArray(era.colophon) || !era.colophon.length) throw new Error('Era needs a name, a line and a colophon: ' + era.year);
 
-  // The ring of years, wrapping from the last year back to the first through the current site.
-  const ring = [...years.map(year => ({ year, href: '/eras/' + year + '/' })), { year: new Date().getUTCFullYear(), href: '/', now: true }];
+  // The ring of years, wrapping from the current site back to the first year.
+  const ring = [...content.eras.map(era => ({ year: era.year, name: era.name, href: '/eras/' + era.year + '/' })), ...versions.map(version => ({ year: version.year, name: version.name, href: version.href, real: true }))];
   const around = year => {
     const i = ring.findIndex(item => item.year === year);
     return { previous: ring[(i - 1 + ring.length) % ring.length], next: ring[(i + 1) % ring.length], all: ring };
@@ -119,8 +122,8 @@ export async function buildEras(ctx) {
 
   // The dial page, in the current site's own style.
   const lines = value => escape(value).replace(/\n/g, '<br>');
-  const dial = content.eras.map(era => `<li class="era" id="y${era.year}">
-      <a class="era-link" href="/eras/${era.year}/"><span class="era-year">${era.year}</span><span class="era-name">${escape(era.name)}</span><span class="era-line">${escape(era.line)}</span><span class="era-arrow" aria-hidden="true">↗</span></a>
+  const dial = [...content.eras, ...versions].map(era => `<li class="era${era.href ? ' era-real' : ''}" id="y${era.year}">
+      <a class="era-link" href="${era.href || '/eras/' + era.year + '/'}"><span class="era-year">${era.year}</span><span class="era-name">${escape(era.name)}</span><span class="era-line">${escape(era.line)}</span><span class="era-arrow" aria-hidden="true">↗</span></a>
       <details class="era-notes"><summary>How it was built</summary>${era.colophon.map(p => '<p>' + escape(p) + '</p>').join('')}</details>
       ${era.dial ? '<a class="era-dialup" href="/eras/dialup.html?to=' + era.year + '">Arrive by modem</a>' : ''}
     </li>`).join('\n    ');
@@ -132,9 +135,6 @@ export async function buildEras(ctx) {
   </header>
   <ol class="era-list">
     ${dial}
-    <li class="era era-now" id="now">
-      <a class="era-link" href="/"><span class="era-year">${ring.at(-1).year}</span><span class="era-name">This site</span><span class="era-line">The one you came from.</span><span class="era-arrow" aria-hidden="true">↗</span></a>
-    </li>
   </ol>
   <p class="eras-modem"><label for="modem-speed">Modem for 1996 and 1999</label>
     <select id="modem-speed" data-modem disabled><option value="">The year's usual</option><option value="14400">14,400 bps</option><option value="28800">28,800 bps</option><option value="33600">33,600 bps</option><option value="48000">56K</option><option value="0">No modem</option></select></p>

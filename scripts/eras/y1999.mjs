@@ -98,7 +98,7 @@ export default async function build(ctx, era) {
   }
 
   const ring = around(YEAR);
-  const label = item => item.now ? 'Now' : String(item.year);
+  const label = item => String(item.year);
   const doc = (title, body, { doctype = 'transitional', bodyAttrs = 'BGCOLOR="#FFFFFF" TEXT="#000000" LINK="#003366" VLINK="#336699" ALINK="#FF9900" LEFTMARGIN="0" TOPMARGIN="0" MARGINWIDTH="0" MARGINHEIGHT="0"', scripts = ['scripts.js'] } = {}) => `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 ${doctype === 'frameset' ? 'Frameset' : 'Transitional'}//EN">
 <HTML lang="en">
 <HEAD>

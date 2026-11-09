@@ -23,7 +23,7 @@ async function walk(directory, prefix = '') {
 }
 const files = await walk(dist);
 const exactFiles = new Set(files);
-const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain', 'eras']);
+const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain', 'legacy', 'eras']);
 for (const file of files) assert(allowedRoots.has(file.split('/')[0]), 'Unexpected published file: ' + file);
 assert.equal(report.photoCount, photos.length, 'Build report must match the current manifest.');
 assert.equal(report.photos.length, photos.length);
@@ -64,20 +64,28 @@ const home = htmlByFile.get('index.html');
 const gallery = htmlByFile.get('photos/index.html');
 assert.equal([...gallery.matchAll(/\bdata-photo="/g)].length, photos.length, 'Every photo needs a static gallery link.');
 assert(/<dialog\b/.test(gallery) && /id="dialog-close"/.test(gallery), 'Gallery dialog controls are missing.');
-assert(/id="phantom-shape" disabled/.test(home), 'No-JavaScript shape selector must be disabled.');
+const legacy = htmlByFile.get('legacy/index.html');
+assert(/id="phantom-shape" disabled/.test(legacy), 'No-JavaScript shape selector must be disabled.');
+// The earlier home page stays reachable at /legacy/ but out of sight: not indexed, not in the sitemap, linked only from /eras/ (as 2025).
+assert(legacy.includes('name="robots" content="noindex"'), 'The legacy home page must not be indexed.');
+assert(!(await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes('/legacy/'), 'The legacy home page stays out of the sitemap.');
+for (const [file, html] of htmlByFile) if (!file.startsWith('eras/')) assert(!/href="\/legacy\//i.test(html), 'Only the other years link to the legacy home page: ' + file);
 assert(home.includes('name="description"') && gallery.includes('rel="canonical"'), 'SEO metadata is missing.');
 assert(htmlByFile.get('Photo/gallery.html').includes('http-equiv="refresh"'), 'Old gallery must work without JavaScript.');
 assert(htmlByFile.get('404.html').includes('name="robots" content="noindex"'), 'The 404 page must not be indexed.');
-const mountainPage = htmlByFile.get('mountain/index.html');
+// The mountain is the home page; /mountain/ only forwards to it, keeping the camp in the hash.
+const mountainPage = home;
+const moved = htmlByFile.get('mountain/index.html');
+assert(moved.includes('http-equiv="refresh" content="0;url=/"') && moved.includes('name="robots" content="noindex"') && /<script src="\/assets\/moved-[0-9a-f]+\.js">/.test(moved), 'The old mountain address must forward to the home page.');
 const mountainCamps = JSON.parse(await readFile(path.join(root, 'content/mountain.json'), 'utf8')).camps;
-assert(!mountainPage.includes('noindex') && (await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/mountain/', site.url).href), 'The mountain page is public: indexed and in the sitemap.');
-assert(home.includes('href="/mountain/"'), 'The site navigation links to the mountain.');
+assert(home.includes('class="mountain-page"') && !home.includes('noindex') && home.includes('rel="canonical" href="' + new URL('/', site.url).href + '"'), 'The home page is the mountain, indexed at the root.');
+assert(!(await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes('/mountain/'), 'The old mountain address stays out of the sitemap.');
 const mountainImage = /property="og:image" content="https?:\/\/[^/]+\/([^"]+)"/.exec(mountainPage)?.[1];
 assert(mountainImage && exactFiles.has(mountainImage), 'The mountain page needs its share image.');
 assert.equal([...mountainPage.matchAll(/<li id="/g)].length, mountainCamps.length, 'Every camp needs a plain link for readers without WebGL.');
 const labPage = htmlByFile.get('phantom/index.html');
 assert(!labPage.includes('noindex') && (await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/phantom/', site.url).href), 'The lab page is public: indexed and in the sitemap.');
-assert(home.includes('href="/phantom/"'), 'The home page links to the lab.');
+assert(gallery.includes('href="/phantom/"') && home.includes('href="/phantom/"'), 'The navigation and the mountain link to the lab.');
 const labConfig = JSON.parse(labPage.match(/<script type="application\/json" id="lab-config">([^<]*)<\/script>/)[1]);
 for (const url of JSON.stringify(labConfig).match(/\/assets\/[^"]+/g)) assert(exactFiles.has(url.slice(1)), 'Lab config points at a missing file: ' + url);
 assert(labConfig.shapes.length === site.phantom.shapes.length, 'Every Phantom shape belongs in the lab.');
@@ -123,6 +131,10 @@ for (const year of eraYears) {
   assert(htmlByFile.has('eras/' + year + '/index.html'), 'Year without a home page: ' + year);
   assert(dial.includes('href="/eras/' + year + '/"'), 'The dial does not link to ' + year);
 }
+// The ring ends on the site's own versions: 2025 is the earlier home page, 2026 the mountain.
+const eraVersions = JSON.parse(await readFile(path.join(root, 'content/eras.json'), 'utf8')).versions;
+assert.deepEqual(eraVersions.map(version => [version.year, version.href]), [[2025, '/legacy/'], [2026, '/']], 'The last two years are the legacy page (2025) and the home page (2026).');
+for (const version of eraVersions) assert(dial.includes('href="' + version.href + '"'), 'The dial does not link to ' + version.year);
 for (const [file, html] of htmlByFile) {
   if (file.startsWith('eras/') && file !== 'eras/index.html') assert(/<meta name="robots" content="noindex"/i.test(html), 'Pages of other years are not indexed: ' + file);
 }

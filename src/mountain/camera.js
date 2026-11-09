@@ -2,6 +2,9 @@ import { TAU, lerp, clamp, easeInOut, wrapAngle, add, sub, scale, normalize, cro
 
 // Poses are cylindrical around the summit axis (angle, radius, height) plus a look-at target,
 // so travelling between camps turns around the mountain instead of cutting through it.
+// Vertical field of view in degrees: wider on portrait screens, where the mountain is framed taller than wide.
+export const FOV = { portrait: 58, landscape: 40 };
+
 export const eyeOf = pose => [Math.cos(pose.angle) * pose.radius, pose.y, Math.sin(pose.angle) * pose.radius];
 
 export function idlePose(time) {

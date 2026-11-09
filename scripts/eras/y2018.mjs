@@ -45,7 +45,7 @@ export default async function build(ctx, era) {
 </article>`;
 
   const ring = around(YEAR);
-  const label = item => item.now ? 'Now' : String(item.year);
+  const label = item => String(item.year);
   const page = (title, current, body, scripts = ['app.js']) => `<!DOCTYPE html>
 <html lang="en">
 <head>
