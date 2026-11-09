@@ -17,7 +17,7 @@ export function createWaterRenderer(gl, water) {
       programs.water.use().set(common).set({ uFoot: water.foot });
       gl.bindVertexArray(surface.vao);
       gl.drawArrays(gl.TRIANGLES, 0, water.count);
-      programs.fall.use().set(common);
+      programs.fall.use().set(common).set({ uLip: water.lip, uFoot: water.foot });
       gl.bindVertexArray(fall.vao);
       gl.drawArrays(gl.TRIANGLES, 0, water.fallCount);
     },
