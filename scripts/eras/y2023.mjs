@@ -23,6 +23,8 @@ export default async function build(ctx, era) {
   const lenses = [...new Set(photos.map(photo => photo.meta.lens))];
   const longest = Math.max(...photos.map(photo => /^\d+$/.test(photo.meta.shutter) ? Number(photo.meta.shutter) : 0));
   const newest = [...shots].sort((a, b) => b.photo.taken - a.photo.taken)[0];
+  // The newest photograph closes the grid as a strip across its full width.
+  const newestWide = await variant(newest.photo, YEAR, 'media/newest.webp', image => image.resize({ width: 1200, height: 500, fit: 'cover', position: 'attention' }).webp({ quality: 80 }).toBuffer());
 
   const ring = around(YEAR);
   const label = item => String(item.year);
@@ -43,7 +45,7 @@ export default async function build(ctx, era) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${csp}
 <meta name="robots" content="noindex">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <meta name="view-transition" content="same-origin">
 <title>${escape(title)}</title>
 <link rel="preload" href="fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
@@ -58,13 +60,13 @@ ${csp}
 </header>
 ${body}
 <footer class="foot">
-  <span>© ${new Date().getUTCFullYear()} Gerry Zhao</span>
+  <span>© ${YEAR}–${new Date().getUTCFullYear()} Gerry Zhao</span>
   <span>Built with HTML, CSS and a little JavaScript. No framework.</span>
   <span><a href="${ring.previous.href}">← ${label(ring.previous)}</a> · <a href="/eras/">All years</a> · <a href="${ring.next.href}">${label(ring.next)} →</a></span>
 </footer>
 <dialog class="palette" id="palette" aria-label="Command palette">
-  <input type="search" id="palette-input" placeholder="Search pages, photos, years…" autocomplete="off" spellcheck="false" aria-controls="palette-list">
-  <ul id="palette-list" role="listbox"></ul>
+  <input type="search" id="palette-input" placeholder="Search pages, photos, years…" autocomplete="off" spellcheck="false" role="combobox" aria-label="Search pages, photos and years" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list">
+  <ul id="palette-list" role="listbox" aria-label="Results"></ul>
   <p class="hint"><kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>↵</kbd> to open · <kbd>esc</kbd> to close</p>
 </dialog>
 <script type="module" src="palette.js"></script>
@@ -97,7 +99,7 @@ ${scripts.map(src => '<script type="module" src="' + src + '"></script>').join('
   <section class="tile wordle" aria-label="A Wordle result, shared without spoilers">
     <p class="eyebrow">${escape(ctx.puzzles.wordle.title)}</p>
     <div class="wordle-grid">${ctx.puzzles.wordle.rows.map(row => '<div class="wordle-row">' + [...row.marks].map((mark, i) => '<span class="sq ' + mark + '">' + escape(row.letters.charAt(i)) + '</span>').join('') + '</div>').join('')}</div>
-    <p class="muted">Shared from the trailhead at 7:02 am, as one did.</p>
+    <p class="muted">Shared from the trailhead at 7:02 am.</p>
   </section>
   <section class="tile kit">
     <p class="eyebrow">Kit</p>
@@ -106,7 +108,7 @@ ${scripts.map(src => '<script type="module" src="' + src + '"></script>').join('
   <a class="tile link" href="/phantom/"><p class="eyebrow">Lab</p><h2>The Phantom</h2><p class="muted">A million points of light on the GPU.</p><span class="arrow">↗</span></a>
   <a class="tile link" href="/mountain/"><p class="eyebrow">Index</p><h2>The Ascent</h2><p class="muted">The whole site as one mountain.</p><span class="arrow">↗</span></a>
   <a class="tile link glass" href="https://mail.g3rry.com/"><p class="eyebrow">Mail</p><h2>g3mail</h2><p class="muted">A free @g3rry.com address.</p><span class="arrow">↗</span></a>
-  <a class="tile newest" href="photos.html#${newest.photo.id}"><img src="${newest.thumb.src}" width="${newest.thumb.width}" height="${newest.thumb.height}" alt="${escape(newest.photo.alt)}" loading="lazy"><span class="hero-label"><span class="eyebrow">Newest</span><span>${escape(newest.photo.place)}</span></span></a>
+  <a class="tile newest" href="photos.html#${newest.photo.id}"><img src="${newestWide.src}" width="${newestWide.width}" height="${newestWide.height}" alt="${escape(newest.photo.alt)}" loading="lazy"><span class="hero-label"><span class="eyebrow">Newest</span><span>${escape(newest.photo.place)}</span></span></a>
 </main>`, ['notes.js']));
 
   await output('eras/2023/photos.html', page('Photos · Gerry Zhao', 'photos.html', `<main class="photos">

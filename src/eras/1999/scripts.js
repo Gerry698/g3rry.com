@@ -34,16 +34,17 @@ function photoOfTheWeek() {
   caption.firstChild.nodeValue = pick[4];
 }
 
-// ---- Y2K: days left until 1 January 2000. It has been negative for a while.
+// ---- Y2K: days left until 1 January 2000.
+// 2026: counted from today's month and day in 1999, so the page stays in its year.
 function y2k() {
   var box = document.getElementById && document.getElementById('y2k');
   if (!box) return;
-  var days = Math.floor((new Date(2000, 0, 1) - new Date()) / (24 * 60 * 60 * 1000));
-  var text = String(Math.abs(days)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  box.firstChild.nodeValue = (days < 0 ? '-' : '') + text + (days < 0 ? ' (it came and went; nothing broke)' : '');
+  var now = new Date();
+  var today = new Date(1999, now.getMonth(), now.getDate());
+  box.firstChild.nodeValue = String(Math.round((new Date(2000, 0, 1) - today) / (24 * 60 * 60 * 1000)));
 }
 
-// ---- The counter, as green LCD digits.
+// ---- The counter, as green LCD digits. 2026: fetch, from the counter of the current site.
 function counter() {
   var box = document.getElementById && document.getElementById('counter');
   if (!box || !window.fetch) return;

@@ -49,8 +49,32 @@ export function fonts(root) {
     return (files[key] = target);
   }
   // A line of text as an RGBA image: `markup` is Pango markup, `font` a family and size such as "Varela Round 60".
+  // The image is cropped to the ink, so two separate renderings do not share a baseline.
   async function text(markup, { pkg, name, font, dpi = 72 }) {
     return sharp({ text: { text: markup, font, fontfile: await file(pkg, name), rgba: true, dpi } }).png().toBuffer();
   }
-  return { file, text };
+  // The same, as raw pixels: { width, height, alpha, rgba } with alpha 0–255 per pixel (see paint() in pixels.mjs).
+  async function coverage(markup, options) {
+    const { data, info } = await sharp(await text(markup, options)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const alpha = new Uint8ClampedArray(info.width * info.height);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3];
+    return { width: info.width, height: info.height, alpha, rgba: data };
+  }
+  return { file, text, coverage };
 }
+
+// Text for Pango markup.
+export const markup = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// The faces used for type drawn into images, all OFL from @fontsource. Arimo and Tinos are metric twins of Arial
+// and Times New Roman; Archivo Black stands in for Arial Black and Open Sans for Verdana.
+export const FACES = {
+  timesBoldItalic: { pkg: 'tinos', name: 'tinos-latin-700-italic.woff', family: 'Tinos Bold Italic' },
+  arialBold: { pkg: 'arimo', name: 'arimo-latin-700-normal.woff', family: 'Arimo Bold' },
+  arialBlack: { pkg: 'archivo-black', name: 'archivo-black-latin-400-normal.woff', family: 'Archivo Black' },
+  verdanaBold: { pkg: 'open-sans', name: 'open-sans-latin-700-normal.woff', family: 'Open Sans Bold' },
+  verdana: { pkg: 'open-sans', name: 'open-sans-latin-600-normal.woff', family: 'Open Sans Semi-Bold' },
+  roundedBold: { pkg: 'nunito', name: 'nunito-latin-800-normal.woff', family: 'Nunito Ultra-Bold' }
+};
+// Options for text() / coverage(): a face from FACES at a size in pixels.
+export const face = (which, size) => ({ pkg: which.pkg, name: which.name, font: which.family + ' ' + size });

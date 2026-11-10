@@ -1,13 +1,15 @@
 // Gerry's home page scripts. JavaScript 1.0 style, the kind Netscape 2.0 ran.
 
 // <BLINK> only ever blinked in Netscape; this makes it blink everywhere.
+// 2026: except for anyone whose system asks for less motion (matchMedia).
 var blinkOn = true;
 function blink() {
   var tags = document.getElementsByTagName('blink');
   blinkOn = !blinkOn;
   for (var i = 0; i < tags.length; i++) tags[i].style.visibility = blinkOn ? 'visible' : 'hidden';
 }
-setInterval(blink, 600);
+var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!still) setInterval(blink, 600);
 
 // Random year in the Time Ring.
 var randomLink = document.getElementById('ring-random');
@@ -22,7 +24,7 @@ if (randomLink) {
   };
 }
 
-// The hit counter, one GIF per digit.
+// The hit counter, one GIF per digit. 2026: fetch, from the counter of the current site.
 var counterLine = document.getElementById('counter-line');
 if (counterLine && window.fetch) {
   fetch('/api/counter?year=1996', { headers: { Accept: 'application/json' } }).then(function (response) {

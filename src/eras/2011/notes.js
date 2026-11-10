@@ -17,7 +17,9 @@
   xhr.onload = function () {
     clear();
     if (xhr.status !== 200) { add('', 'The notes could not be loaded just now.'); return; }
-    var data = JSON.parse(xhr.responseText), seen = {}, n = 0, all = (data.pinned || []).concat(data.entries || []);
+    var data;
+    try { data = JSON.parse(xhr.responseText); } catch (e) { add('', 'The notes could not be loaded just now.'); return; }
+    var seen = {}, n = 0, all = (data.pinned || []).concat(data.entries || []);
     for (var i = 0; i < all.length && n < limit; i++) {
       if (seen[all[i].id]) continue;
       seen[all[i].id] = true;

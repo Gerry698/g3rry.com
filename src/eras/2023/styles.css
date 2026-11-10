@@ -42,11 +42,13 @@ kbd { font: 500 11px/1 Inter, sans-serif; padding: 3px 6px; border: 1px solid va
 .kbd-button:hover { color: var(--text); }
 
 .bento { width: min(1180px, calc(100% - 32px)); margin: 28px auto; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(150px, auto); gap: 14px; }
-.tile { position: relative; overflow: hidden; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--tile); transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .35s; }
+.tile { position: relative; overflow: hidden; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--tile); container-type: inline-size; transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .35s, opacity .35s; }
 a.tile:hover { transform: translateY(-3px); border-color: rgb(255 255 255 / .18); }
+/* point at one tile and the others step back */
+.bento:has(a.tile:hover) .tile:not(:hover) { opacity: .75; }
 .glass { background: rgb(255 255 255 / .045); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%); }
 .hero { grid-column: span 2; grid-row: span 2; padding: 0; }
-.hero img, .newest img { width: 100%; height: 100%; object-fit: cover; }
+.hero img { width: 100%; height: 100%; object-fit: cover; }
 .hero-label { position: absolute; left: 14px; bottom: 14px; display: flex; flex-direction: column; padding: 10px 14px; border-radius: 14px; background: rgb(0 0 0 / .45); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-weight: 500; }
 .hero-label .eyebrow { margin: 0; }
 .intro { grid-column: span 2; display: flex; flex-direction: column; justify-content: flex-end; }
@@ -67,7 +69,9 @@ a.link:hover .arrow { color: var(--text); transform: translate(2px, -2px); }
 .places ul, .kit ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
 .pin { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: .55rem; vertical-align: middle; }
 .kit li { font-size: 13px; color: var(--muted); }
-.newest { padding: 0; grid-column: span 2; min-height: 220px; }
+/* the newest photograph closes the grid: a strip across every column, whatever the number of columns */
+.newest { padding: 0; grid-column: 1 / -1; aspect-ratio: 12 / 5; }
+.newest img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 .photos { width: min(1180px, calc(100% - 32px)); margin: 28px auto; }
 .photos-head h1 { margin: 0; font-size: 44px; letter-spacing: -.045em; font-weight: 600; }
@@ -87,19 +91,28 @@ dialog::backdrop { background: rgb(0 0 0 / .6); backdrop-filter: blur(6px); }
 .viewer button { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: rgb(0 0 0 / .5); color: #fff; font-size: 20px; cursor: pointer; }
 ::view-transition-old(photo), ::view-transition-new(photo) { animation-duration: .35s; }
 
-.palette { width: min(620px, 94vw); margin-top: 14vh; padding: 0; border: 1px solid var(--line); border-radius: 18px; background: rgb(20 20 23 / .86); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 30px 80px rgb(0 0 0 / .6); }
-.palette input { width: 100%; padding: 18px 20px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; font-size: 16px; outline: none; }
-.palette ul { list-style: none; margin: 0; padding: 8px; max-height: 50vh; overflow: auto; }
-.palette li.group { padding: 10px 12px 4px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-.palette li a { display: flex; justify-content: space-between; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
-.palette li a[aria-selected="true"] { background: rgb(167 139 250 / .16); color: #fff; }
-.palette li a span { color: var(--muted); font-size: 12px; }
-.palette .hint { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; gap: .35rem; align-items: center; }
+.palette {
+  width: min(620px, 94vw); margin-top: 14vh; padding: 0; border: 1px solid var(--line); border-radius: 18px; background: rgb(20 20 23 / .86);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 30px 80px rgb(0 0 0 / .6);
+
+  & input { width: 100%; padding: 18px 20px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; font-size: 16px; outline: none; }
+  & ul { list-style: none; margin: 0; padding: 0; }
+  & #palette-list { padding: 8px; max-height: 50vh; overflow: auto; }
+  & .group { margin: 0; padding: 10px 12px 4px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+  & [role="option"] {
+    display: flex; justify-content: space-between; padding: 10px 12px; border-radius: 10px; font-size: 14px;
+    &[aria-selected="true"] { background: rgb(167 139 250 / .16); color: var(--text); }
+    & span { color: var(--muted); font-size: 12px; }
+  }
+  & .hint { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; gap: .35rem; align-items: center; }
+}
 
 .foot { width: min(1180px, calc(100% - 32px)); margin: 10px auto 40px; display: flex; flex-wrap: wrap; gap: 1rem 2rem; justify-content: space-between; color: var(--muted); font-size: 13px; }
 .foot a:hover { color: var(--text); }
 
+/* every tile is a container: type in a narrow tile steps down, whatever the page width */
 @container (max-width: 400px) { .tile h2 { font-size: 18px; } }
+@container (max-width: 220px) { .big { font-size: 44px; } }
 @media (max-width: 900px) {
   .bento { grid-template-columns: repeat(2, 1fr); }
   .top nav { display: none; }
@@ -107,11 +120,11 @@ dialog::backdrop { background: rgb(0 0 0 / .6); backdrop-filter: blur(6px); }
 }
 @media (max-width: 560px) {
   .bento { grid-template-columns: 1fr; }
-  .hero, .intro, .note, .newest { grid-column: auto; }
+  .hero, .intro, .note { grid-column: auto; }
   .hero { grid-row: auto; min-height: 280px; }
 }
 
-/* The Wordle everyone posted: colours only. The letters are there, in the colour of their square, in dark mode. */
+/* The Wordle everyone posted. Strata (four-tries): see the private solution book. */
 .wordle { display: flex; flex-direction: column; gap: 10px; }
 .wordle-grid { display: grid; gap: 5px; justify-content: start; }
 .wordle-row { display: grid; grid-template-columns: repeat(5, 30px); gap: 5px; }

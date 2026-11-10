@@ -7,6 +7,7 @@
   }, false);
 
   // Dragging. A press that moves more than a few pixels is a drag, not a click on the photograph.
+  // 2026: pointer events, so a finger drags as well as a mouse; in 2011 this was jQuery UI's draggable().
   var cards = document.querySelectorAll('.board .polaroid'), top = 10;
   for (var c = 0; c < cards.length; c++) {
     (function (card) {

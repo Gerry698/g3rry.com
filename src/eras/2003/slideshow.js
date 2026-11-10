@@ -1,13 +1,18 @@
 /* gerry zhao :: slideshow.js
    click a thumbnail and the big picture fades over. opacity for mozilla and safari;
-   IE wanted filter: alpha(opacity=n) instead, and got it from a branch that is gone now. */
+   IE wanted filter: alpha(opacity=n) instead, and got it from a branch that is gone now.
+   the picture is centred in its 400px frame with a top margin worked out here: line-height tricks
+   fell apart in almost-standards mode. */
 
 var slide = document.getElementById('slide');
 var caption = document.getElementById('caption');
 var links = document.getElementById('filmstrip').getElementsByTagName('a');
 var current = 0, playing = null, fading = null;
+// 2026: a system that asks for less motion gets the new picture at once (matchMedia).
+var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function setOpacity(el, value) { el.style.opacity = value; }
+function centre(height) { slide.style.marginTop = Math.max(0, Math.round((400 - height) / 2)) + 'px'; }
 
 function show(index, instant) {
   index = (index + links.length) % links.length;
@@ -16,17 +21,19 @@ function show(index, instant) {
   current = index;
   if (location.hash != '#' + link.id) history.replaceState(null, '', '#' + link.id);
   var swap = function () {
+    var height = Number(link.getAttribute('data-height'));
     slide.src = link.href;
     slide.width = link.getAttribute('data-width');
-    slide.height = link.getAttribute('data-height');
+    slide.height = height;
     slide.alt = link.getAttribute('data-alt');
+    centre(height);
     while (caption.firstChild) caption.removeChild(caption.firstChild);
     var strong = document.createElement('strong');
     strong.appendChild(document.createTextNode(link.getAttribute('data-title')));
     caption.appendChild(strong);
-    caption.appendChild(document.createTextNode(' · ' + link.getAttribute('data-alt')));
+    caption.appendChild(document.createTextNode(' · ' + link.getAttribute('data-note')));
   };
-  if (instant) { swap(); return; }
+  if (instant || still) { clearInterval(fading); setOpacity(slide, 1); swap(); return; }
   clearInterval(fading);
   var step = 10;
   fading = setInterval(function () {
@@ -52,6 +59,7 @@ document.getElementById('play').onclick = function () {
   else { playing = setInterval(function () { show(current + 1); }, 3500); this.firstChild.nodeValue = 'stop slideshow'; }
   return false;
 };
+centre(Number(slide.getAttribute('height')));
 // A link like photos.html#f07 opens on that frame.
 var start = /^#f(\d\d)$/.exec(location.hash);
 if (start) for (var k = 0; k < links.length; k++) if (links[k].id == 'f' + start[1]) show(k, true);

@@ -1,9 +1,33 @@
 // 2018: Material cards with elevation, an app bar with tabs, a floating action button, ripples, letter avatars,
 // a dialog with EXIF chips, a flat illustration, a cookie banner after 25 May, a newsletter modal, a JSON Feed.
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const YEAR = 2018;
+
+// The 2018 copy's own service worker. Like many progressive web apps of its year it promises to work offline, and
+// keeps the promise with one saved page: when a page cannot be fetched, the offline page is shown instead. The cache
+// is named after the saved files, so a visitor who comes back after they change gets the new ones.
+const serviceWorker = version => `// Gerry Zhao — sw.js. Without a connection, a saved page.
+const CACHE = 'eras-2018-offline-${version}';
+const SAVED = ['/eras/2018/offline.html', '/eras/2018/app.css'];
+
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SAVED)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('eras-2018-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  if (request.mode === 'navigate') {
+    event.respondWith(fetch(request).catch(() => caches.match('/eras/2018/offline.html')));
+  } else if (SAVED.includes(new URL(request.url).pathname)) {
+    event.respondWith(fetch(request).catch(() => caches.match(request)));
+  }
+});
+`;
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // A flat illustration in the manner of the free libraries everyone used: a person, a tripod, a hill, a moon.
@@ -46,8 +70,7 @@ export default async function build(ctx, era) {
 
   const ring = around(YEAR);
   const label = item => String(item.year);
-  // A consent manager of 2018. The first tab is honest; the second, as they often did, comes switched on
-  // (a puzzle of /strata/).
+  // A consent manager of 2018, with two tabs. Strata (legitimate-interest): see the private solution book.
   const vendorRow = (vendor, on, tab) => '<li class="vendor"><label><span class="vendor-text"><span class="vendor-name">' + escape(vendor.name) + '</span><span class="secondary">Keeps data for ' + vendor.days + ' day' + (vendor.days === 1 ? '' : 's') + '</span></span>'
     + '<input type="checkbox" class="toggle" data-tab="' + tab + '"' + (on ? ' checked' : '') + ' aria-label="' + escape(vendor.name) + '"></label></li>';
   const consent = `<div class="scrim" id="consent" hidden>
@@ -84,13 +107,13 @@ ${csp}
 ${body}
 </main>
 <footer class="footer">
-  <p>&copy; ${new Date().getUTCFullYear()} Gerry Zhao &middot; <a href="https://mail.g3rry.com/">g3mail</a> &middot; <a href="/phantom/">The Phantom</a> &middot; <a href="/mountain/">The Ascent</a></p>
+  <p>&copy; ${YEAR}&ndash;${new Date().getUTCFullYear()} Gerry Zhao &middot; <a href="https://mail.g3rry.com/">g3mail</a> &middot; <a href="/phantom/">The Phantom</a> &middot; <a href="/mountain/">The Ascent</a></p>
   <p class="offline-ready">&#10003; Works offline</p>
   <p>Time ring: <a href="${ring.previous.href}">&larr; ${label(ring.previous)}</a> &middot; <a href="/eras/">All years</a> &middot; <a href="${ring.next.href}">${label(ring.next)} &rarr;</a></p>
 </footer>
 <a class="fab ripple" href="/guestbook/" aria-label="Leave a note" title="Leave a note">${icon('edit')}</a>
 <div class="snackbar cookie" id="cookies" hidden>
-  <p>This website uses cookies to ensure you get the best experience. <span class="secondary">(It does not set any. It is 2018, and everyone has a banner.)</span></p>
+  <p>This website uses cookies to ensure you get the best experience.<!-- 2026: it does not set any. It was 2018, and everyone had a banner. --></p>
   <div><button type="button" class="button ripple" id="cookies-manage">Manage</button><button type="button" class="button accent ripple" id="cookies-accept">Accept</button></div>
 </div>
 ${consent}
@@ -104,7 +127,7 @@ ${consent}
 <div class="scrim" id="viewer" hidden>
   <div class="dialog wide elevate-24" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
     <button type="button" class="icon-button close ripple" id="viewer-close" aria-label="Close">${icon('close')}</button>
-    <img id="viewer-image" src="${cards[0].full.src}" width="${cards[0].full.width}" height="${cards[0].full.height}" alt="">
+    <img id="viewer-image" width="${cards[0].full.width}" height="${cards[0].full.height}" alt="">
     <div class="viewer-text"><h2 id="viewer-title"></h2><p class="secondary" id="viewer-sub"></p><div class="chips" id="viewer-chips"></div></div>
   </div>
 </div>
@@ -163,7 +186,7 @@ ${cards.map(item => card(item).replace('<article class="card elevate"', '<articl
     return '<svg class="signal" viewBox="0 0 80 130" width="108" height="176" aria-hidden="true"><circle cx="40" cy="36" r="10" fill="#ffccbc"/><path d="M28 50 h24 l-2 38 h-20 z" fill="#3f51b5"/>'
       + '<path d="M34 88 l-4 34 M46 88 l4 34" stroke="#263238" stroke-width="6" stroke-linecap="round"/>' + arms + '</svg>';
   };
-  await output('eras/2018/offline.html', `<!DOCTYPE html>
+  const offline = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -184,7 +207,10 @@ ${csp}
 </main>
 </body>
 </html>
-`);
+`;
+  await output('eras/2018/offline.html', offline);
+  const saved = Buffer.concat([Buffer.from(offline), await readFile(path.join(root, 'src/eras/2018/app.css'))]);
+  await output('eras/2018/sw.js', serviceWorker(ctx.digest(saved)));
 
   // JSON Feed 1.0, new in 2017.
   const base = new URL('/eras/2018/', site.url).href;

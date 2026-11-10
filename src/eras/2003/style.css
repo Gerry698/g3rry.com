@@ -84,8 +84,8 @@ h4 { margin: 0 0 8px; font: bold 14px Georgia, "Times New Roman", serif; color: 
 
 /* gallery */
 #viewer { background: #222; padding: 10px; text-align: center; }
-#frame { height: 400px; line-height: 400px; } /* vertical centring, the old way */
-#frame img { vertical-align: middle; }
+#frame { height: 400px; } /* the picture is centred by a top margin from slideshow.js */
+#frame img { display: block; margin: 0 auto; }
 #caption { margin: 8px 0 4px; color: #ccc; font-size: 10px; }
 #caption strong { color: #fff; }
 #controls { margin: 0; font-size: 10px; text-transform: lowercase; }
@@ -108,5 +108,3 @@ body.intro { background: #111; padding-top: 40px; }
 #intro-links { margin: 6px 0 0; text-align: right; font-size: 9px; letter-spacing: 1px; }
 #intro-links a { color: #666; margin-left: 14px; }
 #intro-links a:hover { color: #ff6600; text-decoration: none; }
-#intro-note { margin: 18px 0 0; font-size: 9px; color: #444; text-align: center; }
-#sidebar .rot { margin-top: 4px; color: #aaa; font-style: italic; }

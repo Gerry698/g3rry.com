@@ -4,18 +4,20 @@
 
 var stage = document.getElementById('stage');
 var g = stage.getContext ? stage.getContext('2d') : null;
-var W = 760, H = 420, ORANGE = '#ff6600';
+var W = 760, H = 420, ORANGE = '#ff6600', CARET = '#777';
 var soundOn = false, audio = null;
 var soundLink = document.getElementById('sound');
 var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function go() { location.href = 'home.html'; }
 
+// Turning the sound on starts the line again from the top, as a Flash intro restarted its timeline, so nothing
+// typed before the switch is missed.
 soundLink.onclick = function () {
   soundOn = !soundOn;
   soundLink.firstChild.nodeValue = 'SOUND: ' + (soundOn ? 'ON' : 'OFF');
   if (soundOn && !audio && (window.AudioContext || window.webkitAudioContext)) audio = new (window.AudioContext || window.webkitAudioContext)();
-  if (soundOn) bleep(660, 0.08);
+  if (soundOn) { bleep(660, 0.08); if (sequenceStart) retype(new Date().getTime() + 1000); }
   return false;
 };
 function bleep(freq, length) {
@@ -72,17 +74,21 @@ for (var p = 0; p < particles.length; p++) {
   particles[p].delay = Math.random() * 600;
 }
 var LINE = 'CHASING LIGHT. KEEPING MOMENTS.', typed = 0, scanned = false, enterShown = false;
-// Every key has its own touch: TYPING (in pixelfont.js) holds how long each keystroke sounds and the pause after it,
-// in milliseconds. Spaces make no sound. The line starts typing three seconds in, whatever the motion setting.
-var TYPE_START = 3000, keyAt = [], keyLength = [], clock = TYPE_START;
+// The line types itself in the rhythm of TYPING (in pixelfont.js), once through, then quietly to the end.
+// Strata (sound-on): see the private solution book.
+// With SOUND on, each key that sounds also turns the caret orange for as long as it sounds.
+// The line starts typing three seconds in, whatever the motion setting.
+var TYPE_START = 3000, keyAt = [], keyLength = [], clock = 0;
 for (var c = 0, k = 0; c < LINE.length; c++) {
   keyAt.push(clock);
   if (LINE.charAt(c) == ' ') { keyLength.push(0); continue; }
-  var key = TYPING[k++ % TYPING.length];
+  var key = k < TYPING.length ? TYPING[k] : [0, 70];
+  k++;
   keyLength.push(key[0]);
   clock += key[0] + key[1];
 }
-var ENTER_AT = Math.max(5200, clock + 300);
+var typeFrom = 0, caretUntil = 0;
+function retype(at) { typeFrom = at; typed = 0; caretUntil = 0; }
 
 function frame() {
   var now = new Date().getTime();
@@ -93,7 +99,7 @@ function frame() {
     drawText('LOADING ' + Math.round(shown * 100) + '%', W / 2 - 50, H / 2 - 20, 2, '#888');
     g.fillStyle = '#333'; g.fillRect(W / 2 - 100, H / 2 + 4, 200, 4);
     g.fillStyle = ORANGE; g.fillRect(W / 2 - 100, H / 2 + 4, 200 * shown, 4);
-    if (shown >= 1 || now - loadStart > 8000) sequenceStart = now;
+    if (shown >= 1 || now - loadStart > 8000) { sequenceStart = now; retype(now + TYPE_START); }
     requestAnimationFrame(frame);
     return;
   }
@@ -119,16 +125,19 @@ function frame() {
     g.fillRect(px, py, SCALE - 1, SCALE - 1);
   }
   // The line types itself.
-  var typing = now - sequenceStart;
-  if (typing > TYPE_START) {
-    while (typed < LINE.length && typing >= keyAt[typed]) { if (keyLength[typed]) bleep(880, keyLength[typed] / 1000); typed++; }
+  if (now >= typeFrom) {
+    var typing = now - typeFrom;
+    while (typed < LINE.length && typing >= keyAt[typed]) {
+      if (keyLength[typed] && soundOn) { bleep(880, keyLength[typed] / 1000); caretUntil = now + keyLength[typed]; }
+      typed++;
+    }
     var lineX = (W - textWidth(LINE, 2)) / 2;
     g.fillStyle = '#000'; g.fillRect(lineX - 4, 226, textWidth(LINE, 2) + 20, 20);
     drawText(LINE, lineX, 230, 2, '#ccc', typed);
-    if (typed < LINE.length || Math.floor(t / 400) % 2) { g.fillStyle = ORANGE; g.fillRect(lineX + typed * 12, 230, 8, 14); }
+    if (typed < LINE.length || now < caretUntil || Math.floor(t / 400) % 2) { g.fillStyle = now < caretUntil ? ORANGE : CARET; g.fillRect(lineX + typed * 12, 230, 8, 14); }
   }
   // ENTER.
-  if (t > ENTER_AT && typed >= LINE.length) {
+  if (t > 5200 && typed >= LINE.length && now >= typeFrom + clock + 300) {
     if (!enterShown) { enterShown = true; bleep(440, 0.15); stage.style.cursor = 'pointer'; }
     var glow = 0.55 + 0.45 * Math.sin(t / 260);
     g.fillStyle = '#000'; g.fillRect(W / 2 - 60, 300, 120, 34);

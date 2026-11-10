@@ -2,8 +2,10 @@
    photos.html?tag=rain shows only that tag; photos.html?q=bridge searches the descriptions. */
 
 (function () {
+  // A query typed by hand (?q=100%) is not always valid escaping; then it is taken as it stands.
+  function decode(value) { value = value.replace(/\+/g, ' '); try { return decodeURIComponent(value); } catch (e) { return value; } }
   var params = {}, pairs = location.search.slice(1).split('&');
-  for (var i = 0; i < pairs.length; i++) { var kv = pairs[i].split('='); if (kv[0]) params[kv[0]] = decodeURIComponent((kv[1] || '').replace(/\+/g, ' ')); }
+  for (var i = 0; i < pairs.length; i++) { var kv = pairs[i].split('='); if (kv[0]) params[decode(kv[0])] = decode(kv[1] || ''); }
   var tag = params.tag, q = params.q && params.q.toLowerCase();
   if (!tag && !q) return;
   var items = document.getElementsByTagName('li'), shown = 0;

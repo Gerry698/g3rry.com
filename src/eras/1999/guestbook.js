@@ -1,5 +1,6 @@
 // Gerry Zhao Online - guestbook.js
 // Reads the live guestbook and writes it into the table, rows in alternating colours.
+// 2026: fetch, from the current guestbook.
 var table = document.getElementById('entries');
 
 function pad(n) { return n < 10 ? '0' + n : String(n); }

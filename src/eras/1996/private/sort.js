@@ -9,8 +9,9 @@
   function value(row) {
     var text = row.textContent;
     if (key === 'M') {
-      var m = /(\d\d)-(\w{3})-(\d{4}) (\d\d):(\d\d)/.exec(text);
-      return Date.UTC(+m[3], months[m[2]], +m[1], +m[4], +m[5]);
+      // Two-digit years, as the server printed them; every one of them is in the 1900s.
+      var m = /(\d\d)-(\w{3})-(\d\d|\d{4}) (\d\d):(\d\d)/.exec(text), year = +m[3];
+      return Date.UTC(year < 100 ? 1900 + year : year, months[m[2]], +m[1], +m[4], +m[5]);
     }
     if (key === 'S') return parseInt(/\s(\d+)k\s/.exec(text)[1], 10);
     return row.getElementsByTagName('a')[0].firstChild.nodeValue;

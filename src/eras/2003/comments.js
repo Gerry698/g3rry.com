@@ -20,10 +20,11 @@ function stamp(ms) {
 }
 function empty() { while (box.firstChild) box.removeChild(box.firstChild); }
 
-fetch('/api/guestbook', { headers: { Accept: 'application/json' } }).then(function (r) {
-  if (!r.ok) throw new Error(r.status);
-  return r.json();
-}).then(function (data) {
+function failed() {
+  empty();
+  box.appendChild(para('Comments could not be loaded just now.'));
+}
+function render(data) {
   empty();
   var seen = {}, all = (data.pinned || []).concat(data.entries || []), n = 0;
   for (var i = 0; i < all.length; i++) {
@@ -39,7 +40,17 @@ fetch('/api/guestbook', { headers: { Accept: 'application/json' } }).then(functi
     n++;
   }
   if (!n) box.appendChild(para('No comments yet.'));
-})['catch'](function () {
-  empty();
-  box.appendChild(para('Comments could not be loaded just now.'));
-});
+}
+
+var request = new XMLHttpRequest();
+request.open('GET', '/api/guestbook', true);
+request.setRequestHeader('Accept', 'application/json');
+request.onreadystatechange = function () {
+  if (request.readyState != 4) return;
+  if (request.status != 200) { failed(); return; }
+  // 2026: JSON.parse; in 2003 the text would have been handed to eval.
+  var data;
+  try { data = JSON.parse(request.responseText); } catch (e) { failed(); return; }
+  render(data);
+};
+request.send(null);

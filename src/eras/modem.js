@@ -6,7 +6,7 @@
 
 const SETTING = '/eras/modem-setting';
 const STORE = 'eras-modem';
-const USUAL = { 1996: 28800, 1999: 48000 };
+const USUAL = { 1996: 28800, 1999: 48000 }; // the same as YEARS in /eras/modem-client.js
 const CONNECTIONS = 4;
 const LATENCY = 250; // milliseconds before the first byte of each response
 const EFFICIENCY = 0.85; // what is left of the line after modem framing, PPP, IP and TCP
@@ -31,15 +31,19 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
   const match = /^\/eras\/(1996|1999)\//.exec(url.pathname);
   if (!match) return;
-  event.respondWith(slowly(request, match[1]));
+  // The body is fed by a timer long after respondWith() settles; this keeps the worker alive until the last byte.
+  let finished;
+  event.waitUntil(new Promise(resolve => { finished = resolve; }));
+  event.respondWith(slowly(request, match[1], finished));
 });
 
-async function slowly(request, year) {
-  const response = await fetch(request);
+async function slowly(request, year, finished) {
+  let response;
+  try { response = await fetch(request); } catch (error) { finished(); throw error; }
   try {
     const setting = await chosen();
     const bps = setting === null ? USUAL[year] : setting;
-    if (!bps || response.status !== 200 || response.type !== 'basic' || !response.body) return response;
+    if (!bps || response.status !== 200 || response.type !== 'basic' || !response.body) { finished(); return response; }
     const bytes = new Uint8Array(await response.arrayBuffer());
     const headers = new Headers(response.headers);
     // The body handed on is already decoded, so its encoding and length headers no longer apply.
@@ -47,19 +51,20 @@ async function slowly(request, year) {
     headers.delete('content-length');
     let job;
     const body = new ReadableStream({
-      start(controller) { job = line.open(bytes, controller, bps); },
+      start(controller) { job = line.open(bytes, controller, bps, finished); },
       cancel() { line.close(job); }
     });
     return new Response(body, { status: 200, statusText: response.statusText, headers });
   } catch (error) {
+    finished();
     return fetch(request);
   }
 }
 
 const line = {
   queue: [], active: new Set(), timer: 0, last: 0,
-  open(bytes, controller, bps) {
-    const job = { bytes, controller, rate: bps / 8 * EFFICIENCY, sent: 0, credit: 0, start: 0 };
+  open(bytes, controller, bps, finished) {
+    const job = { bytes, controller, rate: bps / 8 * EFFICIENCY, sent: 0, credit: 0, start: 0, finished };
     this.queue.push(job);
     this.pump();
     return job;
@@ -68,6 +73,7 @@ const line = {
     this.active.delete(job);
     const i = this.queue.indexOf(job);
     if (i >= 0) this.queue.splice(i, 1);
+    job.finished();
   },
   pump() {
     while (this.active.size < CONNECTIONS && this.queue.length) {
@@ -96,8 +102,8 @@ const line = {
             job.sent += count;
             job.credit -= count;
           }
-          if (job.sent >= job.bytes.length) { job.controller.close(); this.active.delete(job); }
-        } catch (error) { this.active.delete(job); }
+          if (job.sent >= job.bytes.length) { job.controller.close(); this.close(job); }
+        } catch (error) { this.close(job); }
       }
     }
     this.pump();

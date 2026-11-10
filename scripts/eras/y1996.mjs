@@ -2,22 +2,32 @@
 // progressive JPEGs, a guestbook and a ring of sites. The modem service worker sets the pace.
 import path from 'node:path';
 import sharp from 'sharp';
-import { canvas, drawText, drawMask, textWidth, gif, animatedGif, random, hex, mix } from './pixels.mjs';
+import { canvas, drawText, drawMask, textWidth, gif, animatedGif, random, hex, mix, paint, blur, cover, cutOut } from './pixels.mjs';
+import { fonts, face, FACES, markup } from './fonts.mjs';
 
 const YEAR = 1996;
+const UPDATED = '12/24/96';
+const MATTE = '#000022'; // the starfield's own colour, which every transparent GIF here is cut out of
 const date = d => [d.getUTCMonth() + 1, d.getUTCDate(), d.getUTCFullYear() % 100].map(n => String(n).padStart(2, '0')).join('/');
 const words = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
 const kb = bytes => Math.max(1, Math.round(bytes / 1024)) + 'K';
 
 // ---- Art ------------------------------------------------------------------------------------------------------
 
-async function title(text) {
-  const scale = 4, shadow = 3, width = textWidth(text, scale) + shadow + 4, height = 7 * scale + shadow + 4;
-  const c = canvas(width, height);
+// A page title as Paint Shop Pro made them: Times Bold Italic, anti-aliased, a gradient fill and a drop shadow,
+// saved as a transparent GIF over the background colour.
+async function title(type, text) {
+  const ink = await type.coverage('<span foreground="#ffffff">' + markup(text) + '</span>', face(FACES.timesBoldItalic, 44));
+  const shadow = blur(ink, 1), drop = 3, pad = 2;
+  const width = ink.width + pad * 2 + drop + 2, height = ink.height + pad * 2 + drop + 2;
+  const c = canvas(width, height, hex(MATTE)), covered = new Uint8Array(width * height);
+  const sx = pad + drop - shadow.offset, sy = pad + drop - shadow.offset;
+  paint(c, shadow, sx, sy, [40, 0, 70, 255], 1.6);
+  cover(covered, width, shadow, sx, sy);
   const top = hex('#ffff66'), bottom = hex('#ff6a00');
-  drawText(c, text, 2 + shadow, 2 + shadow, scale, [40, 0, 70, 255]);
-  drawText(c, text, 2, 2, scale, (i, j) => mix(top, bottom, j / 6));
-  return gif(c, { colours: 32 });
+  paint(c, ink, pad, pad, (i, j) => mix(top, bottom, j / (ink.height - 1)));
+  cover(covered, width, ink, pad, pad);
+  return gif(cutOut(c, covered, 60), { colours: 128 });
 }
 
 async function stars() {
@@ -41,7 +51,7 @@ async function rainbow() {
   return gif(c, { colours: 64 });
 }
 
-// The lamp blinks. Between blinks the board shows one letter for a single 40 ms frame (a puzzle of /strata/).
+// The lamp blinks. Strata (under-construction): see the private solution book.
 async function barricade(sign) {
   const draw = (lit, letter) => {
     const c = canvas(104, 40);
@@ -61,13 +71,19 @@ async function barricade(sign) {
   return animatedGif(frames, { delay, colours: 16 });
 }
 
-async function newBadge() {
+// NEW!, flashing red and yellow, in heavy type with a hard shadow.
+async function newBadge(type) {
+  const ink = await type.coverage('<span foreground="#ffffff">NEW!</span>', face(FACES.arialBlack, 14));
   const frames = [hex('#ff2020'), hex('#ffff40')].map(colour => {
-    const c = canvas(textWidth('NEW!', 2) + 4, 18);
-    drawText(c, 'NEW!', 2, 2, 2, colour);
-    return c;
+    const width = ink.width + 4, height = ink.height + 4;
+    const c = canvas(width, height, hex(MATTE)), covered = new Uint8Array(width * height);
+    paint(c, ink, 2, 2, [0, 0, 0, 255]);
+    cover(covered, width, ink, 2, 2);
+    paint(c, ink, 1, 1, colour);
+    cover(covered, width, ink, 1, 1);
+    return cutOut(c, covered, 70);
   });
-  return animatedGif(frames, { delay: 400, colours: 8 });
+  return animatedGif(frames, { delay: 400, colours: 32 });
 }
 
 async function envelope() {
@@ -142,18 +158,19 @@ async function phantom(root, source) {
 
 export default async function build(ctx, era) {
   const { output, ascii, csp, photos, site, around, variant, hero } = ctx;
+  const type = fonts(ctx.root);
   const art = async (name, bytes) => { await output('eras/1996/art/' + name, bytes); return (await sharp(bytes).metadata()); };
   const img = (src, meta, alt, extra = '') => `<IMG SRC="${src}" WIDTH="${meta.width}" HEIGHT="${meta.pageHeight || meta.height}" ALT="${ascii(alt)}"${extra}>`;
 
   const titles = {};
-  for (const [key, text] of [['home', "GERRY'S HOME PAGE"], ['photos', 'MY PHOTO GALLERY'], ['notes', 'GUESTBOOK']]) titles[key] = await art('title-' + key + '.gif', await title(text));
+  for (const [key, text] of [['home', "Gerry's Home Page"], ['photos', 'My Photo Gallery'], ['notes', 'Guestbook']]) titles[key] = await art('title-' + key + '.gif', await title(type, text));
   await art('stars.gif', await stars());
   const bar = await art('bar.gif', await rainbow());
   const construction = await art('construction.gif', await barricade(ctx.puzzles.sign));
-  const fresh = await art('new.gif', await newBadge());
+  const fresh = await art('new.gif', await newBadge(type));
   const mail = await art('mail.gif', await envelope());
   const buttons = [
-    ['best.gif', await button(['BEST VIEWED', 'AT 800X600'], '#203080', '#000830'), 'Best viewed at 800 x 600'],
+    ['best.gif', await button(['BEST VIEWED', 'WITH', 'NETSCAPE'], '#203080', '#000830'), 'Best viewed with Netscape Navigator'],
     ['notepad.gif', await button(['MADE WITH', 'NOTEPAD'], '#f0f0f0', '#a0a0a0', [0, 0, 0, 255]), 'Made with Notepad'],
     ['ring.gif', await button(['G3RRY.COM', 'TIME RING'], '#7a2a9a', '#2a0040'), 'g3rry.com Time Ring']
   ];
@@ -176,6 +193,7 @@ export default async function build(ctx, era) {
   const head = (pageTitle, description) => `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
 <HTML lang="en">
 <HEAD>
+<!-- 2026: a Content-Security-Policy, which no server or page had in 1996. -->
 ${csp}
 <META NAME="robots" CONTENT="noindex">
 <META NAME="description" CONTENT="${ascii(description)}">
@@ -196,16 +214,14 @@ This site is a member of the <B>g3rry.com Time Ring</B><BR>
 </FONT></TD></TR>
 </TABLE>
 </CENTER>`;
-  const modem = `<P ALIGN=CENTER><FONT FACE="Arial,Helvetica" SIZE=1 COLOR="#8888AA">Your modem:
-<SELECT ID="modem-speed" data-modem disabled>
-<OPTION VALUE="">28,800 bps (1996)</OPTION><OPTION VALUE="14400">14,400 bps</OPTION><OPTION VALUE="33600">33,600 bps</OPTION><OPTION VALUE="48000">56K (not invented yet)</OPTION><OPTION VALUE="0">No modem (full speed)</OPTION>
-</SELECT> &middot; <A HREF="/eras/dialup.html?to=1996">Dial up again</A></FONT></P>`;
+  // The speeds are written in by /eras/modem-client.js, from the one list it keeps for every page.
+  const modem = `<P ALIGN=CENTER><FONT FACE="Arial,Helvetica" SIZE=1 COLOR="#8888AA"><SPAN data-modem-links="1996"></SPAN><A HREF="/eras/dialup.html?to=1996">Dial up again</A></FONT></P>`;
   const nav = current => '<P ALIGN=CENTER><FONT FACE="Arial,Helvetica" SIZE=2>' + [['index.html', 'Home'], ['photos.html', 'Photo Gallery'], ['guestbook.html', 'Guestbook']]
     .map(([href, label]) => href === current ? '[ <B>' + label + '</B> ]' : '[ <A HREF="' + href + '">' + label + '</A> ]').join(' ') + '</FONT></P>';
   const foot = `${hr}
 ${timeRing}
 <P ALIGN=CENTER>${buttonMeta.map(([name, meta, alt]) => img('art/' + name, meta, alt, ' HSPACE=4')).join('\n')}</P>
-<CENTER><ADDRESS><FONT SIZE=2>Last updated ${date(new Date())}.<BR>
+<CENTER><ADDRESS><FONT SIZE=2>Last updated ${UPDATED}.<BR>
 ${img('art/mail.gif', mail, '', ' ALIGN=ABSMIDDLE')} E-mail me: <A HREF="mailto:${site.guestbook.contact}">${site.guestbook.contact}</A></FONT></ADDRESS></CENTER>
 ${modem}
 <SCRIPT SRC="/eras/modem-client.js"></SCRIPT>
@@ -225,7 +241,6 @@ ${modem}
 
   const home = head("Gerry's Home Page", "Gerry Zhao's home page: photographs of light, a guestbook and other cool stuff.") + `<CENTER>
 ${img('art/title-home.gif', titles.home, "Gerry's Home Page")}
-<P><FONT FACE="Arial,Helvetica" SIZE=2><MARQUEE WIDTH=468 BEHAVIOR=SCROLL SCROLLAMOUNT=4>*** Welcome to my home page! *** ${ascii(String(photos.length))} pictures in the Photo Gallery *** Newest: ${ascii(days[0].place)}, ${days[0].when} *** Please sign my guestbook before you go! ***</MARQUEE></FONT></P>
 <P>${img('art/construction.gif', construction, 'Under construction', ' ALIGN=ABSMIDDLE')} <FONT COLOR="#FFFF00"><B><BLINK>This page is always under construction!</BLINK></B></FONT></P>
 </CENTER>
 ${hr}
@@ -253,12 +268,12 @@ ${news}
 <LI><A HREF="photos.html"><B>My Photo Gallery</B></A> - ${photos.length} pictures from ${ascii([...new Set(photos.map(photo => photo.city))].join(' and '))}.
 <LI><A HREF="guestbook.html"><B>Guestbook</B></A> - see who has been here, and <A HREF="/guestbook/">sign it</A>!
 <LI><A HREF="https://mail.g3rry.com/"><B>Free E-mail!</B></A> - get your own address @g3rry.com.
-<LI><A HREF="/mountain/"><B>The Ascent</B></A> - my mountain in 3-D. You will need a much newer computer.
+<LI><A HREF="/mountain/"><B>The Ascent</B></A> - my mountain in 3-D. Coming soon!<!-- 2026: it came; you will need a much newer computer. -->
 </UL>
 <TABLE BORDER=0 CELLPADDING=6><TR>
-<TD>${img('art/phantom.gif', phantomMeta, 'The Phantom: points of light gathering into a mark')}</TD>
-<TD VALIGN=MIDDLE><FONT FACE="Arial,Helvetica" SIZE=2><B>The Phantom</B><BR>A thousand little points of light, as an animated GIF.<BR>
-Someday it will follow your mouse. (<A HREF="/phantom/">It does now.</A>)</FONT></TD>
+<TD><A HREF="/phantom/">${img('art/phantom.gif', phantomMeta, 'The Phantom: points of light gathering into a mark', ' BORDER=0')}</A></TD>
+<TD VALIGN=MIDDLE><FONT FACE="Arial,Helvetica" SIZE=2><A HREF="/phantom/"><B>The Phantom</B></A><BR>A thousand little points of light, as an animated GIF.<BR>
+Someday it will follow your mouse.<!-- 2026: it does now. --></FONT></TD>
 </TR></TABLE>
 </TD></TR>
 </TABLE>
@@ -294,7 +309,7 @@ ${img('art/title-notes.gif', titles.notes, 'Guestbook')}
 ${nav('guestbook.html')}
 <TABLE WIDTH=560 BORDER=0 ALIGN=CENTER><TR><TD><FONT FACE="Times New Roman,Times" SIZE=3>
 Thanks for stopping by! Here is what other visitors have written.
-<B><A HREF="/guestbook/">Sign my guestbook!</A></B> (That link goes to the new guestbook. The old CGI script stopped working.)
+<B><A HREF="/guestbook/">Sign my guestbook!</A></B><!-- 2026: the link goes to the current guestbook; the old CGI script stopped working long ago. -->
 </FONT>
 <HR>
 <DIV ID="entries"><FONT FACE="Arial,Helvetica" SIZE=2>Loading the guestbook...</FONT></DIV>
@@ -326,11 +341,16 @@ async function icon(kind) {
 async function privateFolder(ctx) {
   const { output, csp, ascii, puzzles } = ctx;
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const stamp = value => { const [d, t] = value.split(' '), [y, m, day] = d.split('-'); return day + '-' + months[m - 1] + '-' + y + ' ' + t; };
+  // Apache 1.1 printed two-digit years ("03-Feb-96 21:14"); the four-digit ones came with the Y2K fixes of 1.3.
+  const stamp = value => { const [d, t] = value.split(' '), [y, m, day] = d.split('-'); return day + '-' + months[m - 1] + '-' + y.slice(2) + ' ' + t; };
+  // Columns: the icon, a space, the name padded to 25, the date, two spaces, the size right-aligned in 5.
+  const row = (icon, alt, href, name, when, size) => '<IMG SRC="../icons/' + icon + '.gif" ALT="' + alt + '" WIDTH="20" HEIGHT="22"> <A HREF="' + href + '">' + name + '</A>'
+    + ' '.repeat(Math.max(1, 25 - name.length)) + stamp(when) + '  ' + size.padStart(5) + '  ';
   for (const kind of ['blank', 'back', 'text', 'layout']) await output('eras/1996/icons/' + kind + '.gif', await icon(kind));
   const page = (title, body) => `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
 <HTML lang="en">
 <HEAD>
+<!-- 2026: a Content-Security-Policy, which no server or page had in 1996. -->
 ${csp}
 <META NAME="robots" CONTENT="noindex">
 <TITLE>${ascii(title)}</TITLE>
@@ -364,23 +384,22 @@ It is not finished yet, so it is not linked from anywhere.</P>
   const byName = [...puzzles.privateFiles].sort((a, b) => a.name.localeCompare(b.name));
   const rows = byName.map(file => {
     const kind = file.name.endsWith('.html') ? ['layout', '[   ]'] : ['text', '[TXT]'];
-    return '<SPAN><IMG SRC="../icons/' + kind[0] + '.gif" ALT="' + kind[1] + '" WIDTH="20" HEIGHT="22"> <A HREF="' + file.name + '">' + file.name + '</A>'
-      + ' '.repeat(Math.max(1, 25 - file.name.length)) + stamp(file.date) + '  ' + file.size.padStart(5) + '  \n</SPAN>';
+    return '<SPAN>' + row(kind[0], kind[1], file.name, file.name, file.date, file.size) + '\n</SPAN>';
   });
   await output('eras/1996/private/index.html', `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
 <HTML lang="en">
  <HEAD>
+<!-- 2026: a Content-Security-Policy, which no server or page had in 1996. -->
 ${csp}
   <META NAME="robots" CONTENT="noindex">
   <TITLE>Index of /eras/1996/private</TITLE>
  </HEAD>
  <BODY BGCOLOR="#FFFFFF" TEXT="#000000">
 <H1>Index of /eras/1996/private</H1>
-<PRE ID="listing"><IMG SRC="../icons/blank.gif" ALT="     " WIDTH="20" HEIGHT="22"> <A HREF="index.html?N=D" ID="sort-N">Name</A>                     <A HREF="index.html?M=A" ID="sort-M">Last modified</A>       <A HREF="index.html?S=A" ID="sort-S">Size</A>  <A HREF="index.html?D=A" ID="sort-D">Description</A>
+<PRE ID="listing"><IMG SRC="../icons/blank.gif" ALT="     " WIDTH="20" HEIGHT="22"> <A HREF="index.html?N=D" ID="sort-N">Name</A>                     <A HREF="index.html?M=A" ID="sort-M">Last modified</A>     <A HREF="index.html?S=A" ID="sort-S">Size</A>  <A HREF="index.html?D=A" ID="sort-D">Description</A>
 <HR>
-<IMG SRC="../icons/back.gif" ALT="[DIR]" WIDTH="20" HEIGHT="22"> <A HREF="../">Parent Directory</A>        24-Dec-1996 19:31      -
+${row('back', '[DIR]', '../', 'Parent Directory', '1996-12-24 19:31', '-')}
 ${rows.join('')}</PRE><HR>
-<ADDRESS>Apache/1.1.1 Server at www.g3rry.com Port 80</ADDRESS>
 <SCRIPT SRC="sort.js"></SCRIPT>
  </BODY>
 </HTML>

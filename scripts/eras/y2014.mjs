@@ -13,8 +13,7 @@ export default async function build(ctx, era) {
   for (const weight of [300, 400, 600, 800]) await copyFile(path.join(root, 'node_modules/@fontsource/open-sans/files/open-sans-latin-' + weight + '-normal.woff2'), path.join(fontsDir, 'open-sans-' + weight + '.woff2'));
 
   const heroPhoto = photos.find(photo => photo.id === 'p16') || photos[0];
-  // Two layers over the band, alternate pixel rows of one word, sliding in opposite directions as the page scrolls;
-  // they line up only when the band is centred in the window (a puzzle of /strata/).
+  // Two thin layers over the band. Strata (depth-of-field): see the private solution book.
   const unit = 8, word = ctx.puzzles.band, wordWidth = word.length * 6 * unit - unit;
   const depth = parity => '<svg class="depth" data-direction="' + (parity ? -1 : 1) + '" viewBox="0 0 ' + wordWidth + ' ' + 7 * unit + '" width="' + wordWidth + '" height="' + 7 * unit + '">'
     + word.flatMap((rows, n) => rows.flatMap((mask, j) => j % 2 === parity ? [0, 1, 2, 3, 4].filter(i => mask & (16 >> i)).map(i => '<rect x="' + (n * 6 + i) * unit + '" y="' + j * unit + '" width="' + unit + '" height="' + unit + '"/>') : [])).join('') + '</svg>';
@@ -49,6 +48,7 @@ export default async function build(ctx, era) {
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 2026: a Content-Security-Policy as a meta tag, which browsers did not read until 2015. -->
 ${csp}
 <meta name="robots" content="noindex">
 <title>GERRY ZHAO | Photography</title>
@@ -110,7 +110,7 @@ ${csp}
   </div>
   <div class="grid" id="grid">
 ${tiles.map(({ photo, tile, full }, i) => `    <a class="tile" href="${full.src}" data-city="${slug(photo.city)}" data-index="${i}" data-width="${full.width}" data-height="${full.height}">
-      <img src="${tile.src}" width="${tile.width}" height="${tile.height}" alt="${escape(photo.alt)}" loading="lazy">
+      <img src="${tile.src}" width="${tile.width}" height="${tile.height}" alt="${escape(photo.alt)}">
       <span class="caption"><strong>${escape(photo.place)}</strong><em>${escape(photo.city)}</em></span>
     </a>`).join('\n')}
   </div>
@@ -140,7 +140,7 @@ ${tiles.map(({ photo, tile, full }, i) => `    <a class="tile" href="${full.src}
   </div>
 </section>
 
-<footer class="footer"><div class="container">&copy; ${new Date().getUTCFullYear()} GERRY ZHAO. MADE WITH &hearts;.</div></footer>
+<footer class="footer"><div class="container">&copy; ${YEAR}&ndash;${new Date().getUTCFullYear()} GERRY ZHAO. MADE WITH &hearts;.</div></footer>
 <a class="to-top" id="to-top" href="#top" aria-label="Back to top">&uarr;</a>
 
 <div class="slider" id="slider" hidden>

@@ -37,11 +37,11 @@ export default async function build(ctx, era) {
   await art('paper.png', await texture(128, 11, (x, y, next) => shade(hex('#fbf8f0'), (next() - 0.5) * 8)));
   await art('pin.png', await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="26" height="30"><defs><radialGradient id="g" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#ff8a80"/><stop offset=".45" stop-color="#e0291c"/><stop offset="1" stop-color="#7a0f08"/></radialGradient></defs><path d="M13 16 L15 29 L12 29 Z" fill="#9a9a9a"/><ellipse cx="14" cy="27" rx="5" ry="1.6" fill="rgba(0,0,0,.25)"/><circle cx="13" cy="10" r="8.5" fill="url(#g)"/><ellipse cx="10.5" cy="7" rx="3" ry="2" fill="rgba(255,255,255,.65)"/></svg>`)).png().toBuffer());
 
-  // Web fonts, self-hosted the way Font Squirrel kits were.
+  // Web fonts, self-hosted the way Font Squirrel kits were. WOFF: WOFF2 was still four years away.
   const fontsDir = path.join(ctx.dist, 'eras/2011/fonts');
   await mkdir(fontsDir, { recursive: true });
   for (const [pkg, file] of [['league-gothic', 'league-gothic-latin-400-normal'], ['reenie-beanie', 'reenie-beanie-latin-400-normal']]) {
-    for (const ext of ['woff2', 'woff']) await copyFile(path.join(root, 'node_modules/@fontsource', pkg, 'files', file + '.' + ext), path.join(fontsDir, file + '.' + ext));
+    await copyFile(path.join(root, 'node_modules/@fontsource', pkg, 'files', file + '.woff'), path.join(fontsDir, file + '.woff'));
   }
 
   // The filter: square, warm, faded, vignetted, as a photo app taught everyone to like in 2011.
@@ -60,8 +60,8 @@ export default async function build(ctx, era) {
   const next = random(42);
   const tilt = pictures.map(() => Math.round((next() * 8 - 4) * 10) / 10);
 
-  // The cork behind each Polaroid on the big board: old pinholes from years of pinning, and behind every other one,
-  // fresh holes in the shape of a letter (a puzzle of /strata/). A Polaroid is 240 × 278 with its frame.
+  // The cork behind each Polaroid on the big board: pinholes from years of pinning. A Polaroid is 240 × 278 with
+  // its frame. Strata (pinned): see the private solution book.
   for (const [i] of pictures.entries()) {
     const scatter = random(2011 + i * 7), holes = [];
     for (let n = 0, count = 6 + Math.floor(scatter() * 6); n < count; n++) holes.push([14 + scatter() * 212, 14 + scatter() * 250, 1.8 + scatter() * 1.1]);
@@ -79,6 +79,7 @@ export default async function build(ctx, era) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 2026: a Content-Security-Policy, which pages did not carry in 2011. -->
 ${csp}
 <meta name="robots" content="noindex">
 <title>${escape(title)}</title>
@@ -94,7 +95,7 @@ ${csp}
 <nav class="ribbon"><ul>${[['index.html', 'Home'], ['photos.html', 'Photographs'], ['notes.html', 'Notes'], ['/eras/', 'Other years']].map(([href, text]) => '<li' + (href === current ? ' class="current"' : '') + '><a href="' + href + '">' + text + '</a></li>').join('')}</ul></nav>
 ${body}
 <footer>
-  <p class="letterpress">&copy; ${new Date().getUTCFullYear()} Gerry Zhao &middot; Time ring: <a href="${ring.previous.href}">&larr; ${label(ring.previous)}</a> &middot; <a href="/eras/">all</a> &middot; <a href="${ring.next.href}">${label(ring.next)} &rarr;</a></p>
+  <p class="letterpress">&copy; ${YEAR}&ndash;${new Date().getUTCFullYear()} Gerry Zhao &middot; Time ring: <a href="${ring.previous.href}">&larr; ${label(ring.previous)}</a> &middot; <a href="/eras/">all</a> &middot; <a href="${ring.next.href}">${label(ring.next)} &rarr;</a></p>
 </footer>
 ${scripts.map(src => '<script src="' + src + '"></script>').join('\n')}
 </body>
@@ -130,7 +131,7 @@ ${scripts.map(src => '<script src="' + src + '"></script>').join('\n')}
   <label class="switch"><span>Captions</span><input type="checkbox" id="captions" checked><span class="track"><span class="knob"></span><span class="on">ON</span><span class="off">OFF</span></span></label>
 </div>
 <section class="board">
-${pictures.map((item, i) => `  <span class="spot"><img class="holes" src="images/cork-${String(i + 1).padStart(2, '0')}.png" width="240" height="278" alt=""><figure class="polaroid" id="${item.photo.id}" data-tilt="${tilt[i]}"><img class="pin" src="images/pin.png" width="26" height="30" alt=""><a href="${item.large.src}" data-caption="${escape(item.photo.place + ', ' + item.photo.city)}">${img(item.square.src, item.square, item.photo.alt)}</a><figcaption>${escape(item.photo.place)}</figcaption></figure></span>`).join('\n')}
+${pictures.map((item, i) => `  <span class="spot"><img class="holes" src="images/cork-${String(i + 1).padStart(2, '0')}.png" width="240" height="278" alt=""><figure class="polaroid" id="${item.photo.id}" data-tilt="${tilt[i]}"><span class="grip"></span><img class="pin" src="images/pin.png" width="26" height="30" alt=""><a href="${item.large.src}" data-caption="${escape(item.photo.place + ', ' + item.photo.city)}">${img(item.square.src, item.square, item.photo.alt)}</a><figcaption>${escape(item.photo.place)}</figcaption></figure></span>`).join('\n')}
 </section>`, ['tilt.js', 'board.js']));
 
   await output('eras/2011/notes.html', page('Notes — Gerry Zhao', 'notes.html', `<div class="sheet narrow">

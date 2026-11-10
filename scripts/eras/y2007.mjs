@@ -1,11 +1,13 @@
 // 2007: Web 2.0. A glossy logo with a wet-floor reflection and a beta badge, pill tabs, a big green button,
 // a tag cloud, relative dates, notes loaded with a spinner, photographs in a lightbox, an Atom feed.
 import sharp from 'sharp';
-import { canvas, png, animatedGif, hex, mix } from './pixels.mjs';
-import { fonts } from './fonts.mjs';
+import { canvas, png, gif, animatedGif, hex, mix, paint } from './pixels.mjs';
+import { fonts, face, FACES } from './fonts.mjs';
 
 const YEAR = 2007;
 const VARELA = { pkg: 'varela-round', name: 'varela-round-latin-400-normal.woff' };
+// Web 2.0 logos were set in VAG Rounded or Arial Rounded Bold; Nunito ExtraBold is the open face nearest them.
+const LOGO = face(FACES.roundedBold, 66);
 
 // Which tags a photograph gets, read from its description and its exposure.
 const TAGS = [
@@ -27,16 +29,19 @@ export default async function build(ctx, era) {
   const art = async (name, bytes) => { await output('eras/2007/images/' + name, bytes); return sharp(bytes).metadata(); };
   const img = (src, meta, alt, extra = '') => `<img src="${src}" width="${meta.width}" height="${meta.pageHeight || meta.height}" alt="${escape(alt)}"${extra} />`;
 
-  // Text filled with a vertical gradient, a gloss over its top half.
-  async function glossyText(text, size, top, bottom) {
-    const mask = await type.text('<span foreground="#ffffff">' + escape(text) + '</span>', { ...VARELA, font: 'Varela Round ' + size });
-    const { width, height } = await sharp(mask).metadata();
-    const fill = canvas(width, height);
-    fill.rect(0, 0, width, height, (x, y) => {
-      const base = mix(hex(top), hex(bottom), y / height);
-      return y < height * 0.48 ? mix(base, [255, 255, 255, 255], 0.28) : base;
-    });
-    return sharp(await png(fill)).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
+  // The logo: both words in one line of type, so they share a baseline. Each word is set in a marker colour, and
+  // the marker decides which gradient fills it; a gloss lies over the top half of the line.
+  async function glossyLogo(words) {
+    const marked = await type.coverage(words.map(([word], i) => '<span foreground="' + (i ? '#00ff00' : '#ff0000') + '">' + escape(word) + '</span>').join(' '), LOGO);
+    const { width, height, alpha, rgba } = marked, fill = canvas(width, height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (!alpha[i]) continue;
+      const [, top, bottom] = words[rgba[i * 4] >= rgba[i * 4 + 1] ? 0 : 1];
+      const base = mix(hex(top), hex(bottom), y / height), shine = y < height * 0.48 ? mix(base, [255, 255, 255, 255], 0.28) : base;
+      fill.data.set([shine[0], shine[1], shine[2], alpha[i]], i * 4);
+    }
+    return png(fill);
   }
   // The wet floor: the image, then itself upside down, fading out.
   async function reflect(input, { fraction = 0.4, opacity = 0.32, background } = {}) {
@@ -51,11 +56,7 @@ export default async function build(ctx, era) {
   }
 
   // Logo and badge.
-  const first = await glossyText('gerry', 64, '#5ab4ff', '#1166d6');
-  const second = await glossyText('zhao', 64, '#c4c4c4', '#8a8a8a');
-  const [m1, m2] = await Promise.all([sharp(first).metadata(), sharp(second).metadata()]);
-  const word = await sharp({ create: { width: m1.width + m2.width + 10, height: Math.max(m1.height, m2.height), channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-    .composite([{ input: first, left: 0, top: 0 }, { input: second, left: m1.width + 10, top: 0 }]).png().toBuffer();
+  const word = await glossyLogo([['gerry', '#5ab4ff', '#1166d6'], ['zhao', '#c4c4c4', '#8a8a8a']]);
   const logo = await art('logo.png', await reflect(word, { fraction: 0.38, opacity: 0.3 }));
   const betaText = await type.text('<span foreground="#ffffff">beta</span>', { ...VARELA, font: 'Varela Round 13' });
   const betaMeta = await sharp(betaText).metadata();
@@ -79,7 +80,23 @@ export default async function build(ctx, era) {
   await art('header.png', await png(sky));
   const rss = await art('feed.png', await svg(`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb35a"/><stop offset="1" stop-color="#e76a00"/></linearGradient></defs><rect x=".5" y=".5" width="27" height="27" rx="6" fill="url(#g)" stroke="#c45a00"/><circle cx="8" cy="20" r="2.6" fill="#fff"/><path d="M5.5 12.5a10 10 0 0 1 10 10" stroke="#fff" stroke-width="3.2" fill="none"/><path d="M5.5 6a16.5 16.5 0 0 1 16.5 16.5" stroke="#fff" stroke-width="3.2" fill="none"/></svg>`));
   await art('avatar.png', await svg(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="#e8ecef"/><circle cx="24" cy="19" r="9" fill="#b9c2c9"/><path d="M8 48c1-11 7.5-16 16-16s15 5 16 16z" fill="#b9c2c9"/></svg>`));
-  await art('close.png', await svg(`<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"><circle cx="15" cy="15" r="13.5" fill="#222" stroke="#fff" stroke-width="2.5"/><path d="M10 10l10 10M20 10l-10 10" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`));
+  // The labels Lightbox 2 shipped as images: CLOSE X under the photograph, PREV and NEXT over its halves.
+  async function labelImage(text, width, height, { box = false } = {}) {
+    const ink = await type.coverage('<span foreground="#ffffff">' + escape(text) + '</span>', face(FACES.arialBold, 11));
+    const c = canvas(width, height, hex('#ffffff'));
+    const boxSize = box ? 15 : 0, x = Math.round((width - ink.width - (box ? boxSize + 5 : 0)) / 2), y = Math.round((height - ink.height) / 2);
+    paint(c, ink, x, y, hex('#777777'));
+    if (box) {
+      const bx = x + ink.width + 5, by = Math.round((height - boxSize) / 2);
+      c.rect(bx, by, boxSize, boxSize, hex('#888888'));
+      const cross = await type.coverage('<span foreground="#ffffff">X</span>', face(FACES.arialBold, 11));
+      paint(c, cross, bx + Math.round((boxSize - cross.width) / 2), by + Math.round((boxSize - cross.height) / 2), hex('#ffffff'));
+    }
+    return gif(c, { colours: 32 });
+  }
+  await art('closelabel.gif', await labelImage('CLOSE', 66, 22, { box: true }));
+  await art('prevlabel.gif', await labelImage('« PREV', 63, 32));
+  await art('nextlabel.gif', await labelImage('NEXT »', 63, 32));
   // The spinner: twelve bars, one lit, turning.
   const spinnerFrames = [];
   for (let f = 0; f < 12; f++) {
@@ -95,7 +112,8 @@ export default async function build(ctx, era) {
   // Photographs: square thumbnails, lightbox images, and the featured ones standing on a wet floor.
   const pictures = [];
   for (const photo of photos) {
-    const thumb = await variant(photo, YEAR, 'photos/' + photo.id + '_sq.jpg', image => image.resize({ width: 150, height: 150, fit: 'cover' }).sharpen().jpeg({ quality: 80 }).toBuffer());
+    // Flickr's "Square", 75 × 75, with its _s suffix.
+    const thumb = await variant(photo, YEAR, 'photos/' + photo.id + '_s.jpg', image => image.resize({ width: 75, height: 75, fit: 'cover' }).sharpen().jpeg({ quality: 82 }).toBuffer());
     const large = await variant(photo, YEAR, 'photos/' + photo.id + '_l.jpg', image => image.resize({ width: 800, height: 600, fit: 'inside' }).jpeg({ quality: 80 }).toBuffer());
     const tags = TAGS.filter(([, test]) => test(photo)).map(([tag]) => tag);
     pictures.push({ photo, thumb, large, tags });
@@ -119,6 +137,7 @@ export default async function build(ctx, era) {
   const head = (title, current, main, side, scripts = []) => `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
+<!-- 2026: a Content-Security-Policy, which no page had in 2007. -->
 ${csp.replace('>', ' />')}
 <meta name="robots" content="noindex" />
 <title>${escape(title)}</title>
@@ -141,14 +160,14 @@ ${side}
 <div class="box"><h3>Subscribe</h3><p><a href="atom.xml" class="feed">${img('images/feed.png', rss, 'Feed')} Subscribe to new photos</a></p></div>
 <div class="box"><h3>Time ring</h3><p><a href="${ring.previous.href}">&laquo; ${label(ring.previous)}</a> &middot; <a href="/eras/">all years</a> &middot; <a href="${ring.next.href}">${label(ring.next)} &raquo;</a></p></div>
 </div>
-<div id="footer"><p>&copy; ${new Date().getUTCFullYear()} Gerry Zhao &middot; <a href="https://mail.g3rry.com/">g3mail</a> &middot; <a href="/phantom/">The Phantom</a> &middot; <a href="/mountain/">The Ascent</a></p></div>
+<div id="footer"><p>&copy; ${YEAR}&ndash;${new Date().getUTCFullYear()} Gerry Zhao &middot; <a href="https://mail.g3rry.com/">g3mail</a> &middot; <a href="/phantom/">The Phantom</a> &middot; <a href="/mountain/">The Ascent</a></p></div>
 </div>
 <script type="text/javascript" src="web2.js"></script>
 ${scripts.map(src => '<script type="text/javascript" src="' + src + '"></script>').join('\n')}
 </body>
 </html>
 `;
-  // Bookmarks, shared the 2007 way. Every name is a domain hack (a puzzle of /strata/); none of them is linked.
+  // Bookmarks, shared the 2007 way; none of them is linked. Strata (bookmarked): see the private solution book.
   const bookmarks = '<div class="box delicious"><h3>My del.icio.us</h3><ul class="bookmarks">' + ctx.puzzles.bookmarks.map(item => '<li><span class="bm-title">' + escape(item.title) + '</span> <cite>' + escape(item.domain) + '</cite><br /><span class="bm-meta">saved by ' + item.saves.toLocaleString('en-US') + ' ' + (item.saves === 1 ? 'person' : 'people') + ' &middot; ' + item.tags.map(escape).join(' ') + '</span></li>').join('') + '</ul></div>';
   const notesBox = `<div class="box"><h3>Latest notes</h3><div id="latest-notes" class="ajax">${img('images/spinner.gif', spinner, '', ' class="spinner"')} Loading&hellip;</div></div>`;
   const newest = [...pictures].sort((a, b) => b.photo.taken - a.photo.taken).slice(0, 5);
@@ -171,14 +190,14 @@ ${bookmarks}`, ['lightbox.js', 'notes.js']));
   await output('eras/2007/photos.html', head('Photos | gerry zhao (beta)', 'photos.html', `<div class="box">
 <h2>Photos <span class="count">(${photos.length})</span></h2>
 <p id="filter-note" class="hide"></p>
-<ul class="grid">${pictures.map(item => `<li data-tags="${item.tags.join(' ')}" data-text="${escape((item.photo.place + ' ' + item.photo.city + ' ' + item.photo.alt).toLowerCase())}"><a href="${item.large.src}" class="lightbox" data-title="${escape(item.photo.place + ', ' + item.photo.city)}" data-exif="${escape(item.photo.meta.focal + 'mm · f/' + item.photo.meta.aperture + ' · ' + item.photo.meta.shutter + 's · ISO ' + item.photo.meta.iso)}">${img(item.thumb.src, item.thumb, item.photo.alt)}</a><p>${escape(item.photo.place)}</p></li>`).join('\n')}</ul>
+<ul class="grid">${pictures.map(item => `<li data-tags="${item.tags.join(' ')}" data-text="${escape((item.photo.place + ' ' + item.photo.city + ' ' + item.photo.alt).toLowerCase())}"><a href="${item.large.src}" class="lightbox" title="${escape(item.photo.place)}" data-title="${escape(item.photo.place + ', ' + item.photo.city)}" data-exif="${escape(item.photo.meta.focal + 'mm · f/' + item.photo.meta.aperture + ' · ' + item.photo.meta.shutter + 's · ISO ' + item.photo.meta.iso)}">${img(item.thumb.src, item.thumb, item.photo.alt)}</a></li>`).join('\n')}</ul>
 </div>`, `<div class="box"><h3>Tags</h3><p class="cloud">${cloud}</p></div>`, ['filter.js', 'lightbox.js']));
 
   await output('eras/2007/notes.html', head('Notes | gerry zhao (beta)', 'notes.html', `<div class="box">
 <h2>Notes</h2>
 <p>Notes from people who stopped by. <a class="go small" href="/guestbook/"><span>Leave a note &raquo;</span></a></p>
 <ol id="notes" class="ajax notes">${'<li class="loading">' + img('images/spinner.gif', spinner, '', ' class="spinner"') + ' Loading notes&hellip;</li>'}</ol>
-</div>`, `<div class="box"><h3>About</h3><p>Every note is read before it appears. Write one on the current guestbook; it shows up here too.</p></div>`, ['notes.js']));
+</div>`, `<div class="box"><h3>About</h3><p>Every note is read before it appears. Write one in the guestbook and it shows up here too.</p></div>`, ['notes.js']));
 
   const base = new URL('/eras/2007/', site.url).href;
   const sorted = [...pictures].sort((a, b) => b.photo.taken - a.photo.taken);

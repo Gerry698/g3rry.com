@@ -28,8 +28,29 @@ export const GLYPHS = {
   '/': ['.....', '....#', '...#.', '..#..', '.#...', '#....', '.....'], '@': ['.###.', '#...#', '#.###', '#.#.#', '#.##.', '#....', '.####'],
   '+': ['.....', '..#..', '..#..', '#####', '..#..', '..#..', '.....'], '*': ['.....', '#.#.#', '.###.', '#####', '.###.', '#.#.#', '.....'],
   '>': ['.#...', '..#..', '...#.', '....#', '...#.', '..#..', '.#...'], '<': ['...#.', '..#..', '.#...', '#....', '.#...', '..#..', '...#.'],
-  '#': ['.#.#.', '.#.#.', '#####', '.#.#.', '#####', '.#.#.', '.#.#.'], ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....']
+  '#': ['.#.#.', '.#.#.', '#####', '.#.#.', '#####', '.#.#.', '.#.#.'], '%': ['##..#', '##..#', '...#.', '..#..', '.#...', '#..##', '#..##'],
+  ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....']
 };
+
+// The tiny type of the 80 × 15 "antipixel" buttons: five pixels tall, letters of their own widths.
+export const TINY = {
+  A: ['.#.', '#.#', '###', '#.#', '#.#'], B: ['##.', '#.#', '##.', '#.#', '##.'], C: ['.##', '#..', '#..', '#..', '.##'],
+  D: ['##.', '#.#', '#.#', '#.#', '##.'], E: ['###', '#..', '##.', '#..', '###'], F: ['###', '#..', '##.', '#..', '#..'],
+  H: ['#.#', '#.#', '###', '#.#', '#.#'], I: ['#', '#', '#', '#', '#'], L: ['#..', '#..', '#..', '#..', '###'],
+  M: ['#...#', '##.##', '#.#.#', '#...#', '#...#'], R: ['##.', '#.#', '##.', '#.#', '#.#'], S: ['.##', '#..', '.#.', '..#', '##.'],
+  T: ['###', '.#.', '.#.', '.#.', '.#.'], V: ['#.#', '#.#', '#.#', '#.#', '.#.'], W: ['#...#', '#...#', '#.#.#', '##.##', '#...#'],
+  X: ['#.#', '#.#', '.#.', '#.#', '#.#'], 0: ['.#.', '#.#', '#.#', '#.#', '.#.'], 1: ['.#', '##', '.#', '.#', '.#'],
+  2: ['##.', '..#', '.#.', '#..', '###'], 3: ['##.', '..#', '.#.', '..#', '##.'], '.': ['.', '.', '.', '.', '#'], ' ': ['.', '.', '.', '.', '.']
+};
+const tinyGlyph = ch => { const glyph = TINY[ch]; if (!glyph) throw new Error('No tiny glyph for "' + ch + '"'); return glyph; };
+export const tinyWidth = text => [...text.toUpperCase()].reduce((sum, ch, n) => sum + tinyGlyph(ch)[0].length + (n ? 1 : 0), 0);
+export function drawTiny(c, text, x, y, colour) {
+  for (const ch of text.toUpperCase()) {
+    const glyph = tinyGlyph(ch);
+    glyph.forEach((row, j) => [...row].forEach((bit, i) => { if (bit === '#') c.set(x + i, y + j, colour); }));
+    x += glyph[0].length + 1;
+  }
+}
 
 export function canvas(width, height, fill = [0, 0, 0, 0]) {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -54,7 +75,7 @@ export function canvas(width, height, fill = [0, 0, 0, 0]) {
   return c;
 }
 
-// A 5 × 7 glyph given as seven row masks (bit 4 is the left column), as the hunt's puzzle data stores letters.
+// A 5 × 7 glyph given as seven row masks (bit 4 is the left column).
 export function drawMask(c, rows, x, y, scale = 1, colour = [255, 255, 255, 255]) {
   rows.forEach((mask, j) => { for (let i = 0; i < 5; i++) if (mask & (16 >> i)) c.rect(x + i * scale, y + j * scale, scale, scale, colour); });
 }
@@ -86,6 +107,92 @@ export async function animatedGif(frames, { delay = 100, loop = 0, colours = 64 
 // A small deterministic random source, so starfields and scatter are the same on every build.
 export function random(seed = 1) {
   return () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+}
+
+// ---- Type in real fonts and the layer effects of the paint programs of the day --------------------------------
+// A coverage map is { width, height, alpha } with alpha 0–255, as coverage() in fonts.mjs returns for a line of text.
+
+// Paints a coverage map at (x, y). colour is RGBA or a function (column, row within the map) => RGBA.
+export function paint(c, cov, x, y, colour, opacity = 1) {
+  for (let j = 0; j < cov.height; j++) for (let i = 0; i < cov.width; i++) {
+    const a = cov.alpha[j * cov.width + i] * opacity;
+    if (a < 1) continue;
+    const rgba = typeof colour === 'function' ? colour(i, j) : colour;
+    c.set(x + i, y + j, [rgba[0], rgba[1], rgba[2], Math.round(a * (rgba[3] ?? 255) / 255)]);
+  }
+}
+
+// A soft copy of a coverage map (two box passes, close to a Gaussian), grown by 2r on every side.
+export function blur(cov, r) {
+  const grow = r * 2, w = cov.width + grow * 2, h = cov.height + grow * 2;
+  let a = new Float32Array(w * h), b = new Float32Array(w * h);
+  for (let j = 0; j < cov.height; j++) for (let i = 0; i < cov.width; i++) a[(j + grow) * w + i + grow] = cov.alpha[j * cov.width + i];
+  const pass = (from, to, dx, dy) => {
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      let sum = 0, n = 0;
+      for (let k = -r; k <= r; k++) { const x = i + k * dx, y = j + k * dy; if (x >= 0 && y >= 0 && x < w && y < h) sum += from[y * w + x]; n++; }
+      to[j * w + i] = sum / n;
+    }
+  };
+  for (let round = 0; round < 2; round++) { pass(a, b, 1, 0); pass(b, a, 0, 1); }
+  return { width: w, height: h, alpha: Uint8ClampedArray.from(a), offset: grow };
+}
+
+// Bevel and Emboss (inner bevel), as a light value per pixel of the map: above 0 lit, below 0 in shade.
+// The light comes from the upper left, as it did by default.
+export function bevel(cov, size = 2, depth = 3) {
+  const soft = blur(cov, Math.max(1, Math.round(size / 2))), o = soft.offset, w = soft.width;
+  const height = (i, j) => soft.alpha[(j + o) * w + i + o] / 255;
+  const light = [-1, -1, 1].map(v => v / Math.sqrt(3)), flat = light[2];
+  const shade = new Float32Array(cov.width * cov.height);
+  for (let j = 0; j < cov.height; j++) for (let i = 0; i < cov.width; i++) {
+    const gx = (height(i + 1, j) - height(i - 1, j)) / 2 * depth, gy = (height(i, j + 1) - height(i, j - 1)) / 2 * depth;
+    const n = Math.hypot(gx, gy, 1), lit = (-gx * light[0] - gy * light[1] + light[2]) / n;
+    shade[j * cov.width + i] = Math.max(-1, Math.min(1, (lit - flat) / (1 - flat)));
+  }
+  return shade;
+}
+// Applies a bevel value to a colour: lit towards white, shaded towards black.
+export const lit = (rgba, value, highlight = 0.75, shadow = 0.6) => value >= 0 ? mix(rgba, [255, 255, 255, rgba[3] ?? 255], value * highlight) : mix(rgba, [0, 0, 0, rgba[3] ?? 255], -value * shadow);
+
+// A lens flare, added to what is under it: a hot centre, four streaks, and rings strung along the line to the middle.
+export function flare(c, x, y, size, towards = [c.width / 2, c.height / 2]) {
+  const add = (px, py, rgb, amount) => {
+    px = Math.round(px); py = Math.round(py);
+    if (px < 0 || py < 0 || px >= c.width || py >= c.height || amount <= 0) return;
+    const i = (py * c.width + px) * 4;
+    for (let k = 0; k < 3; k++) c.data[i + k] = Math.min(255, c.data[i + k] + rgb[k] * amount);
+  };
+  const reach = Math.ceil(size * 3);
+  for (let j = -reach; j <= reach; j++) for (let i = -reach; i <= reach; i++) {
+    const r = Math.hypot(i, j) / size;
+    add(x + i, y + j, [255, 250, 230], Math.exp(-r * r * 2.2) + 0.35 * Math.exp(-r * 1.6));
+    add(x + i, y + j, [255, 255, 255], Math.exp(-(j * j) / 0.9) * Math.exp(-Math.abs(i) / (size * 2.6)) * 0.9 + Math.exp(-(i * i) / 0.9) * Math.exp(-Math.abs(j) / (size * 1.4)) * 0.7);
+  }
+  const rings = [[0.55, 0.22, [120, 200, 255]], [0.8, 0.12, [255, 170, 90]], [1.3, 0.3, [140, 255, 170]]];
+  for (const [at, radius, rgb] of rings) {
+    const cx = x + (towards[0] - x) * at * 2, cy = y + (towards[1] - y) * at * 2, rr = size * radius * 4;
+    for (let j = -rr - 2; j <= rr + 2; j++) for (let i = -rr - 2; i <= rr + 2; i++) {
+      const d = Math.hypot(i, j);
+      add(cx + i, cy + j, rgb, d < rr ? 0.1 + 0.18 * Math.exp(-((d - rr) ** 2) / 2) : 0.18 * Math.exp(-((d - rr) ** 2) / 2));
+    }
+  }
+}
+
+// A GIF of the canvas with one-bit transparency: wherever the artwork covers less than `threshold` (0–255 in the
+// cover map, a Uint8Array the size of the canvas) the pixel is cut out; the rest keeps the matte colour it was
+// painted over, the halo every transparent GIF of the time had.
+export function cutOut(c, cover, threshold = 40) {
+  for (let i = 0; i < cover.length; i++) c.data[i * 4 + 3] = cover[i] >= threshold ? 255 : 0;
+  return c;
+}
+// Adds a coverage map, placed at (x, y), into a cover map for cutOut().
+export function cover(target, width, cov, x, y) {
+  for (let j = 0; j < cov.height; j++) for (let i = 0; i < cov.width; i++) {
+    const at = (y + j) * width + x + i;
+    if (at >= 0 && at < target.length && x + i >= 0 && x + i < width) target[at] = Math.max(target[at], cov.alpha[j * cov.width + i]);
+  }
+  return target;
 }
 
 export const hex = value => {

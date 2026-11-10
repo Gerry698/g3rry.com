@@ -1,5 +1,5 @@
 /* gerry zhao (beta) - notes.js
-   loads the guestbook with AJAX (asynchronous JavaScript and XML; it is JSON now) while the spinner turns. */
+   loads the guestbook with AJAX while the spinner turns. 2026: JSON.parse; in 2007 it was json2.js. */
 
 (function () {
   var latest = G.$('latest-notes'), list = G.$('notes');
