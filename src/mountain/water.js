@@ -1,4 +1,4 @@
-import { lerp, clamp, smoothstep, random } from './math.js';
+import { TAU, lerp, clamp, smoothstep, random } from './math.js';
 
 // Water at the foot of the massif: snowmelt runs down a gully on the lower slopes, leaps off a cliff into a plunge pool,
 // and leaves as a river that winds round the foot of the mountain and away across the plain to the horizon.
@@ -82,6 +82,16 @@ export function createWater(ground) {
   const lip = stream.at(-1), lipDistance = Math.hypot(lip.x - pool.x, lip.z - pool.z);
   pool.wall = Math.max(1.5, (lip.w - lip.depth - pool.level) / (lipDistance - pool.radius));
   pool.reach = pool.radius + 3.2;
+  // The cliffs round the pool are a rough amphitheatre rather than a turned bowl: the rim wanders in and out and the walls
+  // steepen and ease by bearing. Straight under the lip they are exactly as computed, so the cliff still meets the stream.
+  const lipBearing = Math.atan2(lip.z - pool.z, lip.x - pool.x);
+  pool.edge = theta => {
+    const gap = Math.abs(((theta - lipBearing) % TAU + TAU * 1.5) % TAU - Math.PI), k = smoothstep(.35, 1.1, gap);
+    return {
+      r: pool.radius * (1 + k * (.13 * Math.sin(3 * theta + 1.3) + .08 * Math.sin(5 * theta + .4) + .05 * Math.sin(8 * theta + 2.1))),
+      wall: pool.wall * (1 + k * .24 * Math.sin(4 * theta + .7))
+    };
+  };
   const out = [(pool.x - lip.x) / lipDistance, (pool.z - lip.z) / lipDistance];
   // Where the falling water meets the pool, a little short of the centre.
   pool.foot = [pool.x - out[0] * pool.radius * .3, pool.level, pool.z - out[1] * pool.radius * .3];
@@ -155,7 +165,8 @@ export function createWater(ground) {
     let out = h;
     const p = Math.hypot(x - pool.x, z - pool.z);
     if (p < pool.reach) {
-      const floor = p < pool.radius ? pool.level - pool.depth * (1 - (p / pool.radius) ** 2) : pool.level + pool.wall * (p - pool.radius);
+      const { r, wall } = pool.edge(Math.atan2(z - pool.z, x - pool.x));
+      const floor = p < r ? pool.level - pool.depth * (1 - (p / r) ** 2) : pool.level + wall * (p - r);
       out = Math.min(out, floor + 40 * (1 - smoothstep(pool.reach, pool.reach - .8, p)) ** 2);
     }
     const cell = bucket(x, z);
@@ -176,7 +187,7 @@ export function createWater(ground) {
 
   // Whether (x, z) is in the water or within margin of its edge.
   function wet(x, z, margin = 0) {
-    if (Math.hypot(x - pool.x, z - pool.z) < pool.radius + margin) return true;
+    if (Math.hypot(x - pool.x, z - pool.z) < pool.edge(Math.atan2(z - pool.z, x - pool.x)).r + margin) return true;
     const cell = bucket(x, z);
     for (let n = start[cell], end = cell ? start[cell + 1] : 0; n < end; n++) {
       const j = list[n], ax = X[j], az = Z[j], dx = X[j + 1] - ax, dz = Z[j + 1] - az;
@@ -195,9 +206,11 @@ export function createWater(ground) {
 // speed) so the shader can light and foam each facet as one flat piece. Positions carry their own depth in w.
 export function buildWater(water, surface, quality, seed = 5) {
   const next = random(seed), positions = [], facets = [];
-  // The stream tumbles: its corners are pushed up and down so the facets break into a cascade.
-  const courses = [{ nodes: water.stream, across: 5, margin: () => .1, rough: .018 }, { nodes: water.river, across: 7, margin: node => Math.max(.2, node.hw * .45), rough: 0 }];
-  for (const { nodes, across, margin, rough } of courses) {
+  // The stream tumbles: its corners are pushed up and down so the facets break into a cascade. It is narrower than the
+  // coarse tier's terrain cells, which cannot follow its gully exactly, so it rides a little high (lift) to stay on top.
+  const STREAM_LIFT = .08;
+  const courses = [{ nodes: water.stream, across: 5, margin: () => .1, rough: .018, lift: STREAM_LIFT }, { nodes: water.river, across: 7, margin: node => Math.max(.2, node.hw * .45), rough: 0, lift: 0 }];
+  for (const { nodes, across, margin, rough, lift } of courses) {
     const rows = nodes.map((node, i) => {
       const extent = node.hw + margin(node), nx = -node.tz, nz = node.tx;
       const spacing = (nodes[Math.min(nodes.length - 1, i + 1)].s - nodes[Math.max(0, i - 1)].s) / 2;
@@ -205,7 +218,7 @@ export function buildWater(water, surface, quality, seed = 5) {
         const inner = k > 0 && k < across - 1 && i > 0 && i < nodes.length - 1;
         const a = k / (across - 1) * 2 - 1 + (inner ? (next() - .5) * .6 / (across - 1) : 0), along = inner ? (next() - .5) * .5 * spacing : 0;
         const x = node.x + nx * a * extent + node.tx * along, z = node.z + nz * a * extent + node.tz * along;
-        const y = node.w + (inner ? (next() - .3) * rough : 0);
+        const y = node.w + lift + (inner ? (next() - .3) * rough : 0);
         return { p: [x, y, z, y - surface(x, z)], a, s: node.s, speed: node.speed };
       });
     });
@@ -220,33 +233,59 @@ export function buildWater(water, surface, quality, seed = 5) {
     }
   }
 
-  // The fall: a few overlapping sheets that leave the lip level and curve down into the pool, each a strip of facets.
-  // Stride 4 per vertex: how far down (0 at the lip, 1 at the pool), across (−1 to 1), the sheet's seed, and unused.
+  // The fall: one closed, faceted body of water from the lip to the pool. It leaves the lip level and drops on a parabola
+  // (ahead ∝ √drop), widening and thickening as it falls. Each row is a cross-section square to the fall's path (level off
+  // the lip, upright lower down): an oval that bulges forward and lies flatter behind, so from any side, above included, the
+  // fall shows a face and a flank, never the edge of a card, and the top and bottom of the first, nearly level stretch stay a
+  // real thickness apart. Corners are jittered so the facets break up like the rock around it. At the foot a ring of foam
+  // facets stands up round the plunge. Non-indexed like the river: all three corners of a facet carry the same record,
+  // stride 4: how far down (0 at the lip, 1 at the pool; 2 marks the foam ring), position across (−1 to 1), column, row.
   const { pool, stream } = water, lip = stream.at(-1);
   const toward = [pool.foot[0] - lip.x, pool.foot[2] - lip.z], throwLength = Math.hypot(...toward);
   const out = [toward[0] / throwLength, toward[1] / throwLength], side = [-out[1], out[0]], drop = lip.w - pool.level;
   const fallPositions = [], fallData = [];
-  const sheets = [{ offset: 0, width: 1, push: 0 }, { offset: -.12, width: .6, push: .05 }, { offset: .13, width: .55, push: .09 }];
-  sheets.forEach((sheet, index) => {
-    const rows = 11, grid = [];
-    for (let j = 0; j <= rows; j++) {
-      const f = j / rows, width = lerp(.3, .62, f) * sheet.width;
-      grid.push([-1, 0, 1].map(a => {
-        const jitter = j > 0 && j < rows ? (next() - .5) * .25 : 0;
-        // The top row starts a little upstream of the lip, under the end of the stream, so the two meet without a seam.
-        const ahead = throwLength * Math.sqrt(f) - .06 * (1 - f) + sheet.push * Math.sin(Math.PI * f) + jitter * .06, across = sheet.offset + (a + jitter * (1 - Math.abs(a))) * width / 2;
-        return { p: [lip.x + out[0] * ahead + side[0] * across, lip.w + .01 - (drop + .03) * f + jitter * .03, lip.z + out[1] * ahead + side[1] * across], d: [f, a, index + .37 * index * index, 0] };
-      }));
-    }
-    for (let j = 0; j < rows; j++) for (let c = 0; c < 2; c++) {
-      const a = grid[j][c], b = grid[j][c + 1], d = grid[j + 1][c], e = grid[j + 1][c + 1];
-      for (const v of (j + c) % 2 ? [a, d, b, b, d, e] : [a, d, e, a, e, b]) { fallPositions.push(...v.p); fallData.push(...v.d); }
-    }
+  const ROWS = 18, ARC = 10, fallDrop = drop + STREAM_LIFT + .055;
+  const width = g => lerp(.34, .68, g ** .8), thick = g => lerp(.045, .2, g);
+  // The path in the vertical plane through the lip, as (ahead, height), and the unit normal to it that points forward
+  // (up off the lip, out from the cliff lower down). The top starts a little upstream of the lip, under the end of the
+  // stream, so the two meet without a seam; the bottom is a little under the pool's surface.
+  const path = g => [throwLength * Math.sqrt(g) - .06 * (1 - g), lip.w + STREAM_LIFT + .005 - fallDrop * g];
+  const front = g => { const da = throwLength / (2 * Math.sqrt(Math.max(g, 1e-4))) + .06, dy = -fallDrop, l = Math.hypot(da, dy); return [-dy / l, da / l]; };
+  const grid = [];
+  for (let j = 0; j <= ROWS; j++) {
+    const f = j / ROWS, inner = j > 0 && j < ROWS;
+    const ring = Array.from({ length: ARC }, (_, k) => {
+      const theta = k / ARC * TAU - Math.PI / 2, bulge = inner ? 1 + (next() - .5) * .34 : 1, slip = inner ? (next() - .5) * .4 : 0;
+      const g = clamp(f + slip / ROWS, 0, 1), [ahead, height] = path(g), [na, ny] = front(g);
+      const depth = Math.cos(theta) * thick(g) * bulge * (Math.cos(theta) < 0 ? .35 : 1), across = Math.sin(theta) * width(g) / 2 * (inner ? 1 + (next() - .5) * .12 : 1);
+      const a = ahead + na * depth;
+      return [lip.x + out[0] * a + side[0] * across, height + ny * depth, lip.z + out[1] * a + side[1] * across];
+    });
+    grid.push([...ring, ring[0]]);
+  }
+  const facet = (a, b, c, record) => { fallPositions.push(...a, ...b, ...c); fallData.push(...record, ...record, ...record); };
+  for (let j = 0; j < ROWS; j++) for (let k = 0; k < ARC; k++) {
+    const a = grid[j][k], b = grid[j][k + 1], c = grid[j + 1][k], d = grid[j + 1][k + 1];
+    // Across: −1 and 1 on the flanks, 0 down the middle of the face and of the back.
+    const record = [(j + .5) / ROWS, Math.sin((k + .5) / ARC * TAU - Math.PI / 2), k, j];
+    if ((j + k) % 2) { facet(a, c, b, record); facet(b, c, d, record); } else { facet(a, c, d, record); facet(a, d, b, record); }
+  }
+  // The foam ring: jagged peaks round the plunge, low on the outside, standing up where the water hits.
+  const RING = 11, [fx, , fz] = pool.foot, base = pool.level - .02;
+  const ring = Array.from({ length: RING }, (_, i) => {
+    const angle = i / RING * Math.PI * 2 + (next() - .5) * .3, c = Math.cos(angle), sn = Math.sin(angle);
+    const at = (r, y) => [fx + (side[0] * c * (width(1) / 2 + r) + out[0] * sn * (thick(1) + r * .8)), y, fz + (side[1] * c * (width(1) / 2 + r) + out[1] * sn * (thick(1) + r * .8))];
+    return { inner: at(.01, pool.level + .05 + next() * .09), outer: at(.13 + next() * .12, base) };
   });
+  for (let i = 0; i < RING; i++) {
+    const a = ring[i], b = ring[(i + 1) % RING], record = [2, 0, i, 0];
+    facet(a.inner, a.outer, b.outer, record);
+    facet(a.inner, b.outer, b.inner, [2, 0, i + .5, 0]);
+  }
 
   return {
     positions: new Float32Array(positions), facets: new Float32Array(facets), count: positions.length / 4,
     fallPositions: new Float32Array(fallPositions), fallData: new Float32Array(fallData), fallCount: fallPositions.length / 3,
-    foot: pool.foot, mist: quality.trees > 2000 ? 26 : 14
+    foot: pool.foot, lip: [lip.x, lip.w, lip.z, drop], mist: quality.trees > 2000 ? 16 : 10
   };
 }
