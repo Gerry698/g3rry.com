@@ -173,7 +173,20 @@ in vec2 vUv;
 out vec4 outColor;
 uniform mat4 uInvViewProj;
 uniform float uTime, uStars, uMoon, uAurora, uSunDisc;
-uniform vec3 uMoonDir, uKeyColor;
+uniform float uMoonSize, uMoonHalo, uMoonDisc, uDeep;  // the moon's angular radius and the glow round it; 1 draws it here as a plain disc; the deep sky of Moonward
+uniform vec3 uMoonDir, uKeyColor, uMeteorTail;
+uniform vec4 uMeteor;  // a shooting star's head as a direction, and its brightness
+// One layer of stars: a point in some cells of a grid laid through the sky, never wider than a pixel or two.
+vec3 starLayer(vec3 d, float grid, float rare, float gain) {
+  vec3 p = d * grid, cell = floor(p);
+  float h = hash13(cell), px = length(fwidth(p));
+  if (h <= rare) return vec3(0);
+  vec3 center = cell + .2 + .6 * vec3(hash13(cell + 1.7), hash13(cell + 5.3), hash13(cell + 9.1));
+  float point = smoothstep(px * 1.4, px * .25, length(p - center));
+  float twinkle = .7 + .3 * sin(uTime * (1.5 + h * 6.) + h * 300.);
+  vec3 tint = mix(vec3(1., .85, .7), vec3(.75, .85, 1.), hash13(cell + 3.3));
+  return tint * point * twinkle * (h - rare) / (1. - rare) * gain;
+}
 vec3 aurora(vec3 d) {
   if (d.y < .03) return vec3(0);
   vec3 sum = vec3(0);
@@ -195,25 +208,35 @@ void main() {
   color += uKeyColor * uSunDisc * smoothstep(.99955, .99975, s) * 9.;
   float above = smoothstep(-.02, .12, d.y);
   if (uStars > 0.) {
-    vec3 p = d * 260.;
-    vec3 cell = floor(p);
-    float h = hash13(cell);
-    if (h > .972) {
-      vec3 center = cell + .2 + .6 * vec3(hash13(cell + 1.7), hash13(cell + 5.3), hash13(cell + 9.1));
-      float px = length(fwidth(p));
-      float point = smoothstep(px * 1.4, px * .25, length(p - center));
-      float twinkle = .7 + .3 * sin(uTime * (1.5 + h * 6.) + h * 300.);
-      vec3 tint = mix(vec3(1., .85, .7), vec3(.75, .85, 1.), hash13(cell + 3.3));
-      color += tint * point * twinkle * (h - .972) / .028 * 3.2 * uStars * above;
-    }
-    float band = exp(-pow(dot(d, normalize(vec3(.35, .55, -.75))), 2.) * 18.);
+    color += starLayer(d, 260., .972, 3.2) * uStars * above;
+    float across = dot(d, normalize(vec3(.35, .55, -.75))), band = exp(-across * across * 18.);
     color += vec3(.5, .55, .8) * band * (vnoise3(d * 9.) * .7 + vnoise3(d * 23.) * .3) * .05 * uStars * above;
+    // Past the summit the sky deepens: a second, finer field of stars, and the galaxy's band shows its warm heart,
+    // its cold arms and the dark lanes of dust between them.
+    if (uDeep > 0.) {
+      color += starLayer(d, 640., .974, 1.5) * uDeep * above;
+      float lanes = smoothstep(.42, .72, vnoise3(d * 6.5 + 2.)) * exp(-across * across * 60.);
+      vec3 arms = vec3(.42, .55, 1.) * (.05 + .1 * vnoise3(d * 12.)) + vec3(1., .74, .5) * .12 * smoothstep(.4, .85, vnoise3(d * 2.6 + 4.));
+      color += arms * band * (1. - .75 * lanes) * uDeep * above;
+    }
+  }
+  if (uMeteor.w > 0.) {
+    // A shooting star: a short stroke, brightest at its head.
+    vec3 along = uMeteorTail - uMeteor.xyz;
+    float t = clamp(dot(d - uMeteor.xyz, along) / max(dot(along, along), 1e-8), 0., 1.);
+    float off = length(d - (uMeteor.xyz + along * t)), px = length(fwidth(d));
+    color += vec3(.85, .92, 1.) * uMeteor.w * (1. - t) * (1. - t) * smoothstep(px * 2.2, px * .3, off) * 7. * above;
   }
   if (uMoon > 0.) {
     float m = dot(d, uMoonDir);
-    float disc = smoothstep(.99925, .99945, m);
-    float crater = vnoise3(d * 900.) * .25 + vnoise3(d * 2400.) * .1;
-    color += uMoon * (vec3(1., .97, .9) * disc * (2.6 - crater * 2.) + vec3(.55, .65, 1.) * (pow(max(m, 0.), 900.) * .5 + pow(max(m, 0.), 24.) * .04));
+    // The moon itself is a body of its own (beyond.js); here is the glow in the air round it, measured from its limb,
+    // so the glow keeps to it when it comes near.
+    float past = max(acos(clamp(m, -1., 1.)) - uMoonSize * .96, 0.);
+    color += uMoon * uMoonHalo * vec3(.55, .65, 1.) * (exp(-past * past * 450.) * .5 + exp(-past * past * 12.) * .04);
+    if (uMoonDisc > .5) {
+      float crater = vnoise3(d * 900.) * .25 + vnoise3(d * 2400.) * .1;
+      color += uMoon * vec3(1., .97, .9) * smoothstep(.99925, .99945, m) * (2.6 - crater * 2.);
+    }
   }
   if (uAurora > 0.) color += aurora(d) * uAurora;
   outColor = vec4(lowBackdrop(color, d), 1.);

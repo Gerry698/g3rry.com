@@ -17,7 +17,8 @@ export const MAX_PENNANTS = 12;
 
 // Every vertex also carries a cloth attribute: how far along the cloth it is (0 on anything rigid), a wave phase whose
 // whole part numbers a summit pennant (0 for everything else), and the sideways direction the shader waves it.
-export function buildProps(surface, camps) {
+// extra(tools): draws whatever else stands on the mountain with the same tools (the door to the Heart, beyond.js).
+export function buildProps(surface, camps, extra = null) {
   const positions = [], colors = [], flags = [], lights = [];
   let spark = null;
   const next = random(41);
@@ -205,6 +206,7 @@ export function buildProps(surface, camps) {
       }
     }
   });
+  extra?.({ push, frustum, box, ground, light, next });
   return {
     positions: new Float32Array(positions), colors: new Uint8Array(colors), flags: new Float32Array(flags), count: positions.length / 3,
     lights: new Float32Array(lights), spark

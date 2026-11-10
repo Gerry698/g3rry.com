@@ -39,34 +39,39 @@ export function weatherFor(date = new Date()) {
 }
 
 // Sunrise and sunset in local clock hours for a mid-latitude valley, longest at the June solstice (December south).
+// One pair per calendar day, so they hold still through the day (the sky menu draws its dial from them).
 function daylight(date) {
-  const day = (date - new Date(date.getFullYear(), 0, 1)) / 864e5;
+  const day = Math.floor((date - new Date(date.getFullYear(), 0, 1)) / 864e5);
   const summer = Math.cos((day - 172) / 365.25 * TAU) * (southern ? -1 : 1);
   return { rise: 6.5 - summer * .7, set: 18.65 + summer * 1.8 };
 }
 
-// The valley's state for the page: the day's weather and the local hour, unless the query or the debug API set them
-// (?weather=clear|cloud|fog|rain|snow, ?hour=0..24).
+// The valley's state for the page: the day's weather and the local hour, unless the query, the sky menu or the debug
+// API set them (?weather=clear|cloud|fog|rain|snow, ?hour=0..24).
 export function conditions(params, reduced) {
   const pick = value => KINDS.includes(value) ? value : null;
   const hourOf = value => value === null || value === '' || !Number.isFinite(+value) ? null : clamp(+value, 0, 24);
   let kind = pick(params.get('weather')), intensity = null, hour = hourOf(params.get('hour'));
-  // Set by hand (the debug API), the change shows at once instead of drifting in.
-  let cache = null, version = 0;
+  // version counts changes of weather by hand; drift says whether the latest eases in (the sky menu) or shows at once
+  // (the debug API). The hour is read afresh every frame and needs neither.
+  let cache = null, version = 0, drift = false;
   return {
     now(date = new Date()) {
       const second = Math.floor(date / 1000);
       if (cache?.second !== second) {
         const today = weatherFor(date);
         cache = {
-          second, kind: kind || today.kind, intensity: intensity ?? (kind ? .8 : today.intensity),
-          hour: hour ?? date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600, light: daylight(date)
+          second, kind: kind || today.kind, intensity: intensity ?? (kind ? .8 : today.intensity), today: today.kind,
+          hour: hour ?? date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600, light: daylight(date),
+          manual: kind !== null || hour !== null
         };
       }
-      return { ...cache, version, calm: reduced.matches };
+      return { ...cache, version, drift, calm: reduced.matches };
     },
-    set(nextKind, nextIntensity) { kind = pick(nextKind); intensity = Number.isFinite(nextIntensity) ? clamp(nextIntensity, 0, 1) : null; cache = null; version++; },
-    setHour(value) { hour = hourOf(value ?? null); cache = null; version++; }
+    set(nextKind, nextIntensity, eased = false) { kind = pick(nextKind); intensity = Number.isFinite(nextIntensity) ? clamp(nextIntensity, 0, 1) : null; cache = null; version++; drift = eased; },
+    setHour(value) { hour = hourOf(value ?? null); cache = null; },
+    // Back to the visitor's own clock and the day's own weather.
+    reset() { kind = null; intensity = null; hour = null; cache = null; version++; drift = true; }
   };
 }
 
@@ -222,16 +227,19 @@ export function createWeather(gl, scene, quality) {
   const counts = { rain: Math.round(quality.snow * 1.5), flakes: Math.round(quality.snow * 1.3) };
   const shadowMap = texture(gl, quality.shadow, quality.shadow, { internal: gl.DEPTH_COMPONENT24, format: gl.DEPTH_COMPONENT, type: gl.UNSIGNED_INT, compare: true });
   const shadowTarget = framebuffer(gl, { depth: shadowMap });
-  let shadowKey = null, lightMatrix = null, eased = null, last = 0, version = -1, uniforms = {}, live = null;
+  let shadowKey = null, lightMatrix = null, eased = null, last = 0, version = -1, rate = 2.5, uniforms = {}, live = null;
 
   function update(frame, renderShadow) {
     const sky = frame.weather, camp = frame.palette;
     const off = !sky || frame.hide?.has('weather');
     // The valley is all there from the trailhead to Camp II and fades into the climb's palette towards the summit.
     const presence = off ? 0 : 1 - smoothstep(1, scene.camps.length - 1, frame.markers.progress);
-    // A change of weather (midnight, the debug API) drifts in over a few seconds.
+    // The day's weather turning over at midnight drifts in over a few seconds, a choice in the sky menu over about one;
+    // a change through the debug API shows at once.
     const target = amounts(sky?.kind, sky?.intensity ?? 0);
-    const step = eased && sky?.version === version ? clamp((frame.time - last) / 2.5, 0, 1) : 1;
+    if (sky?.version !== version) rate = sky?.drift ? .8 : 0;
+    const step = eased && rate ? clamp((frame.time - last) / rate, 0, 1) : 1;
+    if (!rate) rate = 2.5;
     eased = Object.fromEntries(Object.entries(target).map(([name, value]) => [name, lerp(eased?.[name] ?? value, value, step)]));
     last = frame.time;
     version = sky?.version;

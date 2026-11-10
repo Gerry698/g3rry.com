@@ -41,6 +41,17 @@ for (const camp of mountain.camps) {
   if (camp.time !== undefined && !times.includes(camp.time)) throw new Error('Unknown camp time "' + camp.time + '"; use one of ' + times.join(', '));
   campIds.add(camp.id);
 }
+// Two chapters off the trail: one inside the mountain (below), one past the summit (above). Each is a stop of its own
+// with a card; it gets an "Enter" once it has an href, and until then shows its own "pending" line.
+const beyondSides = ['above', 'below'];
+for (const side of beyondSides) {
+  const chapter = mountain.beyond?.[side];
+  if (!chapter) continue;
+  if (!/^[a-z][a-z0-9-]*$/.test(chapter.id) || campIds.has(chapter.id) || !chapter.title || !chapter.description) throw new Error('Invalid chapter off the trail: ' + side);
+  if (chapter.href !== undefined && !/^\/(?!\/)|^https:\/\/[a-z0-9.-]+\.g3rry\.com\//.test(chapter.href)) throw new Error('Chapter links must be site paths or g3rry.com subdomains: ' + chapter.id);
+  if (chapter.eras !== undefined && !(Number.isInteger(chapter.eras) && chapter.eras >= 0 && chapter.eras <= 8)) throw new Error('A chapter keeps 0 to 8 eras: ' + chapter.id);
+  campIds.add(chapter.id);
+}
 const origin = new URL(site.url);
 if (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('site.url must be an HTTPS origin.');
 await validatePhotos(root, photos, site.hero.photoId);
@@ -318,6 +329,14 @@ const camps = await Promise.all(mountain.camps.map(async (camp, index) => '<li i
   + (camp.model ? ' data-model="' + camp.model + '"' + (campData[camp.model] ? await campData[camp.model]() : '') : '') + '>'
   + '<a href="' + escape(camp.href || '#' + camp.id) + '"' + (camp.href ? '' : ' data-pending') + '><span class="camp-number">' + numerals[index] + '</span><span class="camp-title">' + escape(camp.title) + '</span></a>'
   + '<p>' + escape(camp.description) + '</p>' + (campExtras[camp.model] ? campExtras[camp.model]() : '') + '</li>'));
+const beyondMarks = { above: '↑', below: '↓' };
+const beyond = beyondSides.filter(side => mountain.beyond?.[side]).map(side => {
+  const chapter = mountain.beyond[side];
+  return '<li id="' + chapter.id + '" class="beyond-' + side + '" data-beyond="' + side + '" data-kicker="' + escape(chapter.kicker || '') + '"'
+    + (chapter.pending ? ' data-pending-text="' + escape(chapter.pending) + '"' : '') + (chapter.eras !== undefined ? ' data-eras="' + chapter.eras + '"' : '') + '>'
+    + '<a href="' + escape(chapter.href || '#' + chapter.id) + '"' + (chapter.href ? '' : ' data-pending') + '><span class="camp-number">' + beyondMarks[side] + '</span><span class="camp-title">' + escape(chapter.title) + '</span></a>'
+    + '<p>' + escape(chapter.description) + '</p></li>';
+});
 await output('index.html', replace(await readFile(path.join(root, 'src/mountain/page.html'), 'utf8'), {
   LANGUAGE: escape(site.language), NAME: escape(site.name), TITLE: escape(mountain.title), DESCRIPTION: escape(mountain.description),
   CANONICAL: escape(origin.href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">',
@@ -325,7 +344,7 @@ await output('index.html', replace(await readFile(path.join(root, 'src/mountain/
   PRELOADS: [...mountainFiles.filter(file => file.endsWith('.woff2')).map(file => '<link rel="preload" href="' + file + '" as="font" type="font/woff2" crossorigin>'),
     ...mountainFiles.filter(file => file.endsWith('.js') && file !== mountainScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">')].join('\n  '),
   INTRO_KICKER: escape(mountain.intro.kicker), INTRO_TITLE: lines(mountain.intro.title), INTRO_DESCRIPTION: escape(mountain.intro.description),
-  INTRO_HINT: escape(mountain.intro.hint), CAMPS: camps.join('\n        ')
+  INTRO_HINT: escape(mountain.intro.hint), CAMPS: camps.join('\n        '), BEYOND: beyond.join('\n        ')
 }));
 // The mountain used to live at /mountain/: old links, camp links (#photography) included, land on the home page.
 const movedCode = Buffer.from("location.replace('/' + location.hash);\n");

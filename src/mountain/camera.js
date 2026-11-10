@@ -3,12 +3,36 @@ import { TAU, lerp, clamp, easeInOut, wrapAngle, add, sub, scale, normalize, cro
 // Poses are cylindrical around the summit axis (angle, radius, height) plus a look-at target,
 // so travelling between camps turns around the mountain instead of cutting through it.
 // Vertical field of view in degrees: wider on portrait screens, where the mountain is framed taller than wide.
-export const FOV = { portrait: 58, landscape: 40 };
+// inside: in the chamber of the Heart, a wider lens, so the rock closes round the frame.
+export const FOV = { portrait: 58, landscape: 40, inside: { portrait: 82, landscape: 58 } };
 
 export const eyeOf = pose => [Math.cos(pose.angle) * pose.radius, pose.y, Math.sin(pose.angle) * pose.radius];
 
 export function idlePose(time) {
   return { angle: 2.2 + time * TAU / 100, radius: 25, y: 6.4 + Math.sin(time * .19) * .4, target: [0, 5.3, 0] };
+}
+
+// Below the cloud deck, across the river from the waterfall, looking up the mountain: where the sky menu takes the
+// lens, so the valley's own hour and weather show in full. Framed like a camp, beside the text or above it.
+export function valleyPose(layout) {
+  const pose = { angle: 1.4, radius: 15, y: 1.85 }, aim = [-.5, 4.2, 3];
+  return { ...pose, target: frameAside(eyeOf(pose), aim, layout) };
+}
+
+// The free camera orbits a point on the summit axis: azimuth, elevation and distance, kept within reach. Low enough,
+// and far enough out, the lens is under the clouds.
+export const ORBIT = { center: 4.6, near: 10, far: 44, low: -.07, high: 1.4 };
+export const orbitPose = ({ az, el, dist }) => ({ angle: az, radius: dist * Math.cos(el), y: ORBIT.center + dist * Math.sin(el), target: [0, ORBIT.center, 0] });
+export function orbitOf(eye) {
+  const dist = Math.hypot(eye[0], eye[1] - ORBIT.center, eye[2]);
+  return { az: Math.atan2(eye[2], eye[0]), el: Math.asin(clamp((eye[1] - ORBIT.center) / dist, -1, 1)), dist };
+}
+
+// Moves the aim so the subject sits right of centre ('side', text on the left) or in the upper middle ('stack').
+function frameAside(eye, aim, layout) {
+  const forward = normalize(sub(aim, eye)), right = normalize(cross(forward, [0, 1, 0]));
+  const distance = Math.hypot(...sub(aim, eye));
+  return add(aim, layout === 'side' ? scale(right, -distance * .16) : [0, -distance * .12, 0]);
 }
 
 // Each camp is framed from outside the massif, a little ahead along the climb, looking up towards the
@@ -29,10 +53,7 @@ export function stationPose(camp, summit, progress, terrain, layout) {
     if (!best || score < best.score) best = { ...view, score };
   }
   const { pose, aim } = best;
-  const eye = eyeOf(pose);
-  const forward = normalize(sub(aim, eye)), right = normalize(cross(forward, [0, 1, 0]));
-  const distance = Math.hypot(...sub(aim, eye));
-  pose.target = add(aim, layout === 'side' ? scale(right, -distance * .16) : [0, -distance * .12, 0]);
+  pose.target = frameAside(eyeOf(pose), aim, layout);
   return pose;
 }
 
@@ -71,6 +92,54 @@ export function interpolate(from, to, t) {
     y: lerp(from.y, to.y, e) + arc * Math.min(1.4, Math.abs(delta) * .7),
     target: mix3(from.target, to.target, easeInOut(clamp(t * 1.08 - .04, 0, 1)))
   };
+}
+
+// ---- Off the trail (beyond.js) -----------------------------------------------------------------------------------
+
+// Moonward: well behind the summit as the moon sees it and a little above, so the summit stands low in the frame with
+// the moon over its shoulder. moon: [x, y, z, radius] where it hangs for the chapter. On a tall screen the lens moves
+// aside until the moon is straight above the summit.
+export function skyPose(summit, moon, layout) {
+  const ahead = normalize([moon[0] - summit.x, 0, moon[2] - summit.z]), right = [-ahead[2], 0, ahead[0]];
+  const reach = (moon[0] - summit.x) * ahead[0] + (moon[2] - summit.z) * ahead[2], aside = (moon[0] - summit.x) * right[0] + (moon[2] - summit.z) * right[2];
+  const back = layout === 'side' ? 46 : 60, slip = layout === 'side' ? 0 : -aside * back / reach;
+  const eye = [summit.x - ahead[0] * back + right[0] * slip, summit.y + (layout === 'side' ? 9.5 : 13), summit.z - ahead[2] * back + right[2] * slip];
+  // Aimed between the two, a little below level: the summit in the lower third, the moon in the upper.
+  const aim = mix3([summit.x, summit.y, summit.z], moon, .42);
+  aim[1] = eye[1] - Math.hypot(aim[0] - eye[0], aim[2] - eye[2]) * (layout === 'side' ? .078 : .06);
+  const forward = normalize(sub(aim, eye)), across = normalize(cross(forward, [0, 1, 0])), distance = Math.hypot(...sub(aim, eye));
+  return { angle: Math.atan2(eye[2], eye[0]), radius: Math.hypot(eye[0], eye[2]), y: eye[1], target: add(aim, layout === 'side' ? scale(across, -distance * .13) : [0, -distance * .1, 0]) };
+}
+
+// The Heart, from inside: a slow walk round it, from a little above, looking down past it into the pool that mirrors it.
+// Poses in the chamber are an eye and a target (the lens is nowhere near the summit axis's ground).
+export function heartPose(heart, orbit, time, pointer, layout) {
+  const a = 4.05 + time * TAU / 170 + pointer[0] * .05;
+  const eye = [heart[0] + Math.cos(a) * orbit, heart[1] + .5 + Math.sin(time * .31) * .04 - pointer[1] * .1, heart[2] + Math.sin(a) * orbit];
+  const forward = normalize(sub(heart, eye)), right = normalize(cross(forward, [0, 1, 0]));
+  return { eye, target: layout === 'side' ? add(heart, add(scale(right, -.6), [0, -.5, 0])) : add(heart, [0, -.75, 0]) };
+}
+// Coming in (t from 0 to 1) the lens starts back against the wall, a little high, and settles into the walk.
+export function enterHeart(pose, heart, t) {
+  const e = 1 - Math.pow(1 - clamp(t, 0, 1), 3), out = normalize([pose.eye[0] - heart[0], 0, pose.eye[2] - heart[2]]);
+  return { eye: add(pose.eye, add(scale(out, .62 * (1 - e)), [0, .4 * (1 - e), 0])), target: mix3(heart, pose.target, e) };
+}
+
+// The door of the Heart, from outside: `door` is the lens on its threshold looking in, `approach` stands back across
+// the pool, square to it. cave: { x, y, z, out } (beyond.js, placeCave).
+const poseAt = (eye, target) => ({ angle: Math.atan2(eye[2], eye[0]), radius: Math.hypot(eye[0], eye[2]), y: eye[1], target });
+export function doorPoses(cave) {
+  const at = (ahead, up) => [cave.x + cave.out[0] * ahead, cave.y + up, cave.z + cave.out[2] * ahead];
+  return { approach: poseAt(at(2.5, .72), at(0, .3)), door: poseAt(at(.42, .33), at(-1.2, .3)) };
+}
+const between = (a, b, e) => ({ angle: a.angle + wrapAngle(b.angle - a.angle) * e, radius: lerp(a.radius, b.radius, e), y: lerp(a.y, b.y, e), target: mix3(a.target, b.target, e) });
+// Going in: round the mountain to the approach, a breath, then straight at the door, faster and faster.
+export function diveIn(from, { approach, door }, t) {
+  return t < .64 ? interpolate(from, approach, t / .64) : between(approach, door, ((t - .64) / .36) ** 2);
+}
+// Coming out: back from the door, slowing, then away to wherever the climb goes on.
+export function diveOut({ approach, door }, to, t) {
+  return t < .36 ? between(door, approach, 1 - (1 - t / .36) ** 2) : interpolate(approach, to, (t - .36) / .64);
 }
 
 export function clampToGround(eye, terrain) {
