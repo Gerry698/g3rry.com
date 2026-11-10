@@ -4,6 +4,31 @@
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+// Sediment from the living surface down to the oldest year, then cold bedrock. Each stratum gets its own tone.
+const YEAR_TONES = ['#34402f', '#363a2c', '#38362a', '#393228', '#382e25', '#352a22', '#31261f', '#2c221c', '#271e19'];
+const BEDROCK_TONES = ['#20252b', '#1d2227', '#1a1e23', '#171b20'];
+// Each year's label is set in that year's type, so the hub reads as the same ring of years as /eras/.
+const YEAR_TYPE = {
+  '1996': '"Times New Roman", Times, serif', '1999': 'Verdana, Geneva, sans-serif', '2003': 'Tahoma, Verdana, sans-serif',
+  '2007': '"Lucida Grande", "Lucida Sans Unicode", "Trebuchet MS", sans-serif', '2011': '"League Gothic", Impact, sans-serif',
+  '2014': '"Open Sans", "Segoe UI", sans-serif', '2018': 'Roboto, Arial, sans-serif', '2023': 'Inter, system-ui, sans-serif'
+};
+const FONTS = [
+  ['League Gothic', 400, 'league-gothic', 'league-gothic-latin-400-normal.woff2'],
+  ['Open Sans', 300, 'open-sans', 'open-sans-latin-300-normal.woff2'],
+  ['Roboto', 400, 'roboto', 'roboto-latin-400-normal.woff2']
+];
+
+// A boundary between two strata: a gentle wave for sediment, a broken edge where the years stop and the bedrock begins.
+function boundary(fill, seed, rocky) {
+  const points = [];
+  for (let x = 0; x <= 1200; x += rocky ? 40 : 30) {
+    const y = rocky ? 7 + ((x * 7 + seed * 13) % 11) - 5 : 7 + 4 * Math.sin(x / (95 + seed * 9) + seed) + 2 * Math.sin(x / 37 + seed * 2);
+    points.push(x + ' ' + y.toFixed(1));
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 14" preserveAspectRatio="none"><path fill="' + fill + '" d="M' + points.join(' L') + ' L1200 14 L0 14 Z"/></svg>\n';
+}
+
 export async function buildStrata(ctx) {
   const { root, dist, output, render, escape } = ctx;
   const content = JSON.parse(await readFile(path.join(root, 'content/strata.json'), 'utf8'));
@@ -18,7 +43,8 @@ export async function buildStrata(ctx) {
   const links = { '2026': '/photos/', '2023': '/eras/2023/', '2018': '/eras/2018/', '2014': '/eras/2014/', '2011': '/eras/2011/photos.html', '2007': '/eras/2007/', '2003': '/eras/2003/', '1999': '/eras/1999/', '1996': '/eras/1996/' };
   const whereLink = row => {
     if (row.link) return '<a href="' + escape(row.link) + '">' + escape(row.where) + '</a>';
-    if (row.id === 'ranger') return '<a href="mailto:ranger@g3rry.com">' + escape(row.where) + '</a>';
+    // Kept out of Cloudflare's address scrambling, so the address reads the same in the page source.
+    if (row.id === 'ranger') return '<!--email_off--><a href="mailto:ranger@g3rry.com">' + escape(row.where) + '</a><!--/email_off-->';
     if (row.id === 'dial-tone') return '<a href="/eras/dialup.html">' + escape(row.where) + '</a>';
     if (row.id === 'disallow' || row.id === 'dig') return escape(row.where);
     return links[row.stratum] ? '<a href="' + links[row.stratum] + '">' + escape(row.where) + '</a>' : escape(row.where);
@@ -26,29 +52,39 @@ export async function buildStrata(ctx) {
   const contactSheet = '<ol class="contact-sheet">' + sheet.map((frame, i) => '<li><span class="frame-number">' + String(i + 1).padStart(2, '0') + '</span><span class="frame-note">'
     + escape(frame.note) + '</span><span class="frame-letter">letter ' + frame.n + '</span></li>').join('') + '</ol>';
 
-  // The summit stands right above the borehole.
-  const summit = x => {
-    const p = (dx, y) => (x + dx).toFixed(1) + ' ' + y;
-    return '<svg class="summit" viewBox="0 0 400 120" aria-hidden="true" focusable="false"><path d="M0 120 L' + p(-80, 70) + ' L' + p(-35, 86) + ' L' + p(0, 8) + ' L' + p(36, 64) + ' L' + p(62, 52) + ' L400 120 Z"/>'
-      + '<path class="summit-snow" d="M' + p(-14, 40) + ' L' + p(0, 8) + ' L' + p(14, 40) + ' L' + p(6, 34) + ' L' + p(0, 42) + ' L' + p(-7, 34) + ' Z"/>'
-      + '<g class="summit-flags" id="summit-flags" data-peak="' + x.toFixed(1) + '"></g></svg>';
-  };
   const strata = [...new Set(rows.map(row => row.stratum))];
-  const band = stratum => /^\d+$/.test(stratum) ? 'year' : 'bedrock';
-  const rowHtml = (row, index) => {
+  const years = strata.filter(stratum => /^\d+$/.test(stratum)), bedrock = strata.filter(stratum => !/^\d+$/.test(stratum));
+  if (years.length > YEAR_TONES.length || bedrock.length > BEDROCK_TONES.length) throw new Error('More strata than tones.');
+  const tone = stratum => /^\d+$/.test(stratum) ? YEAR_TONES[years.indexOf(stratum)] : BEDROCK_TONES[bedrock.indexOf(stratum)];
+
+  // The mountain's profile, wide enough to reach both edges of the section; its peak stands above the borehole and
+  // its rock is the surface stratum, so the strata below read as the inside of the same mountain.
+  const ridge = '<div class="ridge" aria-hidden="true"><svg viewBox="0 0 1600 150" focusable="false">'
+    + '<path class="ridge-rock" d="M0 124 L90 112 L160 118 L250 96 L310 104 L390 84 L450 92 L520 70 L580 78 L640 52 L700 60 L752 30 L800 6 L830 28 L858 21 L900 48 L960 40 L1030 66 L1090 58 L1160 84 L1240 78 L1320 100 L1400 94 L1480 112 L1600 118 L1600 150 L0 150 Z"/>'
+    + '<path class="ridge-snow" d="M786 22 L800 6 L816 25 L808 21 L801 31 L794 23 Z"/>'
+    + '<g class="summit-flags" id="summit-flags" data-peak="800" data-top="6"></g></svg></div>';
+
+  const rowHtml = row => {
+    const depth = strata.indexOf(row.stratum);
+    const first = rows.find(other => other.stratum === row.stratum) === row;
     const boxes = Array.from({ length: row.length }, (_, i) => '<span class="cell' + (i === row.bore ? ' bore' : '') + '"></span>').join('');
-    return `<li class="stratum ${band(row.stratum)}" id="${row.id}" data-puzzle="${row.id}" data-length="${row.length}" data-depth="${strata.indexOf(row.stratum)}">
+    return `<li class="stratum ${/^\d+$/.test(row.stratum) ? 'year' : 'bedrock'}${first ? ' first' : ''}" id="${row.id}" data-puzzle="${row.id}" data-length="${row.length}" data-depth="${depth}" data-stratum="${escape(row.stratum)}">
       <div class="stratum-text">
         <p class="stratum-label"><span class="stratum-year">${escape(row.stratum)}</span><span class="stratum-where">${whereLink(row)}</span></p>
-        <h2>${escape(row.title)}</h2>
+        <h2 tabindex="-1">${escape(row.title)}</h2>
         <p class="stratum-flavor">${escape(row.flavor)}</p>
         ${row.id === 'contact-sheet' ? contactSheet : ''}
         <form class="answer" data-puzzle="${row.id}" novalidate>
           <label class="visually-hidden" for="answer-${row.id}">Answer to ${escape(row.title)} (${row.length} letters)</label>
           <input id="answer-${row.id}" name="answer" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="${row.length} letters" disabled>
           <button type="submit" disabled>Check</button>
-          <output class="answer-note" for="answer-${row.id}" aria-live="polite"></output>
         </form>
+        <p class="answer-note" role="status"></p>
+        <div class="notes" data-puzzle="${row.id}" hidden>
+          <ol class="ranger-notes"></ol>
+          <button type="button" class="notes-button">The ranger’s notes</button>
+        </div>
+        <p class="field-note" hidden></p>
       </div>
       <div class="boxes" data-lead="${lead - row.bore}" aria-hidden="true">${boxes}</div>
     </li>`;
@@ -59,10 +95,11 @@ export async function buildStrata(ctx) {
     <p class="eyebrow"><span class="gold-line" aria-hidden="true"></span>${escape(content.intro.kicker)}</p>
     <h1 id="strata-title">${escape(content.intro.title)}</h1>
     <p class="intro">${escape(content.intro.text)}</p>
-    <p class="strata-progress" id="strata-progress" aria-live="polite"></p>
+    <p class="intro strata-help">Stuck in a layer? The ranger keeps three notes for each, and hands them out slowly.</p>
+    <p class="strata-progress" id="strata-progress" role="status"></p>
   </header>
   <div class="section-view">
-    ${summit((lead + .5) / cells * 400)}
+    ${ridge}
     <ol class="strata-list">
       ${rows.map(rowHtml).join('\n      ')}
     </ol>
@@ -74,23 +111,36 @@ export async function buildStrata(ctx) {
       <label class="visually-hidden" for="answer-meta">What the borehole says</label>
       <input id="answer-meta" name="answer" autocomplete="off" spellcheck="false" maxlength="40" placeholder="What it says" disabled>
       <button type="submit" disabled>Check</button>
-      <output class="answer-note" for="answer-meta" aria-live="polite"></output>
     </form>
+    <p class="answer-note" role="status"></p>
+    <div class="notes" data-puzzle="meta" hidden>
+      <ol class="ranger-notes"></ol>
+      <button type="button" class="notes-button">The ranger’s notes</button>
+    </div>
   </section>
   <section class="flags" aria-labelledby="flags-title">
     <h2 id="flags-title">Flags on the summit</h2>
-    <p class="intro" id="flags-note">Everyone who reaches the top may plant one flag. None yet.</p>
+    <p class="intro" id="flags-note">Everyone who comes up the whole mountain may plant a flag. None yet.</p>
     <ol class="flag-list" id="flag-list"></ol>
   </section>
   <noscript><p class="intro">Checking answers needs JavaScript; the puzzles themselves are all out on the site.</p></noscript>
 </section>`;
 
-  await mkdir(path.join(dist, 'strata'), { recursive: true });
+  await mkdir(path.join(dist, 'strata/fonts'), { recursive: true });
   await copyFile(path.join(root, 'src/strata/strata.js'), path.join(dist, 'strata/strata.js'));
-  // The answer boxes line up on the borehole: each row is pushed right by `data-lead` cells.
+  for (const [, , pkg, file] of FONTS) await copyFile(path.join(root, 'node_modules/@fontsource', pkg, 'files', file), path.join(dist, 'strata/fonts', file));
+  for (const stratum of strata) {
+    const depth = strata.indexOf(stratum);
+    await output('strata/layer-' + depth + '.svg', boundary(tone(stratum), depth + 1, stratum === bedrock[0]));
+  }
+  // Generated: the answer boxes line up on the borehole (each row is pushed right by `data-lead` cells), each stratum
+  // has its tone and its boundary, and each year its type.
   const css = await readFile(path.join(root, 'src/strata/strata.css'), 'utf8');
-  await output('strata/strata.css', css + '\n.strata { --cells: ' + cells + '; --lead: ' + lead + '; }\n'
-    + Array.from({ length: lead + 1 }, (_, n) => '.boxes[data-lead="' + n + '"] { padding-left: calc(' + n + ' * var(--cell)); }').join('\n') + '\n');
+  await output('strata/strata.css', FONTS.map(([family, weight, , file]) => `@font-face { font-family: "${family}"; font-weight: ${weight}; font-display: swap; src: url("fonts/${file}") format("woff2"); }`).join('\n') + '\n'
+    + css + '\n.strata { --cells: ' + cells + '; --lead: ' + lead + '; --surface-tone: ' + tone(strata[0]) + '; }\n'
+    + Array.from({ length: lead + 1 }, (_, n) => '.boxes[data-lead="' + n + '"] { padding-left: calc(' + n + ' * var(--cell)); }').join('\n') + '\n'
+    + strata.map((stratum, depth) => '.stratum[data-depth="' + depth + '"] { --layer: ' + tone(stratum) + '; }\n.stratum.first[data-depth="' + depth + '"]::before { background-image: url("layer-' + depth + '.svg"); }').join('\n') + '\n'
+    + Object.entries(YEAR_TYPE).map(([year, family]) => '.stratum[data-stratum="' + year + '"] .stratum-year { font-family: ' + family + '; }').join('\n') + '\n');
   await output('strata/index.html', render(body, {
     title: content.title, description: content.description, route: '/strata/', pageClass: 'strata-page', noindex: true,
     head: '<link rel="stylesheet" href="/strata/strata.css">', classicScripts: ['/strata/strata.js']

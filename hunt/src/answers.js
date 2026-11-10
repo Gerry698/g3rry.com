@@ -22,8 +22,23 @@ export const NUDGES = {
   "1c7d6bb2ab7d51b52f55c6c6c2ed824b931f447206ca3e9ae8b5248a87a49502": "That is the number. Now read the keys it pressed.",
   "2b78725cbc53030ee44afd421035ec7de91cdd26c668cacf6249f2df7de3dfd2": "That is the number. Now read the keys it pressed.",
   "45a8634ed87137d1b93aa27e1c182fe33e10e6811900bf3d7a82f91f5c8efdcc": "Close: now say it in English.",
+  "f84f6faacf5f7f839a28f6268d1e9756ba88beffc83537845995041f9b0c09ac": "Close: now say it in English.",
+  "ec5b6cd7c61097d9dc04f809bf0ce83b34ddc0e6f1244e71c70648262b06eb5a": "Close: now say it in English.",
+  "4560e7cb25fe4635ae0ce4decec4f3320e5176193b37afc00c56b0fb145e8543": "Close: now say it in English.",
   "1ad4f153375a435de876a48ad260da3027c7261a60f551a85724bdd1daab004d": "One peak, one letter.",
+  "ff2e58a4e6241959714845a96b52b3f9fae9cd6f768675bab911d459a75c35f7": "Mytikas is only the highest point. Name the mountain.",
+  "3d302047c62ae2c5fc45089dfc3d2a07244ee9af8defdafab631565d375753f3": "Lowest first.",
   "b2b22122e4e1015386acbb204409dcb93b30cf350c092be653abdc23be58b723": "Yes. Now do what it says.",
-  "35576b8e94bfe4d6551035e81f90e2798d02af7c98b3f2bd7470f04a8e917091": "That is the number. Dial it."
+  "4aea3e2a6b196ff8c9306eb51b01f6a825c6f755e96e72e464466808ee7ea5eb": "That is the number. Dial it.",
+  "5a83fd3fc6b8c36e316e65255b1c5b8963e3cc012b6725755b0823e2405ddfaf": "That is the number. Dial it.",
+  "5e2e64cd949290d8009ee119b39efa7bf68fd1dd48a2739f3960e273c51d53c8": "That is the number. Dial it.",
+  "5d5a9c0488cc1ace33e752f3b5f2fc445e9329323b3af2f6bff193fe9c87203f": "That is the number. Dial it.",
+  "35576b8e94bfe4d6551035e81f90e2798d02af7c98b3f2bd7470f04a8e917091": "That is the number. Dial it.",
+  "c1baac858b14d6433d67e4f0131d8ac75d4292cfbab32953be12dd4a0e1a3edb": "That is the number. Dial it.",
+  "b1bc6dac58b6b33c8326a1c7b9f6dc3d2077656b23909960627b6365b4aa493a": "That is the number. Dial it.",
+  "9aebecbf4cd7319e8ecea161c1281eee813e2a3b8515d63015b4d24a52ebca76": "That is the number. Dial it."
 };
-export const FINALE = "854e71a2eddc9ad5205ac0d781ddc8b4636af1d257d150301af7e0c91f0c3fca";
+export const FINALES = [
+  "8d9fb2a19b316323471881fa707815566ae7800d376e735c1bf6fdbf0ccc0209",
+  "000e254520cf7fcf3ff0632ae34a2fc6b8e352b951b62ffef5648920cd090209"
+];

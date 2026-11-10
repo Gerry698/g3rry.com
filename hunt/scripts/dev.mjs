@@ -36,7 +36,9 @@ await applyMigrations(db);
 const seed = privateFolder ? await readFile(path.join(privateFolder, 'seed.sql'), 'utf8')
   : ["INSERT INTO content (key, value) VALUES ('trail', '[[\"one\",301],[\"two\",302]]')",
     "INSERT INTO content (key, value) VALUES ('bbs', '{\"banner\":[\"(made-up board)\"],\"lines\":[\"Local development.\"]}')",
-    "INSERT INTO content (key, value) VALUES ('ranger', '{\"subject\":\"Re\",\"text\":\"t\",\"html\":\"h\"}')"].join(';\n') + ';\n';
+    "INSERT INTO content (key, value) VALUES ('ranger', '{\"subject\":\"Re\",\"text\":\"t\",\"html\":\"h\"}')",
+    "INSERT INTO content (key, value) VALUES ('hints', '{}')",
+    "INSERT INTO content (key, value) VALUES ('notes', '{}')"].join(';\n') + ';\n';
 for (const statement of seed.split(/;\s*\n/).map(text => text.trim()).filter(Boolean)) await db.prepare(statement).run();
 
 const worker = await mf.getWorker();

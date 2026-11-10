@@ -139,8 +139,25 @@ for (const version of eraVersions) assert(dial.includes('href="' + version.href 
 for (const [file, html] of htmlByFile) {
   if (file.startsWith('eras/') && file !== 'eras/index.html') assert(/<meta name="robots" content="noindex"/i.test(html), 'Pages of other years are not indexed: ' + file);
 }
-for (const file of files.filter(file => file.startsWith('eras/') && file.endsWith('.js'))) {
-  assert.doesNotMatch(await readFile(path.join(dist, file), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'Era scripts must not build HTML from strings: ' + file);
+for (const file of files.filter(file => /^(eras|strata)\//.test(file) && file.endsWith('.js'))) {
+  assert.doesNotMatch(await readFile(path.join(dist, file), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'Era and Strata scripts must not build HTML from strings: ' + file);
+}
+// The other years and Strata live under the same Content Security Policy as the rest of the site: every page carries
+// it, and none relies on inline script, inline style or inline event handlers it would block.
+for (const [file, html] of htmlByFile) {
+  if (!/^(eras|strata)\//.test(file)) continue;
+  assert(/http-equiv="Content-Security-Policy"/i.test(html), 'Missing Content-Security-Policy: ' + file);
+  assert(!/<script\b(?![^>]*\bsrc=)[^>]*>/i.test(html), 'Inline script: ' + file);
+  assert(!/<[a-z][^>]*\sstyle=/i.test(html) && !/<style\b/i.test(html), 'Inline style: ' + file);
+  assert(!/<[a-z][^>]*\son[a-z]+=/i.test(html), 'Inline event handler: ' + file);
+}
+// Images and fonts named in era and Strata stylesheets exist.
+for (const file of files.filter(file => /^(eras|strata)\//.test(file) && file.endsWith('.css'))) {
+  for (const match of (await readFile(path.join(dist, file), 'utf8')).matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/g)) {
+    if (/^(data:|https?:|#|%23)/i.test(match[1])) continue;
+    const target = match[1].startsWith('/') ? match[1].slice(1) : path.posix.join(path.posix.dirname(file), match[1]);
+    assert(exactFiles.has(target.split(/[?#]/)[0]), 'Missing file named in ' + file + ': ' + match[1]);
+  }
 }
 
 // Strata (/strata/), the hunt: its hub stays out of the index and the sitemap and is reached from /eras/. The puzzle

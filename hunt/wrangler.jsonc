@@ -13,9 +13,8 @@
     { "pattern": "g3rry.com/api/hunt*", "zone_name": "g3rry.com" },
     { "pattern": "g3rry.com/api/counter*", "zone_name": "g3rry.com" }
   ],
-  // Replace with the id that `wrangler d1 create hunt` prints.
   "d1_databases": [
-    { "binding": "DB", "database_name": "hunt", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "hunt", "database_id": "b41bb0de-9ea4-4838-9f45-ccceb492d66d", "migrations_dir": "migrations" }
   ],
   "ratelimits": [
     { "name": "CHECK_LIMIT", "namespace_id": "4201", "simple": { "limit": 20, "period": 60 } },

@@ -44,11 +44,16 @@ export async function buildEras(ctx) {
     landscape: photo.width > photo.height
   }));
 
-  // One derived image of one photograph for one year, cached like the main photo encodes.
+  // One derived image of one photograph for one year, cached like the main photo encodes. The cache key covers the
+  // year's whole builder and the shared art helpers, not just `make` (which usually calls other functions), so any
+  // change to how a year draws its pictures makes new ones.
+  const here = path.join(root, 'scripts/eras');
+  const helpers = (await readFile(path.join(here, 'pixels.mjs'), 'utf8')) + (await readFile(path.join(here, 'fonts.mjs'), 'utf8'));
+  const recipe = Object.fromEntries(await Promise.all(years.map(async year => [year, digest(helpers + (await readFile(path.join(here, 'y' + year + '.mjs'), 'utf8')))])));
   async function variant(photo, year, file, make) {
     const master = await readFile(path.join(root, photo.source));
     const ext = path.extname(file).slice(1);
-    const name = 'era-' + year + '-' + photo.id + '-' + digest(master) + '-' + digest(make.toString() + sharp.versions.sharp + file) + '.' + ext;
+    const name = 'era-' + year + '-' + photo.id + '-' + digest(master) + '-' + digest(recipe[year] + make.toString() + sharp.versions.sharp + file) + '.' + ext;
     const bytes = await cachedImage(name, () => make(sharp(master).rotate()));
     await output('eras/' + year + '/' + file, bytes);
     const meta = await sharp(bytes).metadata();
@@ -78,9 +83,12 @@ export async function buildEras(ctx) {
   }
 
   // The time machine itself: the modem service worker and the dial-up screen are shared by 1996 and 1999.
-  for (const name of ['modem.js', 'modem-client.js', 'dialup.js', 'board.js', 'dialup.css', 'dial.css', 'dial.js']) {
+  for (const name of ['modem.js', 'modem-client.js', 'dialup.js', 'board.js', 'dialup.css', 'dialup-tick.svg', 'dialup-arrow.svg', 'dial.css', 'dial.js']) {
     await output('eras/' + name, await readFile(path.join(root, 'src/eras', name)));
   }
+  // The keypad of the Windows 95 Phone Dialer: digits with their letters.
+  const keypad = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'], ['7', 'PQRS'], ['8', 'TUV'], ['9', 'WXYZ'], ['*', ''], ['0', ''], ['#', '']]
+    .map(([digit, letters]) => '<button type="button" data-digit="' + digit + '" aria-label="' + digit + (letters ? ' ' + letters : '') + '"><b>' + digit + '</b><small>' + (letters || '&nbsp;') + '</small></button>').join('');
   await output('eras/dialup.html', `<!doctype html>
 <html lang="en">
 <head>
@@ -93,20 +101,26 @@ export async function buildEras(ctx) {
   <link rel="stylesheet" href="/eras/dialup.css">
 </head>
 <body>
-  <main class="dialer" aria-labelledby="dialer-title">
-    <div class="dialer-bar"><span id="dialer-title">Connect to g3rry.com</span><a class="dialer-close" href="/eras/" aria-label="Cancel and go back">×</a></div>
+  <main class="dialer" aria-labelledby="dialer-title" data-saved="${escape(puzzles.dial)}">
+    <div class="dialer-bar"><span id="dialer-title">Connect To</span><a class="dialer-close" href="/eras/" aria-label="Cancel and go back">×</a></div>
     <div class="dialer-body">
-      <svg class="dialer-icon" viewBox="0 0 40 32" aria-hidden="true"><rect x="2" y="4" width="14" height="11" fill="#d8d4c8" stroke="#222"/><rect x="4" y="6" width="10" height="7" fill="#1d4f7a"/><rect x="5" y="16" width="8" height="3" fill="#bbb6a8" stroke="#222"/><rect x="24" y="14" width="14" height="11" fill="#d8d4c8" stroke="#222"/><rect x="26" y="16" width="10" height="7" fill="#1d4f7a"/><rect x="27" y="26" width="8" height="3" fill="#bbb6a8" stroke="#222"/><path d="M13 21 C18 30 22 6 27 13" fill="none" stroke="#222" stroke-dasharray="2 2"/></svg>
-      <dl class="dialer-fields">
-        <dt>User name</dt><dd>guest</dd>
-        <dt>Connection</dt><dd>g3rry.com Online (saved number)</dd>
-        <dt><label for="dialer-number">Other number</label></dt><dd class="dialer-entry"><input id="dialer-number" inputmode="tel" autocomplete="off" maxlength="24" placeholder="Leave empty to use the saved number"></dd>
-        <dt><label for="modem-speed">Modem</label></dt>
-        <dd><select id="modem-speed" data-modem>
-          <option value="14400">14,400 bps</option><option value="28800">28,800 bps</option><option value="33600">33,600 bps</option>
-          <option value="48000">56K (connects near 48,000 bps)</option><option value="0">No modem: full speed</option>
-        </select></dd>
-      </dl>
+      <div class="dialer-head"><svg class="dialer-icon" viewBox="0 0 40 32" aria-hidden="true"><rect x="2" y="4" width="14" height="11" fill="#d8d4c8" stroke="#222"/><rect x="4" y="6" width="10" height="7" fill="#1d4f7a"/><rect x="5" y="16" width="8" height="3" fill="#bbb6a8" stroke="#222"/><rect x="24" y="14" width="14" height="11" fill="#d8d4c8" stroke="#222"/><rect x="26" y="16" width="10" height="7" fill="#1d4f7a"/><rect x="27" y="26" width="8" height="3" fill="#bbb6a8" stroke="#222"/><path d="M13 21 C18 30 22 6 27 13" fill="none" stroke="#222" stroke-dasharray="2 2"/></svg>
+      <p class="dialer-name">g3rry.com Online</p></div>
+      <div class="dialer-form">
+        <dl class="dialer-fields">
+          <dt>User name:</dt><dd>guest</dd>
+          <dt>Password:</dt><dd>********</dd>
+          <dt>Phone number:</dt><dd>(saved number)</dd>
+          <dt><label for="dialer-number">Other number:</label></dt><dd class="dialer-entry"><input id="dialer-number" inputmode="tel" autocomplete="off" maxlength="24" placeholder="Leave empty for the saved number"></dd>
+          <dt>Dialing from:</dt><dd class="dialer-plain">Default Location</dd>
+          <dt><label for="modem-speed">Modem:</label></dt>
+          <dd class="dialer-plain"><select id="modem-speed">
+            <option value="14400">14,400 bps</option><option value="28800">28,800 bps</option><option value="33600">33,600 bps</option>
+            <option value="48000">56K (connects near 48,000 bps)</option><option value="0">No modem: full speed</option>
+          </select></dd>
+        </dl>
+        <div class="dialer-pad" id="dialer-pad" role="group" aria-label="Keypad">${keypad}</div>
+      </div>
       <label class="dialer-check"><input type="checkbox" id="dialer-speaker" checked> Modem speaker on</label>
       <p class="dialer-status" id="dialer-status" role="status">Ready to dial.</p>
       <div class="dialer-meter" aria-hidden="true"><span id="dialer-meter"></span></div>
@@ -118,7 +132,14 @@ export async function buildEras(ctx) {
     </div>
   </main>
   <script src="/eras/modem-client.js"></script>
-  <section class="board" id="board" hidden aria-label="Terminal"><pre class="board-screen" id="board-screen" aria-live="polite"></pre><div class="board-keys" id="board-keys"></div></section>
+  <section class="board" id="board" hidden aria-labelledby="board-title">
+    <div class="dialer-bar"><span id="board-title">SUMMIT - HyperTerminal</span></div>
+    <p class="board-menu" aria-hidden="true"><span>File</span><span>Edit</span><span>View</span><span>Call</span><span>Transfer</span><span>Help</span></p>
+    <pre class="board-screen" id="board-screen" aria-hidden="true"></pre>
+    <div class="visually-hidden" id="board-log" role="log" aria-live="polite"></div>
+    <div class="board-keys" id="board-keys"></div>
+    <p class="board-status"><span id="board-clock">Connected 0:00:00</span><span>ANSI</span><span id="board-speed">28800 8-N-1</span><span>SCROLL</span><span>CAPS</span><span>NUM</span></p>
+  </section>
   <script src="/eras/dialup.js"></script>
   <script src="/eras/board.js"></script>
 </body>

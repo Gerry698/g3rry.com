@@ -36,3 +36,17 @@
 .eras-deeper { margin-top: 3.2rem; color: var(--muted); font-size: .84rem; max-width: 40em; }
 .eras-deeper a { color: var(--gold); border-bottom: 1px solid #c9af775c; white-space: nowrap; }
 .eras-deeper a:hover { color: var(--paper); }
+
+/* Each year's numeral in that year's type, so the dial shows the piece before you open it. The three webfonts are
+   the ones Strata already ships; the rest were on every computer of their time. */
+@font-face { font-family: "League Gothic"; font-weight: 400; font-display: swap; src: url("/strata/fonts/league-gothic-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Open Sans"; font-weight: 300; font-display: swap; src: url("/strata/fonts/open-sans-latin-300-normal.woff2") format("woff2"); }
+@font-face { font-family: "Roboto"; font-weight: 400; font-display: swap; src: url("/strata/fonts/roboto-latin-400-normal.woff2") format("woff2"); }
+#y1996 .era-year { font-family: "Times New Roman", Times, serif; font-weight: bold; letter-spacing: 0; }
+#y1999 .era-year { font-family: Verdana, Geneva, sans-serif; font-weight: bold; font-size: 2.2rem; letter-spacing: -.02em; }
+#y2003 .era-year { font-family: Tahoma, Verdana, sans-serif; font-size: 1.9rem; letter-spacing: .08em; }
+#y2007 .era-year { font-family: "Lucida Grande", "Lucida Sans Unicode", "Trebuchet MS", sans-serif; font-weight: bold; font-size: 2.3rem; letter-spacing: -.05em; }
+#y2011 .era-year { font-family: "League Gothic", Impact, sans-serif; font-size: 3.1rem; letter-spacing: .02em; }
+#y2014 .era-year { font-family: "Open Sans", "Segoe UI", sans-serif; font-weight: 300; font-size: 2.4rem; letter-spacing: 0; }
+#y2018 .era-year { font-family: Roboto, Arial, sans-serif; font-size: 2.4rem; letter-spacing: 0; }
+#y2023 .era-year { font-family: Inter, system-ui, sans-serif; font-weight: 600; font-size: 2.3rem; letter-spacing: -.05em; }

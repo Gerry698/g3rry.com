@@ -161,29 +161,27 @@ node atlas.mjs frames          # 解算各 stop 的相机位置
 
 ## 解谜（/strata/）
 
-`/strata/` 是一场藏在站里的解谜游戏的枢纽页：一张山体剖面，地表是现在的站（2026），往下依次是其他年代，最底下是"基岩"（HTTP、邮件、DNS、电话线）。每一层埋着一道题，每道题的答案填进本层的格子；从峰顶往下打的钻孔穿过每层一个字母，连起来是最后一步的指令。走完最后一步的人可以在峰顶插一面旗：只有编号、日期和颜色，没有文字，所以不需要审核。枢纽页带 `noindex`、不进 sitemap，入口在 `/eras/` 页底、404 页的源代码和 `robots.txt`。
+`/strata/` 是一场藏在站里的解谜游戏的枢纽页：一张山体剖面，地表是现在的站（2026），往下依次是其他年代，最底下是"基岩"（HTTP、邮件、DNS、电话线）。每一层埋着一道题，每道题的答案填进本层的格子；从峰顶往下打的钻孔穿过每层一个字母，连起来是最后一步的指令。最后一步在拨号页完成；拨通后，终端（BBS）会先核对来电者在这个浏览器里解开了多少层（交给 Worker 重新校验），够数才让插旗。旗只有编号、日期和颜色，没有文字，所以不需要审核。枢纽页带 `noindex`、不进 sitemap，入口在 `/eras/` 页底、404 页的源代码和 `robots.txt`。
 
-- **答案不在这个仓库里。** 仓库是公开的，所以这里只有访客本来就能看到的谜面数据和答案的 HMAC 哈希。答案、解法、只有解出来才该看到的文字（重定向链、护林员的回信、BBS）都在本机私有目录 `D:\Claude\g3rry.com-hunt\`（本地 git，不推送）：`SOLUTIONS.md` 是完整设计和解法，`hunt.mjs` 是唯一来源。
-- **不要手改** `content/strata.json`、`content/strata/puzzles.json`、`hunt/src/answers.js`：它们由 `node D:\Claude\g3rry.com-hunt\hunt.mjs` 生成（生成器会逐题断言提取结果正确）。改谜题、改答案都在私有目录里改，再重新生成、构建。
-- 各年代里埋题的代码都带注释 "a puzzle of /strata/"，在 `scripts/eras/y*.mjs` 和 `src/eras/` 里搜这句就能找到。改这些年代页时注意不要碰坏它们；`check.mjs` 会检查枢纽页、入口、`robots.txt` 指向的目录和每题的答案哈希都在。
-- 发布前在私有目录跑 `node audit.mjs`：它只看 `dist/`，像读源代码的玩家一样把站内能解的题全部解一遍，再扫描整个 `dist/` 有没有答案明文。
-- 拨号页（`/eras/dialup.html`）可以拨别的号码：号码交给 hunt Worker 判断，拨对了由 `src/eras/board.js` 显示一个终端（BBS）。
-- 后端是 `hunt/` 里的 Worker（`g3rry.com/api/hunt*`、`g3rry.com/api/counter*`），D1 数据库 `hunt`：`/api/hunt/check` 校验答案（每个地址每分钟 20 次），`/api/hunt/trail/*` 是一串重定向，`/api/hunt/dial`、`/api/hunt/flag`、`/api/hunt/flags` 是最后一步和旗，`/api/counter` 是 1996、1999 两年的访客计数器。发往 `ranger@g3rry.com` 的邮件由同一个 Worker 自动回信（只回复通过 DMARC 的发件人，每人每天最多 3 封）。测试：`cd hunt; npm test`（Miniflare，用的是假数据）。
+- **答案不在这个仓库里。** 仓库是公开的，所以这里只有访客本来就能看到的谜面数据和答案的 HMAC 哈希。答案、解法、提示、解开后才显示的文字都在本机私有目录 `D:\Claude\g3rry.com-hunt\`（本地 git，不推送）：`SOLUTIONS.md` 是完整设计和解法，`hunt.mjs` 是唯一来源。
+- **不要手改** `content/strata.json`、`content/strata/puzzles.json`、`hunt/src/answers.js`：它们由 `node D:\Claude\g3rry.com-hunt\hunt.mjs` 生成（生成器会逐题断言提取结果正确）。改谜题、改答案、改提示都在私有目录里改，再重新生成、构建。
+- 各年代里埋题的地方都带注释 `Strata (<题目 id>)`，在 `scripts/eras/` 和 `src/eras/` 里搜 "Strata (" 就能找到；注释不写机制，机制只在私有解法书里。改这些年代页时注意不要碰坏它们。`check.mjs` 会检查枢纽页、入口、`robots.txt` 指向的目录、每题的答案哈希，以及这些页面都带 CSP、没有内联脚本和样式。
+- 发布前在私有目录跑 `node audit.mjs`：它像读源代码的玩家一样，从 `dist/` 把站内能解的题全部解一遍；再扫描整个 `dist/` 和仓库里相关的源文件（含测试和文档），确认没有答案明文。有任何问题就以非零状态退出。
+- 枢纽页每层有"护林员的笔记"（提示），每层三条，两条之间要隔两分钟才能再要；解开一层后显示一段相关的真实历史（field note）。提示和历史都存在 D1 里，由私有种子写入。
+- 拨号页（`/eras/dialup.html`）可以拨别的号码，可以用键盘打字母（按电话键盘换成数字），也可以点拨号盘（每个键会响它自己的双音频）。号码交给 hunt Worker 判断，拨对了由 `src/eras/board.js` 显示终端。
+- 后端是 `hunt/` 里的 Worker（`g3rry.com/api/hunt*`、`g3rry.com/api/counter*`），D1 数据库 `hunt`。接口列表写在 `hunt/src/index.js` 开头。限流：校验答案每个地址每分钟 20 次、每层每天答错 60 次；拨号每分钟 10 次；每个地址每天最多插 3 面旗。发往 `ranger@g3rry.com` 的邮件由同一个 Worker 自动回信：只回给人（自动回复、邮件列表、退信都不回），只回给 DMARC 通过、且信封地址和发件域名对得上的发件人；每人每天最多 3 封，全站每天最多 200 封。测试：`cd hunt; npm test`（Miniflare，用的是假数据）。
 - 本地试玩：先 `npm run build`，再用 `.claude/launch.json` 里的 `hunt-api`（端口 7790，读私有目录的密钥和种子）和 `preview-hunt`（端口 4176）。这台机器上 8770–9680 端口被 Windows 保留，所以本地 API 用 7790。
 
-首次上线（每一步都要主人确认）：
+已于 2026-11-10 上线：D1 `hunt`、Worker `hunt`、Email Routing 规则 `ranger@g3rry.com` → Worker `hunt`、`summits` 的 8 条 LOC 和 1 条 TXT 记录（仅 DNS）。以后：
 
 ```powershell
 cd hunt
-npx wrangler d1 create hunt                       # 把输出的 database_id 填进 wrangler.jsonc
-npx wrangler d1 migrations apply hunt --remote
-npx wrangler d1 execute hunt --remote --file D:\Claude\g3rry.com-hunt\seed.sql
-npx wrangler secret put HUNT_KEY                  # 值在 D:\Claude\g3rry.com-hunt\secrets.local.json
-npx wrangler secret put IP_PEPPER
-npx wrangler deploy
+npx wrangler d1 migrations apply hunt --remote     # 新增了 migrations/ 下的文件时
+npx wrangler d1 execute hunt --remote --yes --file D:\Claude\g3rry.com-hunt\seed.sql   # 改了 hunt.mjs 里的文字（重定向链、回信、BBS、提示、历史）
+npx wrangler deploy                                # 改了 hunt/src/ 或重新生成了 answers.js
 ```
 
-然后在 Cloudflare 后台：Email Routing 加一条自定义地址 `ranger@g3rry.com` → 发送到 Worker `hunt`（它比 catch-all 优先）；DNS 按 `D:\Claude\g3rry.com-hunt\dns.json` 加 `summits` 的 LOC 和 TXT 记录（仅 DNS，不代理）。改了重定向链、回信或 BBS 的文字，重新生成后再执行一次 `d1 execute ... seed.sql` 即可，不用重新部署。
+改了种子不用重新部署（Worker 每分钟重读一次）。DNS 记录要改时，`hunt.mjs` 会同时生成 `summits.zone`（BIND 格式）：在 Cloudflare 后台 DNS → Records 删掉 `summits` 的旧记录，再用 Import 导入这个文件（不要勾 Proxy）。密钥在 `D:\Claude\g3rry.com-hunt\secrets.local.json`；要换密钥，用 `npx wrangler deploy --secrets-file <那个文件>`，再重新生成、部署 answers.js（答案哈希依赖密钥）。
 
 ## 发布
 
