@@ -4,8 +4,10 @@ import { MAX_PENNANTS } from './props.js';
 import { createRenderer, warmUp } from './renderer.js';
 import { PALETTES, TIMES, blend } from './palettes.js';
 import { perspective, lookAt, multiply, invert, transform, clamp, lerp, easeInOut, smoothstep, mix3, sub, normalize, dot, random, TAU } from './math.js';
-import { eyeOf, idlePose, stationPose, sway, travelTime, interpolate, clampToGround, skyPose, heartPose, enterHeart, doorPoses, diveIn, diveOut, FOV } from './camera.js';
+import { eyeOf, idlePose, stationPose, valleyPose, orbitPose, orbitOf, ORBIT, sway, travelTime, interpolate, clampToGround, skyPose, heartPose, enterHeart, doorPoses, diveIn, diveOut, FOV } from './camera.js';
 import { conditions } from './weather.js';
+import { createSkyMenu, panel } from './sky-menu.js';
+import { createGlobe } from './globe.js';
 import { HEART } from './beyond.js';
 import { createAudio } from './audio.js';
 
@@ -14,7 +16,7 @@ const canvas = document.querySelector('#mountain-canvas');
 const items = [...document.querySelectorAll('#mountain-route > li')];
 // The chapters off the trail: one inside the mountain, one past the summit (beyond.js).
 const beyondItems = Object.fromEntries([...document.querySelectorAll('#mountain-beyond > li')].map(item => [item.dataset.beyond, item]));
-const ui = Object.fromEntries(['intro', 'begin', 'card', 'card-kicker', 'card-title', 'card-text', 'card-extra', 'card-link', 'card-pending', 'altitude', 'hint', 'loader', 'nudge', 'sound', 'sound-toggle', 'sound-themes']
+const ui = Object.fromEntries(['intro', 'begin', 'card', 'card-kicker', 'card-title', 'card-text', 'card-extra', 'card-link', 'card-pending', 'altitude', 'hint', 'loader', 'nudge', 'sound', 'sound-toggle', 'sound-themes', 'freecam']
   .map(id => [id, document.querySelector('#mountain-' + id)]));
 const params = new URLSearchParams(location.search);
 const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
@@ -143,6 +145,8 @@ async function start() {
   // trailhead to the summit, then Moonward (past it). The two off the trail exist only if the page lists them.
   const IDLE = -1, BELOW = scene.chamber && scene.cave ? -2 : NaN, ABOVE = scene.moon ? items.length : NaN;
   const lowest = BELOW === -2 ? BELOW : IDLE, highest = ABOVE === items.length ? ABOVE : items.length - 1;
+  // The sky menu's station below the clouds: a place like a camp, but not one the wheel walks to.
+  const VALLEY = -3;
   const isCamp = index => index >= 0 && index < items.length;
   const record = (item, more) => {
     const link = item.querySelector('a');
@@ -164,23 +168,25 @@ async function start() {
   // How far up the trail a stop counts as (lit dots, the climber, the valley's weather): the Heart as the opening
   // view, Moonward as the summit.
   const progressOf = index => index === ABOVE ? items.length - 1 : isCamp(index) ? index : -1;
-  const name = index => index === BELOW ? 'heart' : index === ABOVE ? 'moonward' : isCamp(index) ? 'camp' : 'idle';
+  const name = index => index === BELOW ? 'heart' : index === ABOVE ? 'moonward' : index === VALLEY ? 'valley' : isCamp(index) ? 'camp' : 'idle';
 
   let layout = innerWidth >= innerHeight * .9 ? 'side' : 'stack';
   const summit = camps.at(-1), door = scene.cave ? doorPoses(scene.cave) : null;
-  let stations, above;
+  let stations, above, valley;
   const frameStations = () => {
     stations = camps.map((camp, i) => stationPose(camp, summit, i / Math.max(1, camps.length - 2), terrain, layout));
     above = skyPose(summit, renderer.beyond.near, layout);
+    valley = valleyPose(layout);
   };
   frameStations();
-  const paletteOf = index => PALETTES[index === IDLE ? 'idle' : stop(index).time];
+  const paletteOf = index => PALETTES[index === IDLE || index === VALLEY ? 'idle' : stop(index).time];
   // The opening orbit starts from rest once the mountain is revealed and reaches full speed over 2.5 s, so it hardly
   // drifts from the traced outline while that fades. `lag` is how far the orbit's own time trails the clock.
   let orbitSpeed = 0, lag = 0;
   const still = time => reduced.matches ? 0 : time;
   const poseAt = (index, time) => index === BELOW ? heartPose(HEART.at, HEART.orbit, still(time), pointer, layout)
     : index === ABOVE ? sway(above, still(time), pointer)
+    : index === VALLEY ? sway(valley, still(time), pointer)
     : index === IDLE ? idlePose(reduced.matches ? 0 : time - lag) : sway(stations[index], still(time), pointer);
 
   // inside: the lens is in the chamber of the Heart. sky: how near the moon has come (1 at Moonward).
@@ -190,17 +196,23 @@ async function start() {
   // The chapters off the trail are called before they are entered (see step()); these ease in and out with the call.
   const calls = { [BELOW]: 0, [ABOVE]: 0 };
   let nudge = null, nudgeTimer = 0;
+  // The palette last drawn (a journey starts from it), the free camera while it is on, and the sky menu (both below).
+  let drawn = null, free = null, sky = null;
 
   const heading = () => state.travel ? state.travel.to : state.index;
   function go(index) {
-    index = clamp(index, lowest, highest);
-    const target = heading();
-    if (index === target || !Number.isFinite(index)) return;
+    if (index !== VALLEY) index = clamp(index, lowest, highest);
     // The passage through the rock, in or out of the Heart, is not interrupted.
-    if (state.travel?.through) return;
+    if (!Number.isFinite(index) || state.travel?.through) return;
+    const leaving = Boolean(free);
+    if (leaving) leaveFree();
+    if (index !== VALLEY) closeSky();
+    sky?.dismissCue();
+    const target = heading();
+    if (index === target && !leaving) return;
     hideNudge();
     const from = current || poseAt(state.index, clock);
-    const fromPalette = state.travel ? blend(state.travel.fromPalette, paletteOf(state.travel.to), easeInOut(state.travel.progress)) : paletteOf(state.index);
+    const fromPalette = drawn || paletteOf(state.index);
     const through = index === BELOW ? 'in' : state.inside ? 'out' : null;
     const end = through ? null : poseAt(index, clock + 2);
     // Moonward is a long way up; the Heart is a dive, a moment of rock, and an arrival.
@@ -208,7 +220,7 @@ async function start() {
     state.travel = { from, to: index, fromPalette, fromProgress: state.progress, fromSky: state.sky, start: clock, duration, progress: 0, cut: reduced.matches, through };
     state.started = true;
     showCard(null);
-    root.classList.toggle('mountain-climbing', index !== IDLE);
+    root.classList.toggle('mountain-climbing', stop(index) !== null);
     ui.hint && (ui.hint.hidden = true);
     markRoute(index);
     sound.play('depart', { from: name(target), to: name(index), up: progressOf(index) + (index === ABOVE ? 1 : 0) > progressOf(target) + (target === ABOVE ? 1 : 0), duration });
@@ -218,6 +230,8 @@ async function start() {
   // twice: the first only calls it (a line of text, a sound, its marker, a glow where it is), the second goes.
   function step(direction) {
     const at = heading(), next = at + direction;
+    // From the valley, under the sky menu, a step up the page leaves for the opening view.
+    if (at === VALLEY) { if (direction > 0) go(IDLE); return; }
     if (!(next >= lowest && next <= highest)) { sound.play('edge'); return; }
     if (next === ABOVE || next === BELOW) {
       if (state.travel) return;
@@ -247,16 +261,156 @@ async function start() {
     if (ui.nudge) { ui.nudge.classList.remove('is-shown'); ui.nudge.hidden = true; }
   }
 
+  // The sky menu (sky-menu.js). Opened on the trail it takes the lens down through the clouds to the valley, across the
+  // river from the waterfall, where the hour and the weather show in full; Done climbs back to where it was (out of the
+  // Heart and back into it, if that is where it was opened). Opened from the free camera, the lens stays where it is.
+  let skyReturn = IDLE;
+  function openSky() {
+    if (sky.open || state.travel?.through) return;
+    skyReturn = heading();
+    if (free) freeView.hide();
+    sky.show();
+    root.classList.add('mountain-sky-open');
+    if (!free) go(VALLEY);
+  }
+  function closeSky() {
+    if (!sky?.open) return;
+    sky.hide();
+    root.classList.remove('mountain-sky-open');
+    if (free) freeView.show();
+  }
+  function doneSky() {
+    const back = free ? null : skyReturn;
+    closeSky();
+    if (back !== null && heading() === VALLEY) go(back === VALLEY ? IDLE : back);
+  }
+
+  // The free camera: drag the scene or the globe to orbit, wheel or pinch to zoom (arrows and +/− too). It starts from
+  // wherever the lens is, turns towards the mountain's axis, and lets the climb's palette go to the opening one.
+  const freeView = panel(ui.freecam);
+  const globeCanvas = document.querySelector('#freecam-globe');
+  const globe = createGlobe(globeCanvas, camps);
+  const readouts = Object.fromEntries(['bearing', 'elevation', 'range'].map(name => [name, document.querySelector('#freecam-' + name)]));
+  document.querySelector('#freecam-hint').textContent = matchMedia('(pointer: coarse)').matches ? 'Drag to orbit · pinch to zoom' : 'Drag to orbit · scroll to zoom';
+  function enterFree() {
+    // Not from inside the mountain or on the way through its rock: the lens has to be out under the sky first.
+    if (free || state.inside || state.travel?.through) return;
+    closeSky();
+    hideNudge();
+    const from = current || poseAt(state.index, clock);
+    const orbit = orbitOf(clampToGround(eyeOf(from), terrain));
+    free = {
+      ...orbit, spin: [0, 0], start: clock,
+      goal: { az: orbit.az, el: clamp(orbit.el, ORBIT.low, ORBIT.high), dist: clamp(orbit.dist, ORBIT.near, ORBIT.far) },
+      from: { target: from.target, palette: drawn || paletteOf(state.index), progress: state.progress, sky: state.sky }
+    };
+    state.travel = null;
+    state.index = IDLE;
+    state.started = true;
+    showCard(null);
+    markRoute(IDLE);
+    history.replaceState(null, '', location.pathname + location.search);
+    root.classList.remove('mountain-climbing');
+    root.classList.add('mountain-free');
+    if (ui.hint) ui.hint.hidden = true;
+    sky.dismissCue();
+    freeView.show();
+    tellSound();
+  }
+  function leaveFree() {
+    if (!free) return;
+    free = null;
+    root.classList.remove('mountain-free');
+    freeView.hide();
+  }
+  function turn(dx, dy, span) {
+    free.goal.az += dx / span * Math.PI;
+    free.goal.el = clamp(free.goal.el + dy / span * Math.PI * .5, ORBIT.low, ORBIT.high);
+  }
+  const zoom = factor => { free.goal.dist = clamp(free.goal.dist * factor, ORBIT.near, ORBIT.far); };
+  // The lens eases after its goal; a fling keeps turning it for a moment.
+  function orbitStep(dt) {
+    const goal = free.goal;
+    if (!grips.size && (free.spin[0] || free.spin[1])) {
+      goal.az += free.spin[0] * dt;
+      goal.el = clamp(goal.el + free.spin[1] * dt, ORBIT.low, ORBIT.high);
+      free.spin = free.spin.map(v => Math.abs(v) < .01 ? 0 : v * Math.exp(-dt * 3));
+    }
+    const k = 1 - Math.exp(-dt * 10);
+    for (const name of ['az', 'el', 'dist']) free[name] += (goal[name] - free[name]) * k;
+  }
+  // One finger (or the mouse) turns, two pinch. The scene and the globe both take a drag; a full drag across the
+  // scene's height turns half way round, across the globe likewise.
+  const grips = new Map();
+  let fling = [0, 0], flingTime = 0, pinch = 0;
+  function grip(element, span) {
+    element.addEventListener('pointerdown', event => {
+      if (!free || event.button > 0) return;
+      element.setPointerCapture(event.pointerId);
+      grips.set(event.pointerId, [event.clientX, event.clientY]);
+      free.spin = [0, 0];
+      fling = [0, 0];
+      flingTime = performance.now();
+      pinch = 0;
+      root.classList.add('mountain-grabbing');
+    });
+    element.addEventListener('pointermove', event => {
+      if (!free || !grips.has(event.pointerId)) return;
+      const [x, y] = grips.get(event.pointerId);
+      grips.set(event.pointerId, [event.clientX, event.clientY]);
+      if (grips.size > 1) {
+        const [a, b] = [...grips.values()], distance = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (pinch) zoom(pinch / distance);
+        pinch = distance;
+        return;
+      }
+      const dx = event.clientX - x, dy = event.clientY - y, now = performance.now(), dt = Math.max(8, now - flingTime) / 1000, s = span();
+      turn(dx, dy, s);
+      fling = [lerp(fling[0], dx / s * Math.PI / dt, .5), lerp(fling[1], dy / s * Math.PI * .5 / dt, .5)];
+      flingTime = now;
+    });
+    const release = event => {
+      if (!grips.delete(event.pointerId)) return;
+      pinch = 0;
+      if (grips.size) return;
+      root.classList.remove('mountain-grabbing');
+      // Capped, so a flick on the small globe does not send the view half way round.
+      if (free && !reduced.matches && performance.now() - flingTime < 80) free.spin = [clamp(fling[0], -2, 2), clamp(fling[1], -.8, .8)];
+    };
+    element.addEventListener('pointerup', release);
+    element.addEventListener('pointercancel', release);
+  }
+  grip(canvas, () => canvas.clientHeight);
+  grip(globeCanvas, () => globeCanvas.clientWidth);
+  let shownReadouts = '';
+  function readOrbit() {
+    const degrees = radians => radians * 180 / Math.PI;
+    const elevation = Math.round(degrees(free.el));
+    const values = {
+      bearing: (Math.round(degrees(free.az)) % 360 + 360) % 360 + '°',
+      elevation: (elevation < 0 ? '−' : '+') + Math.abs(elevation) + '°',
+      range: (free.dist * .34).toFixed(1) + ' km'
+    };
+    const text = Object.values(values).join();
+    if (text === shownReadouts) return;
+    shownReadouts = text;
+    for (const [name, value] of Object.entries(values)) readouts[name].textContent = value;
+  }
+  document.querySelector('#freecam-sky').addEventListener('click', openSky);
+  document.querySelector('#freecam-exit').addEventListener('click', () => go(IDLE));
+  sky = createSkyMenu({ weather, reduced, onToggle: () => sky.open ? doneSky() : openSky(), onFree: enterFree, onDone: doneSky });
+
   function arrive(index) {
+    const entry = stop(index);
     state.index = index;
     state.travel = null;
     state.arrived = clock;
     state.inside = index === BELOW;
     state.sky = index === ABOVE ? 1 : 0;
     showCard(index);
-    history.replaceState(null, '', index === IDLE ? location.pathname + location.search : '#' + stop(index).id);
-    if (index !== IDLE) prefetch(stop(index).href);
-    sound.play('arrive', { stop: name(index), model: stop(index)?.model || null });
+    history.replaceState(null, '', entry ? '#' + entry.id : location.pathname + location.search);
+    if (entry) prefetch(entry.href);
+    sound.play('arrive', { stop: name(index), model: entry?.model || null });
     tellSound();
   }
 
@@ -330,29 +484,37 @@ async function start() {
     root.classList.toggle('mountain-off-trail', chapters.has(index));
   }
 
-  // Input: one camp per wheel gesture; a pause of 180 ms starts a new gesture.
+  // Input: one camp per wheel gesture; a pause of 180 ms starts a new gesture. With the free camera the wheel zooms;
+  // over the sky menu it does nothing.
   let wheelTotal = 0, wheelLast = 0, wheelLocked = false;
   addEventListener('wheel', event => {
     if (event.ctrlKey) return;
     event.preventDefault();
+    const amount = event.deltaY * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1);
+    if (free) { zoom(Math.exp(clamp(amount, -200, 200) * .0015)); return; }
+    if (event.target.closest?.('.mountain-almanac')) return;
+    sky.dismissCue();
     const now = performance.now(), gap = now - wheelLast;
     wheelLast = now;
     if (gap > 180) { wheelTotal = 0; wheelLocked = false; }
     if (wheelLocked) return;
-    wheelTotal += event.deltaY * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1);
+    wheelTotal += amount;
     if (Math.abs(wheelTotal) > 45) { step(Math.sign(wheelTotal)); wheelLocked = true; }
   }, { passive: false });
 
+  // On the trail a swipe climbs or descends, a tap on a camp (or the door, or the moon) goes there and a tap elsewhere
+  // climbs on, except under the sky menu, which a stray tap should not close. The free camera has its own drag (above).
   let press = null;
-  canvas.addEventListener('pointerdown', event => { press = { x: event.clientX, y: event.clientY, time: performance.now() }; });
+  canvas.addEventListener('pointerdown', event => { sky.dismissCue(); press = free ? null : { x: event.clientX, y: event.clientY, time: performance.now() }; });
   canvas.addEventListener('pointerup', event => {
-    if (!press) return;
+    if (!press || free) return;
     const dx = event.clientX - press.x, dy = event.clientY - press.y;
     press = null;
     if (Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)) { step(dy < 0 ? 1 : -1); return; }
     if (Math.hypot(dx, dy) > 12) return;
     // In the chamber a touch on the pool is a drop of water.
     if (state.inside) { if (!state.travel) touchPool(event.clientX, event.clientY); return; }
+    if (sky.open) return;
     const hit = pick(event.clientX, event.clientY);
     if (hit !== null) { sound.play('tap'); go(hit); }
     else if (heading() < items.length - 1) step(1);
@@ -364,15 +526,30 @@ async function start() {
   });
   addEventListener('keydown', event => {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
+    // The sky menu's dial and lists keep their own keys (it closes on Escape itself).
+    if (event.target.closest?.('.mountain-almanac')) return;
+    sky.dismissCue();
     const onLink = event.target instanceof HTMLAnchorElement || event.target instanceof HTMLButtonElement;
+    if ((event.key === 'm' || event.key === 'M') && !onLink) { setSound(!sound.enabled); return; }
+    if (free) {
+      const turns = { ArrowLeft: [.2, 0], ArrowRight: [-.2, 0], ArrowUp: [0, .1], ArrowDown: [0, -.1] };
+      if (event.key in turns) {
+        event.preventDefault();
+        free.goal.az += turns[event.key][0];
+        free.goal.el = clamp(free.goal.el + turns[event.key][1], ORBIT.low, ORBIT.high);
+      } else if (event.key === '+' || event.key === '=') zoom(.85);
+      else if (event.key === '-' || event.key === '_') zoom(1 / .85);
+      else if (event.key === 'Escape' || event.key === 'Home') go(IDLE);
+      return;
+    }
+    if (event.key === 'Escape' && sky.open) { doneSky(); return; }
     const keys = { ArrowDown: 1, ArrowRight: 1, PageDown: 1, ArrowUp: -1, ArrowLeft: -1, PageUp: -1 };
     if (event.key in keys) { event.preventDefault(); step(keys[event.key]); }
     else if (event.key === ' ' && !onLink) { event.preventDefault(); step(event.shiftKey ? -1 : 1); }
     else if (event.key === 'Home') { event.preventDefault(); go(IDLE); }
     else if (event.key === 'End') { event.preventDefault(); go(items.length - 1); }
     else if (event.key === 'Escape') go(IDLE);
-    else if (event.key === 'Enter' && !onLink && state.index !== IDLE && !state.travel && stop(state.index).href) enter(state.index, stop(state.index).href);
-    else if ((event.key === 'm' || event.key === 'M') && !onLink) setSound(!sound.enabled);
+    else if (event.key === 'Enter' && !onLink && !state.travel && stop(state.index)?.href) enter(state.index, stop(state.index).href);
   });
   ui.begin?.addEventListener('click', () => { sound.play('tap'); go(0); });
   // A typed or pasted #camp link climbs (or descends) to that camp.
@@ -409,7 +586,7 @@ async function start() {
     showSound();
   }
   // Small sounds for the page's own controls: a tick as the pointer comes onto one.
-  for (const element of document.querySelectorAll('.mountain-route a, .mountain-begin, .mountain-enter, .mountain-sound button')) element.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') sound.play('hover'); });
+  for (const element of document.querySelectorAll('.mountain-route a, .mountain-begin, .mountain-enter, .mountain-sound button, .mountain-sky, .almanac-foot button')) element.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') sound.play('hover'); });
   ui['card-extra']?.addEventListener('pointerover', event => { if (event.pointerType === 'mouse' && event.target.closest?.('a')) sound.play('hover'); });
   // What the music and the air should be doing, whenever the stop changes.
   function tellSound() {
@@ -453,7 +630,7 @@ async function start() {
   }
 
   // Rendering
-  let scaleFactor = 1, frameTimes = [], last = performance.now();
+  let scaleFactor = 1, frameTimes = [], last = performance.now(), cueArmed = false;
   function resize() {
     const dpr = Math.min(devicePixelRatio || 1, quality.dpr) * scaleFactor;
     const width = Math.max(1, Math.round(canvas.clientWidth * dpr)), height = Math.max(1, Math.round(canvas.clientHeight * dpr));
@@ -485,7 +662,15 @@ async function start() {
 
     let pose, palette, fade = easeInOut(fadeIn), inside = state.inside;
     const travel = state.travel;
-    if (travel) {
+    if (free) {
+      orbitStep(delta);
+      const e = easeInOut(clamp((clock - free.start) / 1.4, 0, 1));
+      pose = orbitPose(free);
+      pose.target = mix3(free.from.target, pose.target, e);
+      palette = blend(free.from.palette, paletteOf(IDLE), e);
+      state.progress = lerp(free.from.progress, -1, e);
+      state.sky = lerp(free.from.sky, 0, e);
+    } else if (travel) {
       const t = travel.progress = Math.min(1, (clock - travel.start) / travel.duration);
       const e = easeInOut(t);
       // Through the rock the grade changes while the frame is black.
@@ -510,6 +695,7 @@ async function start() {
       palette = paletteOf(state.index);
       state.progress = progressOf(state.index);
     }
+    drawn = palette;
     if (debugPose) pose = debugPose;
     if (debugPalette) palette = debugPalette;
     current = pose;
@@ -526,8 +712,9 @@ async function start() {
     const at = heading();
     const settled = state.travel || !isCamp(state.index) ? 0 : smoothstep(0, .8, clock - state.arrived);
     const here = isCamp(state.index) ? camps[state.index] : camps[0];
-    // The climber and the dots still ahead fade out once a camp is reached and come back when the climb resumes.
-    const moving = state.travel || state.index === IDLE ? 1 : 0;
+    // The climber and the dots still ahead fade out once a camp is reached (or the valley, under the sky menu) and come
+    // back when the climb resumes.
+    const moving = state.travel ? (state.travel.to === VALLEY ? 0 : 1) : state.index === IDLE ? 1 : 0;
     ahead = lerp(ahead, moving, Math.min(1, delta * (moving ? 4 : 1.6)));
     // Clouds part along the line of sight to the camp being approached or visited (the summit from Moonward, the door
     // on the way to the Heart).
@@ -588,14 +775,22 @@ async function start() {
     }
     if (ui.altitude && !loading.active) ui.altitude.textContent = meters(eye[1]).toLocaleString('en-US');
     tint(renderer.edgeColor());
+    sky.tick(now);
+    if (free && freeView.open) { globe(free); readOrbit(); }
+    // On the first visits, once the mountain is in and the opening words have settled, the sky readout explains itself.
+    if (!cueArmed && loading.revealed && fadeIn >= 1) {
+      cueArmed = true;
+      if (state.index === IDLE && !state.travel && !free && !params.has('clean')) sky.cueLater(reduced.matches ? 800 : 2600);
+    }
 
-    // The air for the ears: where the lens is, and what stands near it (a few times a second is plenty).
+    // The air for the ears: where the lens is, and what stands near it (a few times a second is plenty). The valley's
+    // weather is whatever the sky menu has made it, so rain chosen there is rain heard here.
     if (sound.enabled && clock - lastHeard > .12) {
       lastHeard = clock;
-      const sky = weather.now(), presence = 1 - smoothstep(1, camps.length - 1, state.progress);
+      const valleySky = weather.now(), presence = 1 - smoothstep(1, camps.length - 1, state.progress);
       sound.listener({
         eye, right: cameraRight, inside, height: eye[1], sky: state.sky, moving: travel ? Math.sin(Math.PI * travel.progress) : 0,
-        fall: scene.water.foot, fire: fireAt, weather: sky.kind, intensity: sky.intensity * presence
+        fall: scene.water.foot, fire: fireAt, weather: valleySky.kind, intensity: valleySky.intensity * presence
       });
     }
 
@@ -646,7 +841,7 @@ async function start() {
   function place(index) {
     state.index = index; state.progress = progressOf(index); state.started = true; state.travel = null;
     state.inside = index === BELOW; state.sky = index === ABOVE ? 1 : 0; state.arrived = clock;
-    root.classList.toggle('mountain-climbing', index !== IDLE);
+    root.classList.toggle('mountain-climbing', stop(index) !== null);
     if (ui.hint && index !== IDLE) ui.hint.hidden = true;
     markRoute(index); showCard(index);
     if (index !== IDLE) prefetch(stop(index).href);
@@ -670,6 +865,17 @@ async function start() {
     weather(kind, intensity) { weather.set(kind, intensity); return this.settle(); },
     hour(value) { weather.setHour(value); return this.settle(); },
     get sky() { return weather.now(); },
+    // The sky menu and the free camera: menu() opens the menu, menu(false) is Done; orbit(az, el, dist) in degrees
+    // and world units turns the free camera on at once at that point, orbit() leaves it for the trail.
+    menu(open = true) { if (open) openSky(); else doneSky(); return this.settle(); },
+    orbit(az, el, dist) {
+      if (az === undefined) { go(IDLE); return this.settle(); }
+      enterFree();
+      const at = { az: az * Math.PI / 180, el: el * Math.PI / 180, dist };
+      Object.assign(free, at, { start: clock - 2 });
+      Object.assign(free.goal, at);
+      return this.settle();
+    },
     get current() { return current; },
     get state() { return { ...state, travel: state.travel && { to: state.travel.to, progress: state.travel.progress } }; },
     // Average milliseconds per frame with the GPU forced to finish each one.

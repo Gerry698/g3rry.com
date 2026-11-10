@@ -41,7 +41,14 @@
   </div>
   <header class="mountain-top">
     <a class="mountain-mark" href="/">{{NAME}}<span aria-hidden="true">.</span></a>
-    <p class="mountain-meter" aria-hidden="true"><span>Alt</span> <b id="mountain-altitude">—</b> <span>m</span></p>
+    <div class="mountain-instruments">
+      <p class="mountain-meter" aria-hidden="true"><span>Alt</span> <b id="mountain-altitude">—</b> <span>m</span></p>
+      <button class="mountain-sky" id="mountain-sky" type="button" aria-expanded="false" aria-controls="mountain-almanac" hidden>
+        <span class="sky-read" id="mountain-sky-read"></span>
+        <svg class="sky-glyph" viewBox="-12 -12 24 24" aria-hidden="true" focusable="false"><circle class="glyph-ring" r="9"/><line class="glyph-horizon" id="mountain-sky-horizon" x1="-12.5" x2="12.5" y1="0" y2="0"/><circle class="glyph-sun" id="mountain-sky-sun" r="2.6" cy="-9"/></svg>
+      </button>
+      <p class="mountain-cue" id="mountain-cue" hidden><i aria-hidden="true"></i><span class="cue-text"></span><span class="cue-act">Change the sky <span aria-hidden="true">↑</span></span></p>
+    </div>
   </header>
   <main id="main" class="mountain-main">
     <section class="mountain-intro" id="mountain-intro" aria-labelledby="mountain-title">
@@ -57,6 +64,45 @@
       <div class="mountain-card-extra" id="mountain-card-extra"></div>
       <a class="mountain-enter" id="mountain-card-link" href="/">Enter <span aria-hidden="true">→</span></a>
       <p class="mountain-pending" id="mountain-card-pending" hidden>Trail under construction</p>
+    </section>
+    <section class="mountain-almanac" id="mountain-almanac" aria-labelledby="almanac-title" hidden>
+      <p class="mountain-kicker">Below the clouds · under 1,700 m</p>
+      <h2 id="almanac-title"></h2>
+      <div class="almanac-body">
+        <div class="almanac-dial" id="almanac-dial" role="slider" tabindex="0" aria-label="Hour in the valley" aria-valuemin="0" aria-valuemax="24" aria-valuenow="12"></div>
+        <div class="almanac-side">
+          <fieldset class="almanac-kinds" id="almanac-kinds">
+            <legend>Weather</legend>
+            <label><input type="radio" name="almanac-kind" value="clear"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="9" r="3.4"/><path class="kind-ground" d="M2 16.5h16"/></svg><span>Clear</span></label>
+            <label><input type="radio" name="almanac-kind" value="cloud"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="3" y="6.4" width="14" height="5.6" rx="2.8"/><path class="kind-ground" d="M2 16.5h16"/></svg><span>Cloud</span></label>
+            <label><input type="radio" name="almanac-kind" value="fog"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 6.5h11M6 9.5h11M3 12.5h10"/><path class="kind-ground" d="M2 16.5h16"/></svg><span>Fog</span></label>
+            <label><input type="radio" name="almanac-kind" value="rain"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M7 3.5 5.4 8.5M11.5 4.5 9.9 9.5M16 3.5 14.4 8.5M9.3 9.8l-1.6 5"/><path class="kind-ground" d="M2 16.5h16"/></svg><span>Rain</span></label>
+            <label><input type="radio" name="almanac-kind" value="snow"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="5.5" cy="5" r=".9"/><circle cx="11.5" cy="4" r=".9"/><circle cx="8.5" cy="8.5" r=".9"/><circle cx="14.5" cy="9" r=".9"/><circle cx="5" cy="12" r=".9"/><circle cx="11.5" cy="13" r=".9"/><path class="kind-ground" d="M2 16.5h16"/></svg><span>Snow</span></label>
+          </fieldset>
+          <label class="almanac-strength"><span>Light</span><input type="range" id="almanac-strength" min=".15" max="1" step=".01" value=".7" aria-label="How heavy"><span>Heavy</span></label>
+        </div>
+      </div>
+      <div class="almanac-foot">
+        <button class="almanac-done" id="almanac-done" type="button">Done</button>
+        <button class="almanac-free" id="almanac-free" type="button"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="6.5" ry="2.4"/><circle class="orbit-dot" cx="13.2" cy="9.3" r="1.5"/></svg>Free camera</button>
+        <button class="almanac-live" id="almanac-live" type="button"><i aria-hidden="true"></i><span id="almanac-live-text">Your clock · live</span></button>
+      </div>
+    </section>
+    <section class="mountain-freecam" id="mountain-freecam" aria-label="Free camera" hidden>
+      <p class="mountain-kicker">Free camera</p>
+      <div class="freecam-body">
+        <canvas class="freecam-globe" id="freecam-globe" aria-hidden="true"></canvas>
+        <dl class="freecam-read">
+          <div><dt>Bearing</dt><dd id="freecam-bearing">—</dd></div>
+          <div><dt>Elevation</dt><dd id="freecam-elevation">—</dd></div>
+          <div><dt>Range</dt><dd id="freecam-range">—</dd></div>
+        </dl>
+      </div>
+      <p class="freecam-hint" id="freecam-hint">Drag to orbit · scroll to zoom</p>
+      <div class="almanac-foot">
+        <button class="almanac-done" id="freecam-exit" type="button">Back to the trail</button>
+        <button class="almanac-free" id="freecam-sky" type="button"><svg viewBox="-12 -12 24 24" aria-hidden="true" focusable="false"><circle r="9"/><path d="M-12.5 2h25"/><circle class="orbit-dot" cx="-6" cy="-6.6" r="2.4"/></svg>Sky</button>
+      </div>
     </section>
     <nav class="mountain-route" aria-label="Camps on the mountain">
       <ol id="mountain-route">

@@ -12,6 +12,29 @@ export function idlePose(time) {
   return { angle: 2.2 + time * TAU / 100, radius: 25, y: 6.4 + Math.sin(time * .19) * .4, target: [0, 5.3, 0] };
 }
 
+// Below the cloud deck, across the river from the waterfall, looking up the mountain: where the sky menu takes the
+// lens, so the valley's own hour and weather show in full. Framed like a camp, beside the text or above it.
+export function valleyPose(layout) {
+  const pose = { angle: 1.4, radius: 15, y: 1.85 }, aim = [-.5, 4.2, 3];
+  return { ...pose, target: frameAside(eyeOf(pose), aim, layout) };
+}
+
+// The free camera orbits a point on the summit axis: azimuth, elevation and distance, kept within reach. Low enough,
+// and far enough out, the lens is under the clouds.
+export const ORBIT = { center: 4.6, near: 10, far: 44, low: -.07, high: 1.4 };
+export const orbitPose = ({ az, el, dist }) => ({ angle: az, radius: dist * Math.cos(el), y: ORBIT.center + dist * Math.sin(el), target: [0, ORBIT.center, 0] });
+export function orbitOf(eye) {
+  const dist = Math.hypot(eye[0], eye[1] - ORBIT.center, eye[2]);
+  return { az: Math.atan2(eye[2], eye[0]), el: Math.asin(clamp((eye[1] - ORBIT.center) / dist, -1, 1)), dist };
+}
+
+// Moves the aim so the subject sits right of centre ('side', text on the left) or in the upper middle ('stack').
+function frameAside(eye, aim, layout) {
+  const forward = normalize(sub(aim, eye)), right = normalize(cross(forward, [0, 1, 0]));
+  const distance = Math.hypot(...sub(aim, eye));
+  return add(aim, layout === 'side' ? scale(right, -distance * .16) : [0, -distance * .12, 0]);
+}
+
 // Each camp is framed from outside the massif, a little ahead along the climb, looking up towards the
 // summit so the camp sits low in frame with the mountain and sky above it.
 // layout 'side': the camp sits right of centre (text on the left); 'stack': camp in the upper middle (text below).
@@ -30,10 +53,7 @@ export function stationPose(camp, summit, progress, terrain, layout) {
     if (!best || score < best.score) best = { ...view, score };
   }
   const { pose, aim } = best;
-  const eye = eyeOf(pose);
-  const forward = normalize(sub(aim, eye)), right = normalize(cross(forward, [0, 1, 0]));
-  const distance = Math.hypot(...sub(aim, eye));
-  pose.target = add(aim, layout === 'side' ? scale(right, -distance * .16) : [0, -distance * .12, 0]);
+  pose.target = frameAside(eyeOf(pose), aim, layout);
   return pose;
 }
 

@@ -19,9 +19,10 @@
       "id": "heart",
       "kicker": "Below the trail",
       "title": "The Heart",
-      "description": "Every lantern on the mountain is lit from here. The rock keeps each earlier version of this place, layer under layer.",
+      "description": "Every lantern on the mountain is lit from here. The rock keeps the site as it would have been in eight other years, layer under layer.",
+      "href": "/eras/",
       "pending": "Still crystallising",
-      "eras": 4
+      "eras": 8
     },
     "above": {
       "id": "moonward",
