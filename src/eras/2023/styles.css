@@ -70,7 +70,7 @@ a.link:hover .arrow { color: var(--text); transform: translate(2px, -2px); }
 .pin { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: .55rem; vertical-align: middle; }
 .kit li { font-size: 13px; color: var(--muted); }
 /* the newest photograph closes the grid: a strip across every column, whatever the number of columns */
-.newest { padding: 0; grid-column: 1 / -1; aspect-ratio: 12 / 5; }
+.newest { padding: 0; grid-column: 1 / -1; aspect-ratio: 12 / 5; min-height: 150px; }
 .newest img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
 .photos { width: min(1180px, calc(100% - 32px)); margin: 28px auto; }
@@ -111,8 +111,7 @@ dialog::backdrop { background: rgb(0 0 0 / .6); backdrop-filter: blur(6px); }
 .foot a:hover { color: var(--text); }
 
 /* every tile is a container: type in a narrow tile steps down, whatever the page width */
-@container (max-width: 400px) { .tile h2 { font-size: 18px; } }
-@container (max-width: 220px) { .big { font-size: 44px; } }
+@container (max-width: 260px) { .tile h2 { font-size: 18px; } .big { font-size: 44px; } }
 @media (max-width: 900px) {
   .bento { grid-template-columns: repeat(2, 1fr); }
   .top nav { display: none; }
@@ -147,4 +146,7 @@ dialog::backdrop { background: rgb(0 0 0 / .6); backdrop-filter: blur(6px); }
   .sq.b, .sq.y, .sq.g { color: #fff; }
   .hero-label { color: #fafafa; }
   .hero-label .eyebrow { color: #d4d4d8; }
+  .palette { background: rgb(255 255 255 / .92); box-shadow: 0 30px 80px rgb(0 0 0 / .18); }
+  .palette [role="option"][aria-selected="true"] { background: rgb(124 58 237 / .12); }
+  .viewer { background: #fff; }
 }

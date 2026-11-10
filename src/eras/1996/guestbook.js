@@ -4,11 +4,12 @@
 var box = document.getElementById('entries');
 var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-var mailto = (function () {
+// The address in the page's footer, which is further down than this script.
+function mailto() {
   var links = document.getElementsByTagName('a');
   for (var i = 0; i < links.length; i++) if (links[i].href.indexOf('mailto:') == 0) return links[i].href;
   return '';
-})();
+}
 
 function two(n) { return n < 10 ? '0' + n : String(n); }
 // "Monday, November 2, 1996 at 03:49:00", as the script's $date had it.
@@ -25,9 +26,9 @@ function entry(note) {
   for (var i = 0; i < lines.length; i++) { if (i) br(comments); text(lines[i], comments); }
   box.appendChild(comments);
   br(box);
-  if (note.owner && mailto) {
+  if (note.owner && mailto()) {
     var link = document.createElement('a');
-    link.href = mailto;
+    link.href = mailto();
     text(note.name || 'Gerry', link);
     box.appendChild(link);
   } else text(note.name || 'Anonymous', box);

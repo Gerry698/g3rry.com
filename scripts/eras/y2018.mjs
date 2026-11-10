@@ -30,15 +30,26 @@ self.addEventListener('fetch', event => {
 `;
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// A flat illustration in the manner of the free libraries everyone used: a person, a tripod, a hill, a moon.
-const ILLUSTRATION = `<svg class="illustration" viewBox="0 0 400 260" role="img" aria-label="A person photographing the moon from a hill">
-  <circle cx="318" cy="62" r="30" fill="#ffd54f"/><circle cx="306" cy="54" r="5" fill="#ffca28"/><circle cx="326" cy="74" r="4" fill="#ffca28"/>
-  <circle cx="60" cy="40" r="2" fill="#c5cae9"/><circle cx="150" cy="24" r="2" fill="#c5cae9"/><circle cx="240" cy="44" r="1.6" fill="#c5cae9"/><circle cx="372" cy="120" r="1.6" fill="#c5cae9"/>
-  <path d="M0 220 Q120 150 230 190 T400 170 V260 H0 Z" fill="#7986cb"/><path d="M0 240 Q160 200 300 230 T400 220 V260 H0 Z" fill="#5c6bc0"/>
-  <g transform="translate(150 118)"><path d="M28 70 L12 112 M28 70 L44 112 M28 70 V112" stroke="#37474f" stroke-width="3"/><rect x="14" y="54" width="30" height="18" rx="3" fill="#37474f"/><circle cx="40" cy="63" r="6" fill="#90a4ae"/>
-    <circle cx="-18" cy="22" r="11" fill="#ffccbc"/><path d="M-29 18 Q-18 4 -6 16 L-7 12 Q-18 0 -30 14 Z" fill="#3e2723"/>
-    <path d="M-34 36 Q-18 28 -4 36 L0 78 H-36 Z" fill="#ff4081"/><path d="M-6 44 L14 58" stroke="#ffccbc" stroke-width="7" stroke-linecap="round"/>
-    <path d="M-30 78 L-34 110 M-8 78 L-6 110" stroke="#263238" stroke-width="8" stroke-linecap="round"/></g>
+// A flat illustration in the manner of the free library everyone used in 2018: its violet accent, a big soft blob, a
+// long figure with a small head on a ground line, a plant in a pot, a camera on a tripod, and the moon.
+const ILLUSTRATION = `<svg class="illustration" viewBox="0 0 400 260" role="img" aria-label="A person photographing the moon with a camera on a tripod">
+  <path d="M52 196 C30 118 112 36 214 44 C316 52 380 116 356 188 C340 236 262 238 186 238 C112 238 66 236 52 196 Z" fill="#f2f2f2"/>
+  <circle cx="306" cy="74" r="26" fill="#6c63ff"/><circle cx="296" cy="66" r="5" fill="#fff" opacity=".22"/><circle cx="314" cy="86" r="4" fill="#fff" opacity=".22"/><circle cx="318" cy="64" r="2.5" fill="#fff" opacity=".22"/>
+  <circle cx="120" cy="70" r="2" fill="#6c63ff" opacity=".45"/><circle cx="172" cy="56" r="1.6" fill="#6c63ff" opacity=".45"/><circle cx="356" cy="132" r="1.8" fill="#6c63ff" opacity=".45"/><circle cx="244" cy="92" r="1.4" fill="#6c63ff" opacity=".45"/>
+  <g fill="none" stroke="#3f3d56" stroke-width="2"><path d="M86 212 C84 190 78 170 66 152"/><path d="M86 212 C88 188 96 168 110 156"/><path d="M86 212 V160"/></g>
+  <path d="M66 152 C52 150 46 164 56 176 C66 172 72 160 66 152 Z" fill="#6c63ff"/><path d="M110 156 C124 152 132 166 122 178 C112 174 104 164 110 156 Z" fill="#6c63ff"/>
+  <path d="M86 160 C78 146 82 128 92 120 C98 132 96 148 86 160 Z" fill="#6c63ff"/><path d="M80 190 C66 186 58 196 64 206 C74 204 80 198 80 190 Z" fill="#3f3d56"/><path d="M93 186 C106 180 116 190 110 200 C100 200 94 194 93 186 Z" fill="#3f3d56"/>
+  <path d="M70 210 H102 L97 238 H75 Z" fill="#3f3d56"/>
+  <g stroke="#3f3d56" stroke-width="3" stroke-linecap="round"><path d="M260 152 L238 237"/><path d="M260 152 L282 237"/><path d="M260 152 V237"/></g>
+  <g transform="rotate(-24 258 142)"><rect x="240" y="132" width="34" height="20" rx="3" fill="#2f2e41"/><rect x="272" y="136" width="12" height="12" rx="2" fill="#6c63ff"/><rect x="245" y="128" width="10" height="5" rx="1" fill="#2f2e41"/></g>
+  <path d="M195 168 L189 236 H199 L205 188 L210 236 H220 L215 168 Z" fill="#2f2e41"/>
+  <ellipse cx="193" cy="237" rx="8" ry="3" fill="#3f3d56"/><ellipse cx="216" cy="237" rx="8" ry="3" fill="#3f3d56"/>
+  <path d="M190 124 Q205 114 220 124 L223 172 H192 Z" fill="#6c63ff"/>
+  <rect x="202" y="110" width="7" height="10" fill="#ffb8b8"/><circle cx="205" cy="102" r="10" fill="#ffb8b8"/>
+  <path d="M195.4 103 C193 90 215 86 215.6 100 C211 95 202 95 195.4 103 Z" fill="#2f2e41"/>
+  <path d="M215 128 L243 147" stroke="#ffb8b8" stroke-width="5.5" stroke-linecap="round"/><path d="M214 127 L224 134" stroke="#6c63ff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M213 138 L239 154" stroke="#ffb8b8" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M24 238 H376" stroke="#3f3d56" stroke-width="2"/>
 </svg>`;
 
 const ICON = {

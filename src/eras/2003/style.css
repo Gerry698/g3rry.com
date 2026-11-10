@@ -84,7 +84,7 @@ h4 { margin: 0 0 8px; font: bold 14px Georgia, "Times New Roman", serif; color: 
 
 /* gallery */
 #viewer { background: #222; padding: 10px; text-align: center; }
-#frame { height: 400px; } /* the picture is centred by a top margin from slideshow.js */
+#frame { height: 400px; overflow: hidden; } /* the picture is centred by a top margin from slideshow.js */
 #frame img { display: block; margin: 0 auto; }
 #caption { margin: 8px 0 4px; color: #ccc; font-size: 10px; }
 #caption strong { color: #fff; }
