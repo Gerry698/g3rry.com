@@ -133,6 +133,83 @@
       }
     },
 
+    // A geode closing: nine shards of rock, no two alike, draw together round a last gap of gold light.
+    geode: {
+      time: [860, 980],
+      draw(c, w, h, p, scale) {
+        const n = 9, cx = w / 2, cy = h / 2, reach = Math.hypot(w, h) / 2 * 1.06, r = reach * (1 - easeInOut(p)), far = reach * 3;
+        const chance = k => { const s = Math.sin(k * 127.1 + 3.7) * 43758.5453; return s - Math.floor(s); };
+        const corners = Array.from({ length: n }, (_, k) => {
+          const a = (k + chance(k) * .55) / n * 2 * Math.PI + p * .6, d = r * (.7 + .55 * chance(k + 20));
+          return { a, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d };
+        });
+        // The light the stone closes over.
+        const light = smooth(.3, .8, p) * (1 - smooth(.9, 1, p));
+        if (light > 0) {
+          const glow = c.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, r * 1.5 + reach * .1));
+          glow.addColorStop(0, 'rgba(255,207,125,' + (.5 * light) + ')');
+          glow.addColorStop(1, 'rgba(255,207,125,0)');
+          c.fillStyle = glow;
+          c.fillRect(0, 0, w, h);
+        }
+        corners.forEach((a, k) => {
+          const b = corners[(k + 1) % n], middle = (a.a + (b.a < a.a ? b.a + 2 * Math.PI : b.a)) / 2;
+          c.beginPath();
+          c.moveTo(a.x, a.y);
+          c.lineTo(b.x, b.y);
+          c.lineTo(cx + Math.cos(b.a) * far, cy + Math.sin(b.a) * far);
+          c.lineTo(cx + Math.cos(a.a) * far, cy + Math.sin(a.a) * far);
+          c.closePath();
+          const facet = c.createLinearGradient(cx + Math.cos(middle) * r, cy + Math.sin(middle) * r, cx + Math.cos(middle) * (r + reach * .8), cy + Math.sin(middle) * (r + reach * .8));
+          facet.addColorStop(0, k % 2 ? '#30345f' : '#252a4e');
+          facet.addColorStop(.22, '#15183a');
+          facet.addColorStop(1, '#05060f');
+          c.fillStyle = facet;
+          c.fill();
+          c.lineWidth = 1.5 * scale;
+          c.strokeStyle = 'rgba(255,207,125,' + (.6 * smooth(0, .25, p)) + ')';
+          c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+          c.lineWidth = scale;
+          c.strokeStyle = 'rgba(127,224,216,.14)';
+          c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(cx + Math.cos(a.a) * far, cy + Math.sin(a.a) * far); c.stroke();
+        });
+      }
+    },
+
+    // An eclipse: the sky goes dark as the moon's disc slides to the middle of it, a ring of light round its limb,
+    // one last bead, then nothing.
+    eclipse: {
+      time: [950, 1050],
+      draw(c, w, h, p, scale) {
+        const cx = w / 2, cy = h / 2, radius = Math.min(w, h) * .2, slide = 1 - easeInOut(smooth(0, .72, p));
+        const x = cx + slide * w * .62, y = cy - slide * h * .5;
+        c.fillStyle = 'rgba(2,3,10,' + smooth(0, .75, p) + ')';
+        c.fillRect(0, 0, w, h);
+        const ring = smooth(.3, .7, p) * (1 - smooth(.86, 1, p));
+        if (ring > 0) {
+          const corona = c.createRadialGradient(x, y, radius * .96, x, y, radius * 2.5);
+          corona.addColorStop(0, 'rgba(232,240,255,' + (.9 * ring) + ')');
+          corona.addColorStop(.1, 'rgba(160,186,255,' + (.42 * ring) + ')');
+          corona.addColorStop(1, 'rgba(120,150,255,0)');
+          c.fillStyle = corona;
+          c.beginPath(); c.arc(x, y, radius * 2.5, 0, 2 * Math.PI); c.fill();
+          // The diamond ring: the last of the light, low on the limb the disc came from.
+          const bead = (1 - smooth(.62, .86, p)) * ring, bx = x + Math.cos(-.75) * radius, by = y + Math.sin(-.75) * radius;
+          const spark = c.createRadialGradient(bx, by, 0, bx, by, radius * .5);
+          spark.addColorStop(0, 'rgba(255,244,220,' + bead + ')');
+          spark.addColorStop(.25, 'rgba(255,207,125,' + (.5 * bead) + ')');
+          spark.addColorStop(1, 'rgba(255,207,125,0)');
+          c.fillStyle = spark;
+          c.beginPath(); c.arc(bx, by, radius * .5, 0, 2 * Math.PI); c.fill();
+        }
+        c.fillStyle = '#000';
+        c.beginPath(); c.arc(x, y, radius, 0, 2 * Math.PI); c.fill();
+        c.lineWidth = scale;
+        c.strokeStyle = 'rgba(200,215,255,' + (.25 * ring) + ')';
+        c.beginPath(); c.arc(x, y, radius, 0, 2 * Math.PI); c.stroke();
+      }
+    },
+
     // A letter sealed: the side flaps fold in, the pocket rises, the top flap comes down and a wax seal is pressed.
     envelope: {
       time: [1050, 1050],

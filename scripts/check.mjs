@@ -76,12 +76,14 @@ assert(htmlByFile.get('404.html').includes('name="robots" content="noindex"'), '
 const mountainPage = home;
 const moved = htmlByFile.get('mountain/index.html');
 assert(moved.includes('http-equiv="refresh" content="0;url=/"') && moved.includes('name="robots" content="noindex"') && /<script src="\/assets\/moved-[0-9a-f]+\.js">/.test(moved), 'The old mountain address must forward to the home page.');
-const mountainCamps = JSON.parse(await readFile(path.join(root, 'content/mountain.json'), 'utf8')).camps;
+const mountainContent = JSON.parse(await readFile(path.join(root, 'content/mountain.json'), 'utf8'));
+const mountainCamps = mountainContent.camps, mountainBeyond = Object.values(mountainContent.beyond || {});
 assert(home.includes('class="mountain-page"') && !home.includes('noindex') && home.includes('rel="canonical" href="' + new URL('/', site.url).href + '"'), 'The home page is the mountain, indexed at the root.');
 assert(!(await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes('/mountain/'), 'The old mountain address stays out of the sitemap.');
 const mountainImage = /property="og:image" content="https?:\/\/[^/]+\/([^"]+)"/.exec(mountainPage)?.[1];
 assert(mountainImage && exactFiles.has(mountainImage), 'The mountain page needs its share image.');
-assert.equal([...mountainPage.matchAll(/<li id="/g)].length, mountainCamps.length, 'Every camp needs a plain link for readers without WebGL.');
+assert.equal([...mountainPage.matchAll(/<li id="/g)].length, mountainCamps.length + mountainBeyond.length, 'Every camp and every chapter off the trail needs a plain link for readers without WebGL.');
+for (const chapter of mountainBeyond) assert(mountainPage.includes('<li id="' + chapter.id + '" class="beyond-'), 'Chapter off the trail is missing from the page: ' + chapter.id);
 const labPage = htmlByFile.get('phantom/index.html');
 assert(!labPage.includes('noindex') && (await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/phantom/', site.url).href), 'The lab page is public: indexed and in the sitemap.');
 assert(gallery.includes('href="/phantom/"') && home.includes('href="/phantom/"'), 'The navigation and the mountain link to the lab.');

@@ -2,8 +2,9 @@ import { program, precompile, vertexArray, texture, framebuffer, renderbuffer } 
 import * as shaders from './shaders.js';
 import { detailShapes } from './detail.js';
 import { createWaterRenderer, warmUpWater } from './water-renderer.js';
-import { orthographic, lookAt, multiply, add, scale, dot, TAU } from './math.js';
+import { orthographic, lookAt, multiply, add, scale, dot, smoothstep, TAU } from './math.js';
 import { createWeather, weatherSources } from './weather.js';
+import { createBeyond, warmUpBeyond, heartBeat } from './beyond-renderer.js';
 
 // A low-poly pine: a short trunk under three stacked six-sided cones. aPart is 0 for bark, 1 for needles.
 function treeGeometry() {
@@ -39,7 +40,7 @@ const PROGRAMS = {
   down: ['fullscreenVertex', 'downsampleFragment'], up: ['fullscreenVertex', 'upsampleFragment'], composite: ['fullscreenVertex', 'compositeFragment']
 };
 // Starts compiling them before the scene exists; createRenderer() then picks them up finished.
-export const warmUp = gl => Promise.all([precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [shaders[vertex], shaders[fragment]]).concat(weatherSources)), warmUpWater(gl)]);
+export const warmUp = gl => Promise.all([precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [shaders[vertex], shaders[fragment]]).concat(weatherSources)), warmUpWater(gl), warmUpBeyond(gl)]);
 
 export function createRenderer(gl, scene, quality) {
   const float = Boolean(gl.getExtension('EXT_color_buffer_float'));
@@ -48,6 +49,8 @@ export function createRenderer(gl, scene, quality) {
   const programs = Object.fromEntries(Object.entries(PROGRAMS).map(([name, [vertex, fragment]]) => [name, program(gl, shaders[vertex], shaders[fragment], name)]));
   // Weather below the cloud deck; it adds the deck's puffs to scene.clouds, so it comes before the cloud buffers.
   const weather = createWeather(gl, scene, quality);
+  // The chapters off the trail: the chamber of the Heart, the moon and the stars that lead to it (beyond.js).
+  const beyond = createBeyond(gl, scene, quality, programs.glow);
 
   const terrain = vertexArray(gl, [{ data: scene.mesh.positions, size: 3 }, { data: scene.mesh.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }]);
   const props = vertexArray(gl, [{ data: scene.props.positions, size: 3 }, { data: scene.props.colors, size: 4, type: gl.UNSIGNED_BYTE, normalized: true }, { data: scene.props.flags, size: 4 }]);
@@ -71,7 +74,8 @@ export function createRenderer(gl, scene, quality) {
   const water = createWaterRenderer(gl, scene.water);
   // One glow per camp, one for the climber, then the props' own lights (fire, lamps).
   const lights = scene.props.lights, lightCount = lights.length / 8;
-  const glowCount = scene.camps.length + 1 + lightCount;
+  // ...and one more in the doorway of the Heart, when the mountain has one.
+  const glowCount = scene.camps.length + 1 + lightCount + (scene.cave ? 1 : 0);
   const glowData = new Float32Array(glowCount * 4), glowColors = new Float32Array(glowCount * 4);
   const glows = vertexArray(gl, [{ data: glowData, size: 4, divisor: 1, usage: gl.DYNAMIC_DRAW }, { data: glowColors, size: 4, divisor: 1, usage: gl.DYNAMIC_DRAW }]);
   const cloudCount = scene.clouds.length / 5;
@@ -157,20 +161,35 @@ export function createRenderer(gl, scene, quality) {
     const p = frame.palette, m = frame.markers;
     if (!shadowKey || dot(shadowKey, p.key) < .99999) renderShadow(p.key);
     const right = [frame.view[0], frame.view[4], frame.view[8]], up = [frame.view[1], frame.view[5], frame.view[9]];
+    const inside = Boolean(frame.beyond?.inside), moon = beyond.moonState(frame), meteor = frame.beyond?.meteor;
     const common = {
+      uMoonSize: moon.size, uMoonHalo: 1 - .72 * moon.come, uMoonDisc: beyond.hasMoon ? 0 : 1, uDeep: p.deep, uMeteor: meteor ? [...meteor.head, meteor.power] : [0, 1, 0, 0], uMeteorTail: meteor ? meteor.tail : [0, 1, 0],
       uViewProj: frame.viewProj, uInvViewProj: frame.invViewProj, uCamPos: frame.eye, uTime: frame.time, uRight: right, uUp: up,
       uPixel: 2 * Math.tan(frame.fov / 2) / targets.height,
       uKeyDir: p.key, uKeyColor: p.keyColor, uAmbSky: p.ambSky, uAmbGround: p.ambGround,
       uSunDir: p.sun, uGlow: p.glow, uZenith: p.zenith, uHorizon: p.horizon, uBelow: p.below, uFog: [p.fog, p.haze],
       uShadow: shadowMap, uLightMatrix: lightMatrix, uShadowSize: shadowSize,
-      uStars: p.stars, uMoon: p.moon, uMoonDir: p.moonDir, uAurora: p.aurora, uSunDisc: p.sunDisc,
+      uStars: p.stars, uMoon: p.moon, uMoonDir: moon.dir, uAurora: p.aurora, uSunDisc: p.sunDisc,
       uLantern: LANTERN, uPennants: m.pennants, uProgress: m.progress, uAhead: m.ahead, uFocus: m.focus, uSummit: [scene.camps.at(-1).x, scene.camps.at(-1).y, scene.camps.at(-1).z], uCloud: p.cloud, uCloudAmount: 1, uSnow: p.snow, uHeight: targets.height,
       uResolution: [targets.width, targets.height], uClip: [NEAR, FAR]
     };
     Object.assign(common, weather.update(frame, renderValleyShadow));
+    // From Moonward the valley lies under a sea of cloud, whatever the day's weather: the deck closes as the lens rises.
+    if (moon.come > 0) {
+      common.uDeck = [common.uDeck[0], common.uDeck[1], Math.max(common.uDeck[2], moon.come * .95), common.uDeck[3]];
+      common.uLowAir = [Math.max(common.uLowAir[0], moon.come * .2), common.uLowAir[1], common.uLowAir[2], common.uLowAir[3]];
+    }
     const sceneTarget = targets.multisampled || targets.resolved;
     gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
     gl.viewport(0, 0, targets.width, targets.height);
+    // Inside the mountain the chamber of the Heart is the whole frame; the passes below draw the world outside.
+    if (inside) beyond.drawChamber(frame, common);
+    else drawOutdoors(frame, common, sceneTarget, moon);
+    finish(frame);
+  }
+
+  function drawOutdoors(frame, common, sceneTarget, moon) {
+    const p = frame.palette, m = frame.markers;
     gl.disable(gl.BLEND);
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
@@ -206,6 +225,11 @@ export function createRenderer(gl, scene, quality) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
+    // The moon stands behind everything but the sky; under the cloud deck the valley's own sky veils it, as it
+    // veils the stars (weather-shaders.js, lowBackdrop).
+    const below = common.uDeck[0] - frame.eye[1], band = common.uDeck[1];
+    const veil = below <= -band ? 0 : (1 - Math.exp(-Math.max(below, 0) / Math.max(moon.dir[1], 1e-3) * common.uLowFog[2])) * smoothstep(-band, band, below);
+    if (!frame.hide?.has('moon')) beyond.drawMoon(frame, common, moon, veil);
     if (!frame.hide?.has('water')) water.drawMist(common);
     weather.drawUnderClouds(common, frame.hide);
     for (let i = 0; i < cloudCount; i++) {
@@ -223,6 +247,7 @@ export function createRenderer(gl, scene, quality) {
     programs.trail.use().set(common);
     gl.bindVertexArray(trail.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, scene.trail.length);
+    beyond.drawWay(frame, common);
 
     const show = name => !frame.hide?.has(name);
     if (m.pillar[3] > .01 && show('pillar')) {
@@ -243,6 +268,12 @@ export function createRenderer(gl, scene, quality) {
       const power = 1.4 * (1 + l[7] * (Math.sin(frame.time * 9.3 + i * 2.1) * .2 + Math.sin(frame.time * 14.7 + i) * .12));
       glowData.set([l[0], l[1], l[2], l[3]], at);
       glowColors.set([l[4] * power, l[5] * power, l[6] * power, 0], at);
+    }
+    if (scene.cave) {
+      // The shard in the doorway keeps the heart's time, and burns brighter when the Heart is called or approached.
+      const at = (glowCount - 1) * 4, call = frame.beyond?.coreCall || 0, power = (.9 + 1.5 * heartBeat(frame.time)) * (1 + 2.2 * call);
+      glowData.set([...scene.cave.glow, .13 + .1 * call], at);
+      glowColors.set([LANTERN[0] * power, LANTERN[1] * power, LANTERN[2] * power, 0], at);
     }
     glows.update(0, glowData);
     glows.update(1, glowColors);
@@ -266,7 +297,11 @@ export function createRenderer(gl, scene, quality) {
     weather.drawPrecipitation(common);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
+  }
 
+  // Resolves the frame, blooms it and grades it onto the canvas.
+  function finish(frame) {
+    const p = frame.palette, show = name => !frame.hide?.has(name);
     if (targets.multisampled) {
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, targets.multisampled);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, targets.resolved);
@@ -338,5 +373,5 @@ export function createRenderer(gl, scene, quality) {
     probe.sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
   }
 
-  return { resize, render, setSparkShape, edgeColor: () => probe.color, float, samples, near: NEAR, far: FAR };
+  return { resize, render, setSparkShape, edgeColor: () => probe.color, float, samples, near: NEAR, far: FAR, beyond };
 }

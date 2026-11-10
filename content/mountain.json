@@ -13,5 +13,22 @@
     { "id": "phantom", "kicker": "Camp III", "title": "The Phantom", "description": "Experiments in light, depth and place: a thousand little points that grew into a million.", "href": "/phantom/", "time": "dusk", "model": "phantom" },
     { "id": "mail", "kicker": "Camp IV", "title": "g3mail", "description": "Keeping in touch. A free @g3rry.com mailbox, open to anyone who climbs this far.", "href": "https://mail.g3rry.com/", "time": "dusk", "model": "mailboxes" },
     { "id": "summit", "kicker": "Summit register", "title": "Say hello", "description": "Every climber signs the book at the top. Leave a note for whoever comes next.", "href": "/guestbook/", "time": "night", "model": "summit" }
-  ]
+  ],
+  "beyond": {
+    "below": {
+      "id": "heart",
+      "kicker": "Below the trail",
+      "title": "The Heart",
+      "description": "Every lantern on the mountain is lit from here. The rock keeps each earlier version of this place, layer under layer.",
+      "pending": "Still crystallising",
+      "eras": 4
+    },
+    "above": {
+      "id": "moonward",
+      "kicker": "Beyond the summit",
+      "title": "Moonward",
+      "description": "Past the last flag the trail turns into stars. Nothing is built up here yet: only the quiet, and room.",
+      "pending": "Uncharted"
+    }
+  }
 }
