@@ -1,0 +1,67 @@
+/* The dial-up screen: Dial-Up Networking's "Connect To" dialog on the desktop of its year: Windows 95 for the 1996
+   site, Windows 98 (a gradient title bar) for 1999. Then the board, in a HyperTerminal window. */
+html { background: #008080; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 12px/1.35 "Microsoft Sans Serif", "MS Sans Serif", Tahoma, Arial, sans-serif; color: #000; padding: 16px; box-sizing: border-box; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dialer, .board { background: #c0c0c0; border: 2px solid; border-color: #dfdfdf #000 #000 #dfdfdf; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #808080; padding: 2px; box-sizing: border-box; }
+.dialer { width: min(468px, 100%); }
+.dialer-bar { display: flex; justify-content: space-between; align-items: center; padding: 2px 2px 2px 4px; background: #000080; color: #fff; font-weight: bold; }
+.win98 .dialer-bar { background: linear-gradient(90deg, #000080, #1084d0); }
+.dialer-close { color: #000; background: #c0c0c0; border: 2px solid; border-color: #fff #000 #000 #fff; width: 16px; height: 14px; line-height: 11px; text-align: center; text-decoration: none; font: bold 12px/11px Arial, sans-serif; }
+.dialer-body { padding: 12px 12px 10px; display: grid; gap: 9px; }
+.dialer-icon { width: 60px; height: 48px; }
+.dialer-head { display: flex; gap: 14px; align-items: center; }
+.dialer-name { margin: 0; font-weight: bold; }
+.dialer-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: start; }
+.dialer-fields { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; margin: 0; align-items: center; }
+.dialer-fields dt { margin: 0; }
+.dialer-fields dd { margin: 0; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; box-shadow: inset 1px 1px 0 #000; padding: 2px 4px; font: inherit; min-height: 15px; }
+.dialer-fields dd.dialer-plain { background: none; border: 0; box-shadow: none; padding: 0; }
+.dialer-fields dd.dialer-entry { padding: 0; }
+.dialer-entry input { width: 100%; box-sizing: border-box; font: inherit; border: 0; padding: 2px 4px; background: transparent; }
+.dialer-entry input:focus { outline: 1px dotted #000; outline-offset: -3px; }
+.dialer select { font: inherit; width: 100%; appearance: none; -webkit-appearance: none; border-radius: 0; background: #fff url("dialup-arrow.svg") right 2px center / 16px 16px no-repeat; border: 2px solid; border-color: #808080 #fff #fff #808080; box-shadow: inset 1px 1px 0 #000; padding: 2px 22px 2px 4px; color: #000; }
+.dialer select:disabled { color: #808080; }
+.dialer select:focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
+
+/* The keypad of the Phone Dialer. */
+.dialer-pad { display: grid; grid-template-columns: repeat(3, 38px); gap: 4px; }
+.dialer-pad button { font: inherit; color: #000; background: #c0c0c0; border: 2px solid; border-color: #fff #000 #000 #fff; box-shadow: inset -1px -1px 0 #808080; height: 30px; padding: 0; display: grid; place-items: center; line-height: 1; cursor: pointer; }
+.dialer-pad button:active { border-color: #000 #fff #fff #000; box-shadow: inset 1px 1px 0 #808080; }
+.dialer-pad button:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+.dialer-pad b { font-size: 13px; }
+.dialer-pad small { font-size: 8px; letter-spacing: .04em; }
+
+.dialer-check { display: flex; gap: 6px; align-items: center; }
+.dialer-check input { appearance: none; -webkit-appearance: none; margin: 0; width: 13px; height: 13px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; box-shadow: inset 1px 1px 0 #000; }
+.dialer-check input:checked { background: #fff url("dialup-tick.svg") center / 9px 9px no-repeat; }
+.dialer-check input:focus-visible { outline: 1px dotted #000; outline-offset: 2px; }
+.dialer-status { margin: 4px 0 0; min-height: 1.4em; }
+.dialer-meter { height: 14px; border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; padding: 1px; }
+.dialer-meter span { display: block; height: 100%; width: 0; background: repeating-linear-gradient(90deg, #000080 0 8px, transparent 8px 10px); transition: width .4s linear; }
+.dialer-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.dialer-actions button, .dialer-actions a { font: inherit; color: #000; text-decoration: none; min-width: 75px; padding: 4px 10px; text-align: center; background: #c0c0c0; border: 2px solid; border-color: #fff #000 #000 #fff; box-shadow: inset -1px -1px 0 #808080; cursor: pointer; }
+.dialer-actions button:active { border-color: #000 #fff #fff #000; box-shadow: inset 1px 1px 0 #808080; }
+.dialer-actions button:disabled { color: #808080; text-shadow: 1px 1px 0 #fff; cursor: default; }
+.dialer-actions button:focus-visible, .dialer-actions a:focus-visible, .dialer-close:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+.dialer-note { margin: 4px 0 0; font-size: 11px; color: #303030; }
+.dialer[hidden], .board[hidden] { display: none; }
+@media (max-width: 420px) { .dialer-form { grid-template-columns: 1fr; } .dialer-pad { justify-self: center; } }
+@media (prefers-reduced-motion: reduce) { .dialer-meter span { transition: none; } }
+
+/* The board: a HyperTerminal window, VGA grey on black, with the line box drawing of its BBS. */
+.board { width: min(720px, 100%); }
+.board-menu { display: flex; gap: 14px; margin: 0; padding: 3px 6px; }
+.board-screen { margin: 0 2px; min-height: 22em; max-height: 66vh; overflow: auto; padding: 6px 8px; background: #000; color: #aaa; border: 2px solid; border-color: #808080 #fff #fff #808080; font: 15px/1.25 "Lucida Console", "Courier New", Courier, monospace; white-space: pre; }
+.board-screen .hi { color: #fff; }
+.board-screen .logo { color: #55ffff; }
+.board-screen .ok { color: #55ff55; }
+.board-screen .dim { color: #555; }
+.board-keys { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 2px 6px; min-height: 26px; }
+.board-keys button, .board-keys a { font: inherit; color: #000; text-decoration: none; padding: 4px 10px; background: #c0c0c0; border: 2px solid; border-color: #fff #000 #000 #fff; box-shadow: inset -1px -1px 0 #808080; cursor: pointer; }
+.board-keys button:active { border-color: #000 #fff #fff #000; }
+.board-keys button:focus-visible, .board-keys a:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+.board-status { display: flex; gap: 2px; margin: 0; font-size: 11px; }
+.board-status span { border: 1px solid; border-color: #808080 #fff #fff #808080; padding: 1px 6px; white-space: nowrap; }
+.board-status span:first-child { flex: 1; }
+@media (max-width: 600px) { .board-screen { font-size: 11px; } .board-status span:nth-child(n+4) { display: none; } }

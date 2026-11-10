@@ -28,3 +28,6 @@ Desktop.ini
 # Offline data tools keep their own dependencies
 node_modules/
 /tools/phantom-data/.models/
+/hunt/node_modules/
+/hunt/build/
+/hunt/.wrangler/

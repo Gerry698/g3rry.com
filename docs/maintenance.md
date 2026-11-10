@@ -11,6 +11,8 @@
 | 外观与响应式布局 | `src/styles.css` |
 | 粒子效果 / 画廊交互 | `src/particles.js` / `src/gallery.js` |
 | 首页（雪山） | `content/mountain.json`、`src/mountain/`（见下文"山"） |
+| 其他年代 | `content/eras.json`、`scripts/eras/`、`src/eras/`（见下文"其他年代"） |
+| 解谜（/strata/） | 私有目录 `D:\Claude\g3rry.com-hunt\`、`scripts/strata/`、`src/strata/`、`hunt/`（见下文"解谜"） |
 | 留言板页面、文案 | `src/guestbook.html`、`src/guestbook.js`、`content/site.json` 的 `guestbook` |
 | 留言板后端与后台 | `guestbook/`，见[留言板手册](guestbook.md) |
 | 页面转场（进出页的黑场） | `src/veil.js`、`src/veil.css`（见下文"转场与刘海屏"） |
@@ -18,7 +20,7 @@
 
 页面带有 Content-Security-Policy（由 `scripts/build.mjs` 的 `policy()` 生成，写进 `src/layout.html` 的 meta）：只允许本站资源和 Cloudflare Web Analytics，留言页额外放行 Turnstile。引入任何外部脚本、字体或图片前，先在那里放行，否则浏览器会拦截。
 
-首页是雪山（见下文"山"）。原来的首页（首屏照片、精选、粒子小实验）保留在 `/legacy/`：`noindex`、不进 sitemap、站内没有任何链接，`check.mjs` 会检查这三点；它的文案仍在 `site.json` 的 `hero`、`photography.featuredTitle` 和 `phantom`。`site.json` 里 `hero.photoId` 指定那张首屏照片（也是普通页面的分享图），`phantom.shapes` 的第一项是默认图案。图片 `sizes` 定义在 `build.mjs` 顶部的 `sizes` 对象里，修改 `styles.css` 的网格列数或断点时同步更新它。
+首页是雪山（见下文"山"）。原来的首页（首屏照片、精选、粒子小实验）保留在 `/legacy/`：`noindex`、不进 sitemap、站内只有 `/eras/` 把它列作 2025 年，`check.mjs` 会检查这三点；它的文案仍在 `site.json` 的 `hero`、`photography.featuredTitle` 和 `phantom`。`site.json` 里 `hero.photoId` 指定那张首屏照片（也是普通页面的分享图），`phantom.shapes` 的第一项是默认图案。图片 `sizes` 定义在 `build.mjs` 顶部的 `sizes` 对象里，修改 `styles.css` 的网格列数或断点时同步更新它。
 
 ## 照片
 
@@ -151,6 +153,44 @@ node atlas.mjs frames          # 解算各 stop 的相机位置
 - **配套工具：**
   - `tools/phantom-data/resect.mjs`：后方交会，用 LiDAR 里的地标解出机位。
   - `tools/phantom-data/grid.mjs`：带刻度的裁切图，用来读地标和地平线的像素位置。
+
+## 其他年代（/eras/）
+
+同一个站按八个过去的年份各重做一遍：1996、1999、2003、2007、2011、2014、2018、2023，每个版本只用那一年真有的技术，内容来自同一份数据（照片、地点、EXIF、留言板实时读取）。入口是 `/eras/`（全站页脚 "Other years"），它在 sitemap 里；各年份的页面都带 `noindex`。
+
+- 文案在 `content/eras.json`：每年的 `name`、`line`（目录上的一句话）、`colophon`（"How it was built" 的段落），`dial: true` 的年份在目录上有 "Arrive by modem"。年份必须递增，且每年都要有对应的生成模块。
+- `versions` 是站点自己的真实版本，排在重做的年份之后：2025 是旧首页 `/legacy/`，2026 是现在的首页（雪山）`/`。年份环从 2026 绕回 1996，各年代页上的 Time Ring 都用年份标注，不写 "Now"。
+- 生成：`scripts/eras/index.mjs` 依次调用 `scripts/eras/y<年份>.mjs`，每个模块写自己年份的页面和图片到 `dist/eras/<年份>/`；`src/eras/<年份>/` 里的脚本和样式原样复制（文件名不加哈希，查看源代码本身就是内容的一部分）。照片的派生图走和主站相同的 `.cache/images` 缓存。
+- 早期年份的图都是代码画的：`scripts/eras/pixels.mjs` 是 5×7 点阵字体和 GIF/PNG 输出（标题、88×31 小徽章、施工路障、计数器数字、Phantom 动图）；`scripts/eras/fonts.mjs` 把 @fontsource 的 WOFF 解包成 TTF，供 sharp 渲染 2007 年的光泽 logo（sharp 读不了 WOFF，直接传会静默换成默认字体）。
+- 调制解调器：`src/eras/modem.js` 是作用于 `/eras/` 的 Service Worker，只放慢 1996 和 1999 两年：一条共享的线、最多四个连接、每个响应前 250 ms，速率按"连接速度 ÷ 8 × 0.85"。默认 1996 是 28.8k、1999 是 56K（按 48,000 bps 计）；访客在 `/eras/dialup.html` 或页脚菜单里换速度，设置存在 Cache Storage。拨号音是 `dialup.js` 用 Web Audio 现场合成的。
+- 内容安全策略不变：所有年代都没有内联脚本或内联样式，"当年会写成 onMouseOver 属性"的东西都改成外部脚本挂事件。早期年份的 HTML 用大写标签，`check.mjs` 的正则因此全部不区分大小写。
+- 访客计数器（1996、1999）请求 `/api/counter`（hunt Worker，见下文"解谜"），接口不通时计数器保持隐藏。
+- 检查：每年都要有 `index.html`，目录要链接到每一年，年代页都带 `noindex`，年代脚本里不许出现 `innerHTML` 之类把留言文字当 HTML 的写法。
+- 加一个年份：在 `eras.json` 里按顺序加一项，写 `scripts/eras/y<年份>.mjs` 并在 `index.mjs` 的 `builders` 里登记，静态文件放 `src/eras/<年份>/`。各年份页面里的 "Time ring" 会自动接上前后年份。
+
+## 解谜（/strata/）
+
+`/strata/` 是一场藏在站里的解谜游戏的枢纽页：一张山体剖面，地表是现在的站（2026），往下依次是其他年代，最底下是"基岩"（HTTP、邮件、DNS、电话线）。每一层埋着一道题，每道题的答案填进本层的格子；从峰顶往下打的钻孔穿过每层一个字母，连起来是最后一步的指令。最后一步在拨号页完成；拨通后，终端（BBS）会先核对来电者在这个浏览器里解开了多少层（交给 Worker 重新校验），够数才让插旗。旗只有编号、日期和颜色，没有文字，所以不需要审核。枢纽页带 `noindex`、不进 sitemap，入口在 `/eras/` 页底、404 页的源代码和 `robots.txt`。
+
+- **答案不在这个仓库里。** 仓库是公开的，所以这里只有访客本来就能看到的谜面数据和答案的 HMAC 哈希。答案、解法、提示、解开后才显示的文字都在本机私有目录 `D:\Claude\g3rry.com-hunt\`（本地 git，不推送）：`SOLUTIONS.md` 是完整设计和解法，`hunt.mjs` 是唯一来源。
+- **不要手改** `content/strata.json`、`content/strata/puzzles.json`、`hunt/src/answers.js`：它们由 `node D:\Claude\g3rry.com-hunt\hunt.mjs` 生成（生成器会逐题断言提取结果正确）。改谜题、改答案、改提示都在私有目录里改，再重新生成、构建。
+- 各年代里埋题的地方都带注释 `Strata (<题目 id>)`，在 `scripts/eras/` 和 `src/eras/` 里搜 "Strata (" 就能找到；注释不写机制，机制只在私有解法书里。改这些年代页时注意不要碰坏它们。`check.mjs` 会检查枢纽页、入口、`robots.txt` 指向的目录、每题的答案哈希，以及这些页面都带 CSP、没有内联脚本和样式。
+- 发布前在私有目录跑 `node audit.mjs`：它像读源代码的玩家一样，从 `dist/` 把站内能解的题全部解一遍；再扫描整个 `dist/` 和仓库里相关的源文件（含测试和文档），确认没有答案明文。有任何问题就以非零状态退出。
+- 枢纽页每层有"护林员的笔记"（提示），每层三条，两条之间要隔两分钟才能再要；解开一层后显示一段相关的真实历史（field note）。提示和历史都存在 D1 里，由私有种子写入。
+- 拨号页（`/eras/dialup.html`）可以拨别的号码，可以用键盘打字母（按电话键盘换成数字），也可以点拨号盘（每个键会响它自己的双音频）。号码交给 hunt Worker 判断，拨对了由 `src/eras/board.js` 显示终端。
+- 后端是 `hunt/` 里的 Worker（`g3rry.com/api/hunt*`、`g3rry.com/api/counter*`），D1 数据库 `hunt`。接口列表写在 `hunt/src/index.js` 开头。限流：校验答案每个地址每分钟 20 次、每层每天答错 60 次；拨号每分钟 10 次；每个地址每天最多插 3 面旗。发往 `ranger@g3rry.com` 的邮件由同一个 Worker 自动回信：只回给人（自动回复、邮件列表、退信都不回），只回给 DMARC 通过、且信封地址和发件域名对得上的发件人；每人每天最多 3 封，全站每天最多 200 封。测试：`cd hunt; npm test`（Miniflare，用的是假数据）。
+- 本地试玩：先 `npm run build`，再用 `.claude/launch.json` 里的 `hunt-api`（端口 7790，读私有目录的密钥和种子）和 `preview-hunt`（端口 4176）。这台机器上 8770–9680 端口被 Windows 保留，所以本地 API 用 7790。
+
+已于 2026-11-10 上线：D1 `hunt`、Worker `hunt`、Email Routing 规则 `ranger@g3rry.com` → Worker `hunt`、`summits` 的 8 条 LOC 和 1 条 TXT 记录（仅 DNS）。以后：
+
+```powershell
+cd hunt
+npx wrangler d1 migrations apply hunt --remote     # 新增了 migrations/ 下的文件时
+npx wrangler d1 execute hunt --remote --yes --file D:\Claude\g3rry.com-hunt\seed.sql   # 改了 hunt.mjs 里的文字（重定向链、回信、BBS、提示、历史）
+npx wrangler deploy                                # 改了 hunt/src/ 或重新生成了 answers.js
+```
+
+改了种子不用重新部署（Worker 每分钟重读一次）。DNS 记录要改时，`hunt.mjs` 会同时生成 `summits.zone`（BIND 格式）：在 Cloudflare 后台 DNS → Records 删掉 `summits` 的旧记录，再用 Import 导入这个文件（不要勾 Proxy）。密钥在 `D:\Claude\g3rry.com-hunt\secrets.local.json`；要换密钥，用 `npx wrangler deploy --secrets-file <那个文件>`，再重新生成、部署 answers.js（答案哈希依赖密钥）。
 
 ## 发布
 
