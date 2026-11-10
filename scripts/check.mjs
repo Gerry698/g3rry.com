@@ -23,7 +23,7 @@ async function walk(directory, prefix = '') {
 }
 const files = await walk(dist);
 const exactFiles = new Set(files);
-const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain', 'legacy']);
+const allowedRoots = new Set(['index.html', '404.html', 'favicon.svg', 'robots.txt', 'sitemap.xml', 'CNAME', '.nojekyll', 'assets', 'photos', 'guestbook', 'Photo', 'phantom', 'mountain', 'legacy', 'eras', 'strata']);
 for (const file of files) assert(allowedRoots.has(file.split('/')[0]), 'Unexpected published file: ' + file);
 assert.equal(report.photoCount, photos.length, 'Build report must match the current manifest.');
 assert.equal(report.photos.length, photos.length);
@@ -31,7 +31,8 @@ const htmlFiles = files.filter(file => file.endsWith('.html'));
 const htmlByFile = new Map(await Promise.all(htmlFiles.map(async file => [file, await readFile(path.join(dist, file), 'utf8')])));
 
 function targetFor(value, from) {
-  if (/^(?:https?:|mailto:|tel:|data:)/i.test(value)) return null;
+  // /api/ is answered by Workers (the guestbook, the hunt), not by files.
+  if (/^(?:https?:|mailto:|tel:|data:)/i.test(value) || value.startsWith('/api/')) return null;
   const url = new URL(value.replaceAll('&amp;', '&'), 'https://site.test/' + from);
   const target = decodeURIComponent(url.pathname).replace(/^\//, '');
   return { target: target.endsWith('/') || !target ? target + 'index.html' : target, hash: decodeURIComponent(url.hash.slice(1)) };
@@ -39,11 +40,12 @@ function targetFor(value, from) {
 let checkedLinks = 0;
 for (const [file, html] of htmlByFile) {
   assert(!/\{\{[A-Z_]+\}\}/.test(html), 'Unresolved template in ' + file);
-  assert(/<html lang="[^"]+"/.test(html), 'Missing document language: ' + file);
-  assert(/<title>[^<]+<\/title>/.test(html), 'Missing title: ' + file);
-  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+  assert(/<html lang="[^"]+"/i.test(html), 'Missing document language: ' + file);
+  // Case-insensitive throughout: the pages under /eras/ for the early years are written in upper-case HTML.
+  assert(/<title>[^<]+<\/title>/i.test(html), 'Missing title: ' + file);
+  const ids = [...html.matchAll(/\bid="([^"]+)"/gi)].map(match => match[1]);
   assert.equal(new Set(ids).size, ids.length, 'Duplicate element ID: ' + file);
-  const references = [...html.matchAll(/\b(?:href|src)="([^"]+)"/g)].map(match => match[1]);
+  const references = [...html.matchAll(/\b(?:href|src|background)="([^"]+)"/gi)].map(match => match[1]);
   for (const match of html.matchAll(/\bsrcset="([^"]+)"/g)) references.push(...match[1].split(',').map(candidate => candidate.trim().split(/\s+/)[0]));
   for (const reference of references) {
     const result = targetFor(reference, file);
@@ -54,9 +56,9 @@ for (const [file, html] of htmlByFile) {
     }
     checkedLinks++;
   }
-  for (const match of html.matchAll(/<img\b[^>]*>/g)) {
-    assert(/\balt="[^"]*"/.test(match[0]), 'Image missing alt: ' + file);
-    assert(/\bwidth="\d+"/.test(match[0]) && /\bheight="\d+"/.test(match[0]), 'Image dimensions missing: ' + file);
+  for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
+    assert(/\balt="[^"]*"/i.test(match[0]), 'Image missing alt: ' + file);
+    assert(/\bwidth="\d+"/i.test(match[0]) && /\bheight="\d+"/i.test(match[0]), 'Image dimensions missing: ' + file);
   }
 }
 const home = htmlByFile.get('index.html');
@@ -65,10 +67,10 @@ assert.equal([...gallery.matchAll(/\bdata-photo="/g)].length, photos.length, 'Ev
 assert(/<dialog\b/.test(gallery) && /id="dialog-close"/.test(gallery), 'Gallery dialog controls are missing.');
 const legacy = htmlByFile.get('legacy/index.html');
 assert(/id="phantom-shape" disabled/.test(legacy), 'No-JavaScript shape selector must be disabled.');
-// The earlier home page stays reachable at /legacy/ but out of sight: not indexed, not in the sitemap, linked from nowhere.
+// The earlier home page stays reachable at /legacy/ but out of sight: not indexed, not in the sitemap, linked only from /eras/ (as 2025).
 assert(legacy.includes('name="robots" content="noindex"'), 'The legacy home page must not be indexed.');
 assert(!(await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes('/legacy/'), 'The legacy home page stays out of the sitemap.');
-for (const [file, html] of htmlByFile) assert(!html.includes('href="/legacy/'), 'Nothing links to the legacy home page: ' + file);
+for (const [file, html] of htmlByFile) if (!file.startsWith('eras/')) assert(!/href="\/legacy\//i.test(html), 'Only the other years link to the legacy home page: ' + file);
 assert(home.includes('name="description"') && gallery.includes('rel="canonical"'), 'SEO metadata is missing.');
 assert(htmlByFile.get('Photo/gallery.html').includes('http-equiv="refresh"'), 'Old gallery must work without JavaScript.');
 assert(htmlByFile.get('404.html').includes('name="robots" content="noindex"'), 'The 404 page must not be indexed.');
@@ -120,6 +122,54 @@ assert(guestbookScript, 'Guestbook script is missing.');
 assert.doesNotMatch(await readFile(path.join(dist, guestbookScript), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'The guestbook script must not build HTML from strings.');
 // Cloudflare's dummy site keys pass every visitor in the browser and are refused by the production secret.
 if (process.env.CI) assert(!/^[123]x0{20}/.test(siteKey), 'The guestbook still uses a Turnstile testing key.');
+
+// Other years: every year has a home page, its pages stay out of search results, the dial links to each year, and
+// the scripts that show guestbook notes never turn note text into HTML.
+const eraYears = JSON.parse(await readFile(path.join(root, 'content/eras.json'), 'utf8')).eras.map(era => era.year);
+const dial = htmlByFile.get('eras/index.html');
+assert(dial && sitemap.includes(new URL('/eras/', site.url).href) && !dial.includes('noindex'), 'The /eras/ dial is public and in the sitemap.');
+for (const year of eraYears) {
+  assert(htmlByFile.has('eras/' + year + '/index.html'), 'Year without a home page: ' + year);
+  assert(dial.includes('href="/eras/' + year + '/"'), 'The dial does not link to ' + year);
+}
+// The ring ends on the site's own versions: 2025 is the earlier home page, 2026 the mountain.
+const eraVersions = JSON.parse(await readFile(path.join(root, 'content/eras.json'), 'utf8')).versions;
+assert.deepEqual(eraVersions.map(version => [version.year, version.href]), [[2025, '/legacy/'], [2026, '/']], 'The last two years are the legacy page (2025) and the home page (2026).');
+for (const version of eraVersions) assert(dial.includes('href="' + version.href + '"'), 'The dial does not link to ' + version.year);
+for (const [file, html] of htmlByFile) {
+  if (file.startsWith('eras/') && file !== 'eras/index.html') assert(/<meta name="robots" content="noindex"/i.test(html), 'Pages of other years are not indexed: ' + file);
+}
+for (const file of files.filter(file => /^(eras|strata)\//.test(file) && file.endsWith('.js'))) {
+  assert.doesNotMatch(await readFile(path.join(dist, file), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function/, 'Era and Strata scripts must not build HTML from strings: ' + file);
+}
+// The other years and Strata live under the same Content Security Policy as the rest of the site: every page carries
+// it, and none relies on inline script, inline style or inline event handlers it would block.
+for (const [file, html] of htmlByFile) {
+  if (!/^(eras|strata)\//.test(file)) continue;
+  assert(/http-equiv="Content-Security-Policy"/i.test(html), 'Missing Content-Security-Policy: ' + file);
+  assert(!/<script\b(?![^>]*\bsrc=)[^>]*>/i.test(html), 'Inline script: ' + file);
+  assert(!/<[a-z][^>]*\sstyle=/i.test(html) && !/<style\b/i.test(html), 'Inline style: ' + file);
+  assert(!/<[a-z][^>]*\son[a-z]+=/i.test(html), 'Inline event handler: ' + file);
+}
+// Images and fonts named in era and Strata stylesheets exist.
+for (const file of files.filter(file => /^(eras|strata)\//.test(file) && file.endsWith('.css'))) {
+  for (const match of (await readFile(path.join(dist, file), 'utf8')).matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/g)) {
+    if (/^(data:|https?:|#|%23)/i.test(match[1])) continue;
+    const target = match[1].startsWith('/') ? match[1].slice(1) : path.posix.join(path.posix.dirname(file), match[1]);
+    assert(exactFiles.has(target.split(/[?#]/)[0]), 'Missing file named in ' + file + ': ' + match[1]);
+  }
+}
+
+// Strata (/strata/), the hunt: its hub stays out of the index and the sitemap and is reached from /eras/. The puzzle
+// data comes from the private solution book; the repository holds only keyed hashes of the answers.
+const strataRows = JSON.parse(await readFile(path.join(root, 'content/strata.json'), 'utf8')).rows;
+const hub = htmlByFile.get('strata/index.html');
+assert(hub && hub.includes('name="robots" content="noindex"') && !sitemap.includes('/strata/'), 'The Strata hub is out of the index and the sitemap.');
+assert(dial.includes('href="/strata/"'), 'The /eras/ dial leads to Strata.');
+assert.equal([...hub.matchAll(/<li class="stratum /g)].length, strataRows.length, 'One stratum on the hub per row of content/strata.json.');
+assert((await readFile(path.join(dist, 'robots.txt'), 'utf8')).includes('Disallow: /eras/1996/private/') && htmlByFile.has('eras/1996/private/index.html'), 'robots.txt points at the private folder, and it exists.');
+const answerHashes = await readFile(path.join(root, 'hunt/src/answers.js'), 'utf8');
+for (const row of strataRows) assert(new RegExp('"' + row.id + '": "[0-9a-f]{64}"').test(answerHashes), 'No answer hash for ' + row.id);
 
 let derivedBytes = 0;
 for (const photo of photos) {

@@ -1,0 +1,107 @@
+{
+  "title": "Other years — Gerry Zhao",
+  "description": "The same site, the same photographs and the same notes, built again as it would have been built in eight earlier years of the web.",
+  "intro": {
+    "kicker": "Other years",
+    "title": "The same site,\nbuilt ten times.",
+    "text": "The first eight years below are working copies of this site: the same eighteen photographs, the same guestbook, read live, each made only with what the web of that year had, its screens, its speeds and its habits. The last two are the real thing, the site as it was and as it is. View the source; that is part of it."
+  },
+  "eras": [
+    {
+      "year": 1996,
+      "name": "The home page",
+      "line": "Tables, a starfield, a hit counter. Pictures arrive at modem speed.",
+      "dial": true,
+      "colophon": [
+        "In 1996 most visitors came through a 28.8k modem, about three kilobytes a second, on a 640 × 480 or 800 × 600 screen that often showed only 256 colours. Netscape Navigator held most of the market; Internet Explorer 3 arrived in August. CSS1 became a recommendation in December, too late to matter here.",
+        "So the page is HTML 3.2: tables for layout, font tags, a tiled background, GIF images reduced to 256 colours with dithering, and JPEGs that build up as they load. A service worker on this site plays the part of the modem, sharing one slow line between four connections, so the photographs arrive the way they did."
+      ]
+    },
+    {
+      "year": 1999,
+      "name": "Frames and rollovers",
+      "line": "A splash page, a frameset, buttons that light up under the pointer.",
+      "dial": true,
+      "colophon": [
+        "By 1999 the V.90 standard had made 56k modems normal, Internet Explorer 5 had overtaken Netscape, and 800 × 600 was the screen to design for. Sites opened on a splash page and split into frames: a fixed menu on the left, content on the right.",
+        "Buttons were pairs of images swapped by JavaScript on mouse-over, preloaded so the swap was instant. Colours came from the 216 that looked the same on Mac and Windows. Spacer GIFs, one transparent pixel stretched to size, held the tables in shape."
+      ]
+    },
+    {
+      "year": 2003,
+      "name": "Skip intro",
+      "line": "A loading bar, an intro you can skip, pixel fonts at nine pixels.",
+      "colophon": [
+        "In 2003 Internet Explorer had more than nine tenths of the market, most of it version 6, broadband was reaching homes, and 1024 × 768 had become the common screen. The ambitious sites were Flash: a loading bar, an animated intro, a link to skip it, sound you could turn off.",
+        "The same year the web standards movement made its case: CSS Zen Garden opened in May and Designing with Web Standards came out. This version has both: the intro is drawn on a canvas where Flash once was, and the site behind it is a fixed 760-pixel layout in CSS, set in tiny Verdana and pixel type."
+      ]
+    },
+    {
+      "year": 2007,
+      "name": "Web 2.0",
+      "line": "Glossy buttons, reflections, a tag cloud and a beta badge.",
+      "colophon": [
+        "In 2007 the word was Web 2.0. Interfaces were glossy: buttons with a highlight across the top half, rounded corners cut from images because Internet Explorer could not draw them, wet-floor reflections, gradients, large friendly type and a beta badge on everything.",
+        "Photographs opened in a lightbox over a dimmed page. Tags were weighted into clouds, pages refreshed parts of themselves with a spinner, and every sidebar had a feed icon. The iPhone came out in June; this page was still built for a 1024-pixel desktop."
+      ]
+    },
+    {
+      "year": 2011,
+      "name": "Linen and leather",
+      "line": "Stitched leather, letterpress type, Polaroids pinned to cork.",
+      "colophon": [
+        "In 2011 interfaces imitated objects. Phones had leather calendars and felt card tables, desktops had grey linen, and the web followed with stitched edges, paper textures and letterpress headings pressed in with text-shadow.",
+        "CSS3 made it possible without images: rounded corners, shadows and gradients, written three times over with -webkit-, -moz- and -o- prefixes. Web fonts had just arrived. Photographs came with faded, warm filters and white borders, the way a new photo app had taught everyone to like them."
+      ]
+    },
+    {
+      "year": 2014,
+      "name": "Flat",
+      "line": "One long page, a full-screen photograph, ghost buttons and a hamburger.",
+      "colophon": [
+        "By 2014 the textures were gone. Flat design had arrived on phones the year before, and sites became one long scrolling page: a full-screen photograph with the title over it, a thin outlined button, a three-line menu icon even on wide screens, sections in solid colour.",
+        "Layouts were responsive by default, built on a twelve-column grid, set in light humanist sans-serifs and decorated with icon fonts. Backgrounds moved slower than the page as you scrolled."
+      ]
+    },
+    {
+      "year": 2018,
+      "name": "Cards",
+      "line": "Material cards, a floating button, a cookie banner and a newsletter.",
+      "colophon": [
+        "In 2018 the page was a stack of cards that cast shadows according to their height, with one round floating action button, and ripples where you touched. Long text was set like a magazine column with large serif type.",
+        "On 25 May the GDPR took effect and banners about cookies appeared on almost every site, including many that set none. A modal asked you to subscribe to a newsletter. Flat illustrations of people with laptops filled the empty spaces."
+      ]
+    },
+    {
+      "year": 2023,
+      "name": "Bento",
+      "line": "Dark glass, a bento grid, a command palette on ⌘K.",
+      "colophon": [
+        "In 2023 the personal site was dark by default. Content sat in a bento grid of rounded tiles, some frosted like glass over soft blurred gradients, set in a neutral grotesque. A command palette opened with ⌘K.",
+        "Browsers had caught up with the designers: view transitions animated from one page to the next, and CSS had nesting, container queries and the :has() selector. Underneath it was usually a JavaScript framework; this one is not."
+      ]
+    }
+  ],
+  "versions": [
+    {
+      "year": 2025,
+      "href": "/legacy/",
+      "name": "Photographs first",
+      "line": "The site before the mountain: one large photograph, the selected frames, a particle toy.",
+      "colophon": [
+        "The first g3rry.com opened on a single photograph beside a short introduction, followed by a grid of selected frames and a small experiment: a thousand points of light that gather into a shape and scatter under the pointer.",
+        "It is plain HTML, CSS and JavaScript with no framework, generated by a Node script that resizes every photograph into AVIF, WebP and JPEG at several widths. A strict Content-Security-Policy keeps out scripts, fonts and images from other sites. It is kept at its own address, unchanged."
+      ]
+    },
+    {
+      "year": 2026,
+      "href": "/",
+      "name": "The mountain",
+      "line": "The site as it is: one mountain in WebGL2, a camp for each part of it.",
+      "colophon": [
+        "The home page is now a mountain drawn in WebGL2. Scroll, click or swipe and the camera climbs a switchback trail from camp to camp, from dawn at the trailhead to night at the summit, where the guestbook is.",
+        "The mountain is generated, not modelled: the same code grows the same peaks, trees, trail and river every time. Below the clouds it follows the visitor’s own clock and the day’s weather. There is still no framework and no runtime dependency."
+      ]
+    }
+  ]
+}
