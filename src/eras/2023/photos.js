@@ -34,5 +34,5 @@ for (const shot of document.querySelectorAll('.shot')) shot.addEventListener('cl
 document.querySelector('#viewer-close').addEventListener('click', hide);
 viewer.addEventListener('click', event => { if (event.target === viewer) hide(); });
 viewer.addEventListener('cancel', event => { event.preventDefault(); hide(); });
-const deep = location.hash && document.getElementById(location.hash.slice(1));
+const deep = location.hash ? document.getElementById(location.hash.slice(1)) : null;
 if (deep?.classList.contains('shot')) show(deep);

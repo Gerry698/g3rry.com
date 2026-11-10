@@ -59,10 +59,10 @@ export async function buildStrata(ctx) {
 
   // The mountain's profile, wide enough to reach both edges of the section; its peak stands above the borehole and
   // its rock is the surface stratum, so the strata below read as the inside of the same mountain.
-  const ridge = '<div class="ridge" aria-hidden="true"><svg viewBox="0 0 1600 150" focusable="false">'
-    + '<path class="ridge-rock" d="M0 124 L90 112 L160 118 L250 96 L310 104 L390 84 L450 92 L520 70 L580 78 L640 52 L700 60 L752 30 L800 6 L830 28 L858 21 L900 48 L960 40 L1030 66 L1090 58 L1160 84 L1240 78 L1320 100 L1400 94 L1480 112 L1600 118 L1600 150 L0 150 Z"/>'
-    + '<path class="ridge-snow" d="M786 22 L800 6 L816 25 L808 21 L801 31 L794 23 Z"/>'
-    + '<g class="summit-flags" id="summit-flags" data-peak="800" data-top="6"></g></svg></div>';
+  const ridge = '<div class="ridge" aria-hidden="true"><svg viewBox="0 0 3200 150" focusable="false">'
+    + '<path class="ridge-rock" d="M0 130 L180 124 L360 128 L540 118 L700 123 L800 124 L890 112 L960 118 L1050 96 L1110 104 L1190 84 L1250 92 L1320 70 L1380 78 L1440 52 L1500 60 L1552 30 L1600 6 L1630 28 L1658 21 L1700 48 L1760 40 L1830 66 L1890 58 L1960 84 L2040 78 L2120 100 L2200 94 L2280 112 L2400 118 L2560 124 L2760 119 L2950 127 L3200 123 L3200 150 L0 150 Z"/>'
+    + '<path class="ridge-snow" d="M1586 22 L1600 6 L1616 25 L1608 21 L1601 31 L1594 23 Z"/>'
+    + '<g class="summit-flags" id="summit-flags" data-peak="1600" data-top="6"></g></svg></div>';
 
   const rowHtml = row => {
     const depth = strata.indexOf(row.stratum);

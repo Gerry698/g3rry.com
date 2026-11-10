@@ -175,17 +175,13 @@
     'not-in-service': 'The number you have dialed is not in service.',
     'no-answer': 'NO ANSWER'
   };
-  var pretty = function (digits) {
-    var m = /^(1?)(800)(\d{3})(\d+)$/.exec(digits);
-    return m ? (m[1] ? '1-' : '') + m[2] + '-' + m[3] + '-' + m[4] : digits;
-  };
   // The strata this browser has solved go with the call: the board checks them before it offers a flag.
   function route() {
     try { return JSON.parse(localStorage.getItem('strata-solved') || '{}') || {}; } catch (e) { return {}; }
   }
   function dialOther(number, bps) {
     var began = Date.now(), sound = audio(), dialled = dial(sound, number);
-    say('Dialing ' + pretty(number) + '...', 0.1);
+    say('Dialing ' + (other.value.trim().toUpperCase() || number) + '...', 0.1); // as typed, letters and all
     var reply = fetch('/api/hunt/dial', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ number: number, solved: route() }) })
       .then(function (response) {
         if (response.ok) return response.json();

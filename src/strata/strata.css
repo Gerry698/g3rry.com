@@ -10,7 +10,7 @@
 /* The section: the mountain's profile on top, the strata inside it; the borehole runs down the boxes' column. */
 .section-view { position: relative; margin-top: 64px; }
 .ridge { position: relative; height: 150px; overflow: hidden; }
-.ridge svg { position: absolute; top: 0; width: 1600px; height: 150px; left: calc(100% - 1.2rem - (var(--cells) - var(--lead) - .5) * var(--cell) - 800px); overflow: visible; }
+.ridge svg { position: absolute; top: 0; width: 3200px; height: 150px; left: calc(100% - 1.2rem - (var(--cells) - var(--lead) - .5) * var(--cell) - 1600px); overflow: visible; }
 .ridge-rock { fill: var(--surface-tone); }
 .ridge-snow { fill: var(--paper); opacity: .9; }
 .summit-flags line { stroke: var(--paper); stroke-width: 1.2; }
@@ -83,7 +83,7 @@
 @media (max-width: 860px) {
   .strata { padding-block: 56px 80px; }
   .stratum { grid-template-columns: minmax(0, 1fr); gap: 1.1rem; padding-inline: .9rem; }
-  .ridge svg { left: calc(.9rem + (var(--lead) + .5) * var(--cell) - 800px); }
+  .ridge svg { left: calc(.9rem + (var(--lead) + .5) * var(--cell) - 1600px); }
   .strata-list::after { right: auto; left: calc(.9rem + (var(--lead) + .5) * var(--cell)); opacity: .5; }
   .stratum-text { position: relative; z-index: 3; background: var(--layer); padding-right: .5rem; }
   .answer input { width: 100%; max-width: 16rem; }
