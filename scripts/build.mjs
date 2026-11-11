@@ -183,6 +183,15 @@ const mountainFiles = await assetFolder('mountain', 'mountain', {
   'social.jpg': 'src/mountain/social.jpg'
 });
 const mountainSocial = mountainFiles.find(file => file.endsWith('/social.jpg'));
+// The mountain's recordings (content/sound, sources in CREDITS.md there), each hashed on its own so a change to the
+// page's code does not send them again; the page gets their addresses as a name-to-URL map.
+const mountainSounds = {};
+for (const file of (await readdir(path.join(root, 'content/sound'))).filter(file => file.endsWith('.mp3')).sort()) {
+  const bytes = await readFile(path.join(root, 'content/sound', file)), name = file.slice(0, -4);
+  const url = '/assets/sound/' + name + '-' + digest(bytes) + '.mp3';
+  await output(url.slice(1), bytes);
+  mountainSounds[name] = url;
+}
 const labFiles = await assetFolder('phantom', 'phantom');
 // Lab data (depth maps, point clouds) is optional per item until it has been generated with tools/phantom-data.
 async function labData(relative) {
@@ -342,7 +351,7 @@ await output('index.html', replace(await readFile(path.join(root, 'src/mountain/
   PRELOADS: [...mountainFiles.filter(file => file.endsWith('.woff2')).map(file => '<link rel="preload" href="' + file + '" as="font" type="font/woff2" crossorigin>'),
     ...mountainFiles.filter(file => file.endsWith('.js') && file !== mountainScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">')].join('\n  '),
   INTRO_KICKER: escape(mountain.intro.kicker), INTRO_TITLE: lines(mountain.intro.title), INTRO_DESCRIPTION: escape(mountain.intro.description),
-  INTRO_HINT: escape(mountain.intro.hint), CAMPS: camps.join('\n        '), BEYOND: beyond.join('\n        ')
+  INTRO_HINT: escape(mountain.intro.hint), CAMPS: camps.join('\n        '), BEYOND: beyond.join('\n        '), SOUNDS: escape(JSON.stringify(mountainSounds))
 }));
 // The mountain used to live at /mountain/: old links, camp links (#photography) included, land on the home page.
 const movedCode = Buffer.from("location.replace('/' + location.hash);\n");

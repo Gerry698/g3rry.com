@@ -350,12 +350,15 @@ void main() {
   // Through the air its markings are fainter: the air lays the same scattered light over dark and pale alike.
   albedo = mix(albedo, vec3(.6, .59, .56), .15 * air);
   vec3 color = albedo * (uOrbColor * lit * 2.6 + uOrbShade);
+  float cover = hit.w;
   if (air > 0.) {
     // The lower it stands, the longer its light's way through the air: dimmer, and warmer, the blue lost first.
     float mass = 1. / (max(rd.y, 0.) + .1);
     color *= mix(vec3(1), exp(-vec3(.035, .065, .13) * mass), air);
+    // Under the horizon it is hidden: rising, it comes up over it a slice at a time.
+    cover *= mix(1., smoothstep(-.0012, .0045, rd.y), air);
   }
-  outColor = vec4(color * uOrbPower.x * hit.w, uOrbPower.y * hit.w);
+  outColor = vec4(color * uOrbPower.x * cover, uOrbPower.y * cover);
 }`;
 
 

@@ -66,7 +66,10 @@ float lowFogAlong(float y0, float y1) {
 vec3 lowAir(vec3 color, vec3 haze, float amount, vec3 world) {
   vec3 ray = world - uCamPos;
   float dist = length(ray), w = underDeck(world);
-  float fog = uLowAir.x * lowFogAlong(uCamPos.y, world.y) * max(dist - 2.5, 0.);
+  // The top of the valley air is not level: it rises in banks and sinks in hollows over the ground. A level top seen
+  // from a lens at its own height (the trailhead, on a foggy day) is a ruled line straight across the frame.
+  float bank = (sin(world.x * .55 + world.z * .35) + sin(world.z * .9 - world.x * .5) * .6 + sin(world.x * 1.9 + world.z * 1.6) * .3) * .32;
+  float fog = uLowAir.x * lowFogAlong(uCamPos.y - bank, world.y - bank) * max(dist - 2.5, 0.);
   if (w <= 0. && fog <= 0.) return mix(color, haze, clamp(amount, 0., 1.));
   // The air clears around the camp being visited, as the clouds part for it.
   vec3 toFocus = world - uFocus.xyz;
@@ -98,8 +101,10 @@ vec3 lowCloud(vec3 color, float lit, vec3 world) {
   float under = smoothstep(uDeck.x + uDeck.y, uDeck.x - uDeck.y, uCamPos.y);
   float w = mix(underDeck(world) * (1. - .3 * lit), max(underDeck(world), uGloom * smoothstep(uDeck.x + 1.6, uDeck.x, world.y)), under);
   if (w > 0.) color = mix(color, uLowCloud * mix(uLowAmbSky * 1.1, uLowKeyColor * .55 + uLowAmbSky * .6, lit) + FLASH * flashAt(world) * (.6 + .6 * lit), w);
-  // Cloud above the deck, seen from under it, is behind the deck.
-  if (under > 0. && world.y > uDeck.x) { vec3 d = normalize(world - uCamPos); color = mix(color, lowSky(d), overhead(d)); }
+  // Cloud above the deck, seen from under it, is behind the deck. Eased in over the deck's band, not cut at its
+  // height: a puff that straddles it would show a level line, and a row of them a stripe across the whole frame.
+  float behind = under * smoothstep(uDeck.x - uDeck.y, uDeck.x + uDeck.y * 2., world.y);
+  if (behind > 0.) { vec3 d = normalize(world - uCamPos); color = mix(color, lowSky(d), overhead(d) * behind); }
   return color;
 }
 // The sky seen from under the deck: the valley's own sky towards the horizon, the climb's overhead.
