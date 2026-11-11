@@ -27,8 +27,9 @@ const meters = y => Math.round(900 + y * 340);
 const MOON_KM = 384400, altitudeUnit = document.querySelector('#mountain-altitude + span');
 // Entering a camp's page closes the mountain into black with the camp's own effect (veil.js).
 const VEILS = { photography: 'iris', phantom: 'points', mailboxes: 'envelope', summit: 'tent', trailhead: 'tent', below: 'geode', above: 'eclipse' };
-// Sound is off until the visitor turns it on; the choice and the music are remembered (audio.js).
-const sound = createAudio();
+// Sound is off until the visitor turns it on; the choice and the music are remembered (audio.js). The recordings'
+// addresses come with the page (the build hashes them).
+const sound = createAudio({ sounds: (() => { try { return JSON.parse(document.querySelector('#mountain-sound')?.dataset.sounds || '{}'); } catch { return {}; } })() });
 
 // The loading line climbs as the work is done: modules here, then the scene (built in a worker) and the shaders
 // (compiled by the driver in parallel), then the renderer and the first frame. Between steps it keeps creeping towards
@@ -55,8 +56,6 @@ const loading = (() => {
     if (shown < 1) { frame = nextFrame(tick); return; }
     revealed = true;
     line.classList.add('is-done');
-    // The summit's light comes on with one soft bell, for those who have sound on.
-    sound.play('light');
     setTimeout(() => line.classList.add('is-gone'), 2600);
   };
   const begin = () => {
@@ -222,7 +221,7 @@ async function start() {
     const through = index === BELOW ? 'in' : state.inside ? 'out' : null;
     const space = index === ABOVE ? 'out' : state.index === ABOVE && !state.travel ? 'back' : null;
     // The moon is a long flight; the Heart is a dive, a moment of rock, and an arrival.
-    const duration = reduced.matches ? (through || space ? 1.1 : .7) : space ? 6.4 : through ? 4.4 : travelTime(from, poseAt(index, clock + 2));
+    const duration = reduced.matches ? (through || space ? 1.1 : .7) : space ? (space === 'out' ? 6.4 : 5.6) : through ? 4.4 : travelTime(from, poseAt(index, clock + 2));
     // The flight to the moon is planned as it sets off: where the moon is to be (aimFrom), and the path there or back.
     let track = null;
     if (space === 'out') { const aim = aimFrom(from); renderer.beyond.aim(aim.direction); state.aimed = aim.aimed; }
@@ -236,19 +235,24 @@ async function start() {
     root.classList.toggle('mountain-climbing', stop(index) !== null);
     ui.hint && (ui.hint.hidden = true);
     markRoute(index);
-    sound.play('depart', { from: name(target), to: name(index), up: progressOf(index) + (index === ABOVE ? 1 : 0) > progressOf(target) + (target === ABOVE ? 1 : 0), duration });
     tellSound();
   }
-  // Where the moon is to be for the flight out: the one in the sky, if it is up and ahead over the crest (within 50° of
-  // the way from the lens over the summit), so the moon in view is the moon the lens goes to; otherwise low over the
-  // crest ahead, where it rises into view as the lens comes over the top (and the one in the sky, out of view, fades).
+  // Where the moon is to be for the flight out. The one in the sky, if it is up and anywhere the lens can turn to on
+  // its way over the crest (within 100° of the way from the lens over the summit): the moon in view is the moon it goes
+  // to, wherever it stands, and it never moves. Otherwise (behind the lens, or under the horizon by day) the flight has
+  // its own, over the crest ahead, which comes up over the horizon as the lens climbs (beyond.rise in draw()); the one
+  // in the sky, out of sight behind, fades.
   function aimFrom(pose) {
     const eye = pose.eye || eyeOf(pose);
     let ahead = [summit.x - eye[0], 0, summit.z - eye[2]];
     if (Math.hypot(ahead[0], ahead[2]) < 1) { const target = pose.target; ahead = [target[0] - eye[0], 0, target[2] - eye[2]]; }
     ahead = normalize(ahead);
     const sky = skyPalette(weather.now(), 1), m = sky.moonDir, flat = normalize([m[0], 0, m[2]]);
-    if (sky.moon > .5 && m[1] > .07 && dot(flat, ahead) > Math.cos(50 * Math.PI / 180)) return { direction: m, aimed: true };
+    if (sky.moon > .3 && m[1] > .02 && dot(flat, ahead) > Math.cos(100 * Math.PI / 180)) {
+      // Nearly overhead it is flown to a little lower on the same bearing (the lens is looking ahead then, not up).
+      const high = 70 * Math.PI / 180;
+      return { direction: m[1] > Math.sin(high) ? [flat[0] * Math.cos(high), Math.sin(high), flat[2] * Math.cos(high)] : m, aimed: true };
+    }
     const rise = 15 * Math.PI / 180;
     return { direction: [ahead[0] * Math.cos(rise), Math.sin(rise), ahead[2] * Math.cos(rise)], aimed: false };
   }
@@ -258,7 +262,7 @@ async function start() {
     const at = heading(), next = at + direction;
     // From the valley, under the sky menu, a step up the page leaves for the opening view.
     if (at === VALLEY) { if (direction > 0) go(IDLE); return; }
-    if (!(next >= lowest && next <= highest)) { sound.play('edge'); return; }
+    if (!(next >= lowest && next <= highest)) return;
     if (next === ABOVE || next === BELOW) {
       if (state.travel) return;
       if (!(nudge && nudge.to === next && performance.now() < nudge.until)) { call(next); return; }
@@ -275,7 +279,6 @@ async function start() {
       requestAnimationFrame(() => ui.nudge.classList.add('is-shown'));
     }
     entry.item.classList.add('is-called');
-    sound.play('nudge', { up: index === ABOVE });
     clearTimeout(nudgeTimer);
     nudgeTimer = setTimeout(hideNudge, 4500);
   }
@@ -433,10 +436,12 @@ async function start() {
     state.arrived = clock;
     state.inside = index === BELOW;
     state.sky = index === ABOVE ? 1 : 0;
+    // The pose the next way sets off from is the stop's own: the flight home ends as an eye and a target, and a dive
+    // into the Heart straight on from it (Moonward to the Heart) needs the opening view's own form.
+    current = poseAt(index, clock);
     showCard(index);
     history.replaceState(null, '', entry ? '#' + entry.id : location.pathname + location.search);
     if (entry) prefetch(entry.href);
-    sound.play('arrive', { stop: name(index), model: entry?.model || null });
     tellSound();
     if (onward !== null) { const next = onward; onward = null; go(next); }
   }
@@ -456,7 +461,6 @@ async function start() {
   function enter(index, href, event) {
     const origin = event && event.clientX ? [event.clientX / innerWidth, event.clientY / innerHeight] : [.5, .5];
     const effect = VEILS[stop(index)?.model] || 'tent';
-    sound.play('veil', { effect });
     if (window.g3veil) window.g3veil.leave({ effect, href, origin });
     else location.href = href;
   }
@@ -543,7 +547,7 @@ async function start() {
     if (state.inside) { if (!state.travel) touchPool(event.clientX, event.clientY); return; }
     if (sky.open) return;
     const hit = pick(event.clientX, event.clientY);
-    if (hit !== null) { sound.play('tap'); go(hit); }
+    if (hit !== null) go(hit);
     else if (heading() < items.length - 1) step(1);
   });
   let pointerSeen = -Infinity;
@@ -578,16 +582,16 @@ async function start() {
     else if (event.key === 'Escape') go(IDLE);
     else if (event.key === 'Enter' && !onLink && !state.travel && stop(state.index)?.href) enter(state.index, stop(state.index).href);
   });
-  ui.begin?.addEventListener('click', () => { sound.play('tap'); go(0); });
+  ui.begin?.addEventListener('click', () => go(0));
   // A typed or pasted #camp link climbs (or descends) to that camp.
   addEventListener('hashchange', () => { const index = indexOfHash(); if (index !== null) go(index); });
   for (const [i, entry] of stops) entry.link.addEventListener('click', event => {
     if (i === state.index && !state.travel && entry.href && modified(event)) return;
     event.preventDefault();
-    if (i === state.index && !state.travel && entry.href) enter(i, entry.href, event); else { sound.play('tap'); go(i); }
+    if (i === state.index && !state.travel && entry.href) enter(i, entry.href, event); else go(i);
   });
 
-  // Sound: the switch, and the three kinds of music to choose from.
+  // Sound: the switch, the piano with the air or the air alone, and the volume.
   function setSound(on) {
     sound.setEnabled(on);
     showSound();
@@ -622,9 +626,6 @@ async function start() {
     });
     showSound();
   }
-  // Small sounds for the page's own controls: a tick as the pointer comes onto one.
-  for (const element of document.querySelectorAll('.mountain-route a, .mountain-begin, .mountain-enter, .mountain-sound button, .mountain-sky, .almanac-foot button')) element.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') sound.play('hover'); });
-  ui['card-extra']?.addEventListener('pointerover', event => { if (event.pointerType === 'mouse' && event.target.closest?.('a')) sound.play('hover'); });
   // What the music and the air should be doing, whenever the stop changes.
   function tellSound() {
     const index = heading(), entry = stop(index);
@@ -659,11 +660,12 @@ async function start() {
     const at = mix3(near, far, t);
     if (Math.hypot(at[0] - HEART.at[0], at[2] - HEART.at[2]) > 3.6) return;
     lastTouch = clock;
-    drop(at[0], at[2], 1);
+    drop(at[0], at[2], 1, true);
   }
-  function drop(x, z, strength) {
+  // A drop the visitor made is heard; the pool's own, falling now and then, only seen.
+  function drop(x, z, strength, heard = false) {
     renderer.beyond.drip(x, z, clock, strength);
-    sound.play('drip', { pan: panOf([x, HEART.water, z]), strength });
+    if (heard) sound.play('drip', { pan: panOf([x, HEART.water, z]), strength });
   }
 
   // Rendering
@@ -681,7 +683,7 @@ async function start() {
 
   // Things that happen on their own time: drops from the chamber's roof, shooting stars past the summit.
   const chance = random(97);
-  let nextDrop = 3, meteor = null, nextMeteor = 4, beats = -1, cameraRight = [1, 0, 0], cameraEye = [0, 0, 0], lastHeard = -1, glinted = -Infinity;
+  let nextDrop = 3, meteor = null, nextMeteor = 4, cameraRight = [1, 0, 0], cameraEye = [0, 0, 0], lastHeard = -1;
   const panOf = at => clamp(dot(normalize(sub(at, cameraEye)), cameraRight) * 1.2, -1, 1);
 
   function draw(now) {
@@ -710,8 +712,8 @@ async function start() {
       const e = easeInOut(t);
       state.progress = lerp(travel.fromProgress, progressOf(travel.to), e);
       // On the flight the world below stays in sight over the ridge and goes dark only as the lens climbs away (and
-      // comes back as it falls home).
-      state.sky = travel.track ? (travel.space === 'out' ? smoothstep(.36, .6, t) : 1 - smoothstep(.36, .58, t)) : lerp(travel.fromSky, travel.to === ABOVE ? 1 : 0, e);
+      // comes back, flying home, only once the lens has come round behind the view it is going home to).
+      state.sky = travel.track ? (travel.space === 'out' ? smoothstep(.36, .6, t) : 1 - smoothstep(.42, .6, t)) : lerp(travel.fromSky, travel.to === ABOVE ? 1 : 0, e);
       if (travel.through) inside = (travel.through === 'in') === (t >= .5);
       if (travel.cut) {
         pose = t < .5 ? travel.from : poseAt(travel.to, clock);
@@ -772,14 +774,10 @@ async function start() {
     // The Phantom's points gather into the mark while its camp is visited, and shy away from a moving pointer.
     form = lerp(form, state.index === phantomIndex && !state.travel ? 1 : 0, Math.min(1, delta * (form < .5 ? .9 : 1.6)));
     pointerPower = lerp(pointerPower, performance.now() - pointerSeen < 1200 ? 1 : 0, Math.min(1, delta * 3));
-    if (form > .7 && pointerPower > .6 && now - pointerSeen < 60 && now - glinted > 140) { glinted = now; sound.play('glint', { pan: pointerTarget[0] }); }
     // A chapter that has been called glows where it is, until the call lapses or is answered.
     const called = nudge && now < nudge.until ? nudge.to : at;
     for (const side of [BELOW, ABOVE]) if (Number.isFinite(side)) calls[side] = lerp(calls[side], called === side && !inside ? 1 : 0, Math.min(1, delta * 2.2));
 
-    // The heart keeps time for everything it lights; its beat is heard in the chamber, and faintly at the door.
-    const beat = Math.floor(clock / HEART.period);
-    if (beat !== beats) { beats = beat; if (inside) sound.play('heartbeat', { strength: 1 }); else if (calls[BELOW] > .4) sound.play('heartbeat', { strength: .35 * calls[BELOW] }); }
     if (inside && !state.travel && !reduced.matches && clock > nextDrop && renderer.beyond.drops?.length) {
       const drops = renderer.beyond.drops, k = Math.floor(chance() * drops.length / 3) * 3;
       drop(drops[k], drops[k + 1], .55 + chance() * .45);
@@ -794,7 +792,6 @@ async function start() {
       const fall = normalize([0, 1, 2].map(i => cameraRight[i] * (chance() < .5 ? -1 : 1) * (.5 + chance() * .5) - up[i] * (.25 + chance() * .5)));
       meteor = { start: clock, life: .7 + chance() * .5, from, fall, reach: .16 + chance() * .14 };
       nextMeteor = clock + 5 + chance() * 8;
-      sound.play('meteor', { pan: clamp(dot(from, cameraRight) * 2.5, -1, 1), duration: meteor.life });
     }
     let streak = null;
     if (meteor) {
@@ -806,13 +803,16 @@ async function start() {
       progress: state.progress, settled, pillar: [here.x, here.y, here.z, settled], climber: trailAt(state.progress), climberPower: smoothstep(-.4, 0, state.progress) * ahead * (1 - state.sky),
       ahead, focus: [...(focus || [0, 0, 0]), clearing], pennants, form, pointer: [pointerTarget[0], -pointerTarget[1], reduced.matches ? 0 : pointerPower]
     };
-    // The moon in the sky stays where the hour has it, unless the flight goes to one somewhere else: then that fades
-    // as the lens sets off, and the one it is going to shows over the crest ahead (reveal); the other way coming home.
+    // The moon in the sky stays where the hour has it, unless the flight goes to one of its own (aimFrom: the one in
+    // the sky is behind the lens, or under the horizon). Then that one fades where the lens cannot see it, behind it,
+    // and the flight's own is under the horizon ahead and rises over it as the lens climbs (rise), as if the horizon
+    // were falling away; coming home it sets again, and the hour's moon is back once the lens faces away from it.
     // phase: how far the light on it has turned from the full moon seen from the mountain to the sun out there.
     const flight = travel?.track ? (travel.space === 'out' ? travel.progress : 1 - travel.progress) : state.sky;
-    const stay = !travel?.track || state.aimed ? 1 : travel.space === 'out' ? 1 - smoothstep(.02, .14, travel.progress) : smoothstep(.84, .98, travel.progress);
-    const reveal = !travel?.track || state.aimed ? 0 : travel.space === 'out' ? smoothstep(.14, .3, travel.progress) : 1 - smoothstep(.62, .8, travel.progress);
-    const beyond = { inside, sky: state.sky, skyCall: calls[ABOVE] || 0, coreCall: calls[BELOW] || 0, meteor: streak, calm: reduced.matches, stay, reveal, phase: smoothstep(.4, .8, flight) };
+    const own = travel?.track && !state.aimed, outward = travel?.space === 'out', gone = travel?.progress || 0;
+    const stay = !own ? 1 : outward ? 1 - smoothstep(.01, .1, gone) : smoothstep(.84, .98, gone);
+    const rise = !own ? 1 : outward ? smoothstep(.13, .46, gone) : 1 - smoothstep(.3, .56, gone);
+    const beyond = { inside, sky: state.sky, skyCall: calls[ABOVE] || 0, coreCall: calls[BELOW] || 0, meteor: streak, calm: reduced.matches, stay, rise, phase: smoothstep(.4, .8, flight) };
     // A strike of lightning, and its thunder after it, by as long as the sound takes to come from there.
     const strike = storm.tick(clock, heaven);
     if (strike && !inside) {
@@ -854,10 +854,13 @@ async function start() {
     if (sound.enabled && clock - lastHeard > .12) {
       lastHeard = clock;
       const valleySky = heaven, presence = 1 - smoothstep(1, camps.length - 1, state.progress);
-      sound.listener({
-        eye, right: cameraRight, inside, height: eye[1], sky: state.sky, moving: travel ? Math.sin(Math.PI * travel.progress) : 0,
-        fall: scene.water.foot, fire: fireAt, weather: valleySky.kind, intensity: valleySky.intensity * presence, ground: groundHeard(eye)
-      });
+      // The sound never stops the picture: whatever goes wrong in it stays in it.
+      try {
+        if (eye.every(Number.isFinite)) sound.listener({
+          eye, right: cameraRight, inside, height: eye[1], sky: state.sky, moving: travel ? Math.sin(Math.PI * travel.progress) : 0,
+          fall: scene.water.foot, weather: valleySky.kind, intensity: valleySky.intensity * presence, ground: groundHeard(eye)
+        });
+      } catch (error) { console.error(error); }
     }
 
     // Adaptive resolution: step down when frames run long, recover slowly.
@@ -873,8 +876,6 @@ async function start() {
   // the trail they fade out from Camp II to just past Camp III, in the free camera with height, and out at the moon.
   const third = camps[Math.min(2, camps.length - 1)];
   const groundHeard = eye => (1 - state.sky) * (free ? 1 - smoothstep(third.y - .2, third.y + 1.2, eye[1]) : 1 - smoothstep(1.2, 2.5, state.progress));
-  // The trailhead's fire, for the ears: the first of the props' lights that flickers like one.
-  const fireAt = (() => { const l = scene.props.lights; for (let i = 0; i < l.length; i += 8) if (l[i + 7] === 1) return [l[i], l[i + 1], l[i + 2]]; return null; })();
   // The browser's own colour around the page (the status bar, the strip under a toolbar, overscroll) follows the sky
   // at the top of the frame, so the mountain reads edge to edge even where the browser paints a flat colour.
   const themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -889,14 +890,17 @@ async function start() {
 
   let frames = 0, paused = false;
   // High-refresh screens would otherwise redraw up to 240 times a second; ~80 is plenty for a slow orbit.
-  let lastDrawn = -Infinity;
+  let lastDrawn = -Infinity, failed = '';
+  // A frame that throws must not end the loop (the page would freeze where it was); it is reported once.
   const frame = now => {
     if (paused) return;
+    schedule(frame);
     if (now - lastDrawn >= 12) {
-      lastDrawn = now; draw(now); frames++;
+      lastDrawn = now;
+      try { draw(now); } catch (error) { if (String(error) !== failed) { failed = String(error); console.error(error); } }
+      frames++;
       if (frames === 1) loading.done();
     }
-    schedule(frame);
   };
   // Once a transition has covered the window, the mountain stops drawing and leaves the machine to the next page;
   // coming back (from the browser's page cache) picks up where it left off. The sound goes quiet with it.

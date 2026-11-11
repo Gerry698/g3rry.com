@@ -149,8 +149,9 @@ const facing = pose => normalize(sub(pose.target, pose.eye));
 //   Out: it eases forward, rises just over the summit's crest and skims on, level, as the far side falls away under
 //   it, gathering speed; the moon shows over the horizon ahead and the lens lifts and goes for it, faster and faster,
 //   past its edge, then slows round on to the far side and turns, last of all, to look home.
-//   Back: it leaves the far side looking home, falls the long way back fast, slows as the mountain comes up, and
-//   circles round the summit, looking at it all the while, to settle in the view it is coming home to.
+//   Back: it leaves the far side looking home and swings wide round it while the mountain is still dark, coming round
+//   behind the view it is going home to; the mountain shows, and the lens glides straight in along that view's line of
+//   sight, slowing to a stop, with nothing left to turn.
 // The returned function gives the pose at t (0 to 1 of the flight's time), with `rush`, how hard it is going (the lens
 // widens with it), and is handed the live rest pose so the end of the flight meets the slow drift there.
 export function planFlight(ground, rest, moon, terrain, back = false) {
@@ -166,14 +167,19 @@ export function planFlight(ground, rest, moon, terrain, back = false) {
     points = [ground.eye, crest, beyond, climb, near, rest.eye];
     times = [0, .2, .37, .49, .75, 1];
   } else {
-    // Round the summit on the side the view home is on.
-    const offset = sub(ground.eye, summit), across = normalize(cross([0, 1, 0], level));
+    // All the turning is done out in the dark: the lens swings wide round home, well off to the side (never over the
+    // summit, where looking down at it would spin the frame), and comes round behind the view it is going home to,
+    // on that view's own line of sight. By the time the mountain shows it only has to glide straight in along it,
+    // slowing, without turning.
+    const look = facing(ground), offset = sub(ground.eye, summit), across = normalize(cross([0, 1, 0], level));
     const turn = Math.sign(offset[0] * across[0] + offset[2] * across[2]) || 1;
-    const descent = add(summit, add(scale(toward, 70), scale(level, 10)));
-    const front = clear(add(summit, add(scale(level, 13), [0, 4.5, 0])), 2);
-    const round = clear(add(summit, add(scale(across, 11 * turn), add(scale(level, 1), [0, 1.8, 0]))), 1.5);
-    points = [rest.eye, near, descent, front, round, ground.eye];
-    times = [0, .24, .5, .67, .85, 1];
+    const behind = clear(add(ground.eye, add(scale(look, -30), [0, 3, 0])), 3);
+    const homeward = normalize([behind[0] - summit[0], 0, behind[2] - summit[2]]);
+    let wide = add(level, homeward);
+    wide = Math.hypot(...wide) < .3 ? scale(across, turn) : normalize(wide);
+    const swing = add(summit, add(scale(wide, 110), [0, 60, 0]));
+    points = [rest.eye, near, swing, behind, ground.eye];
+    times = [0, .16, .34, .52, 1];
   }
   const path = spline(points), last = points.length - 1;
   // Lengths along the path, to move by distance rather than by the spline's own parameter.
@@ -200,11 +206,12 @@ export function planFlight(ground, rest, moon, terrain, back = false) {
       look = turnTo(look, normalize(sub(center, eye)), smoothstep(.36, .52, t));
       look = turnTo(look, facing(live), smoothstep(.7, .985, t));
     } else {
+      // Home all the way, then, once in line behind the view, that view's own direction; from there on it holds still.
       eye = add(eye, scale(drift, 1 - smoothstep(0, .25, t)));
-      look = turnTo(facing(live), normalize(sub(top, eye)), smoothstep(.02, .22, t));
-      look = turnTo(look, groundLook, smoothstep(.86, 1, t));
+      look = turnTo(facing(live), normalize(sub(top, eye)), smoothstep(.02, .2, t));
+      look = turnTo(look, groundLook, smoothstep(.46, .6, t));
     }
-    const rush = Math.sin(Math.PI * (back ? smoothstep(.12, .62, t) : smoothstep(.38, .86, t))) ** 2;
+    const rush = Math.sin(Math.PI * (back ? smoothstep(.1, .6, t) : smoothstep(.38, .86, t))) ** 2;
     return { eye, target: add(eye, scale(look, 100)), rush };
   };
 }

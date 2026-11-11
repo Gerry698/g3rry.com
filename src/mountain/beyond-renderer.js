@@ -115,17 +115,24 @@ export function createBeyond(gl, scene, quality, glow) {
   function aim(direction = null) { away = spaceMoon([summit.x, summit.y, summit.z], direction); layWay(); }
 
   // Where the moon is in this frame. On the mountain it is far off where the hour puts it. Leaving for it (sky from 0
-  // to 1) it becomes the place the lens is flying to and grows to its own size on the way; if the hour had it under the
-  // horizon, or somewhere else in the sky (beyond.stay going to 0: it fades from there first), it comes out of the dark
-  // ahead instead.
+  // to 1) it becomes the place the lens is flying to and grows to its own size on the way. If the flight goes to a moon
+  // of its own (beyond.stay going to 0 fades the hour's, out of the lens's sight), that one starts under the horizon
+  // ahead and rises over it as the lens climbs (beyond.rise); it never fades in.
   function moonState(frame) {
-    const p = frame.palette, space = clamp(frame.beyond?.sky || 0, 0, 1), come = easeInOut(space), stay = frame.beyond?.stay ?? 1;
-    const ahead = add(top, scale(away.toward, MOON.distance)), far = stay > .5 ? mix3(ahead, add(top, scale(p.moonDir, MOON.distance)), p.moon) : ahead;
+    const p = frame.palette, b = frame.beyond || {}, space = clamp(b.sky || 0, 0, 1), come = easeInOut(space), stay = b.stay ?? 1, own = stay <= .5;
+    const ahead = add(top, scale(risen(away.toward, b.rise ?? 1), MOON.distance)), far = own ? ahead : mix3(ahead, add(top, scale(p.moonDir, MOON.distance)), p.moon);
     // It takes its place early, while it is still small, so the lens can keep it in the middle of the frame all the
     // way; it grows over the whole flight.
     const center = mix3(far, away.center, smoothstep(0, .3, space)), radius = lerp(MOON.radius, away.radius, come * come);
     const toMoon = sub(center, frame.eye), distance = length(toMoon), dir = scale(toMoon, 1 / distance);
-    return { center, radius, dir, size: Math.asin(Math.min(1, radius / distance)), come, space, stay: Math.abs(stay * 2 - 1), reveal: stay > .5 ? 0 : frame.beyond?.reveal || 0, phase: frame.beyond?.phase ?? come };
+    return { center, radius, dir, size: Math.asin(Math.min(1, radius / distance)), come, space, fade: Math.abs(stay * 2 - 1), own, phase: b.phase ?? come };
+  }
+  // A direction lowered to just under the horizon (rise 0) or left where it is (rise 1), on the same bearing.
+  const UNDER = -4 * Math.PI / 180;
+  function risen(direction, rise) {
+    if (rise >= 1) return direction;
+    const flat = normalize([direction[0], 0, direction[2]]), e = lerp(UNDER, Math.asin(clamp(direction[1], -1, 1)), easeInOut(clamp(rise, 0, 1)));
+    return [flat[0] * Math.cos(e), Math.sin(e), flat[2] * Math.cos(e)];
   }
 
   // A turn about an axis, as the world-to-body matrix the shaders want (column-major).
@@ -145,7 +152,10 @@ export function createBeyond(gl, scene, quality, glow) {
   // After the opaque scene and before the clouds, which pass in front of it. veil: how much of it the valley's sky
   // hides when the lens is under the cloud deck (0 none).
   function drawMoon(frame, common, state, veil = 0) {
-    const p = frame.palette, power = Math.max(p.moon * (1 - veil) * state.stay, state.reveal, smoothstep(.02, .3, state.space));
+    // The moon the hour has in the sky; or the flight's own, as bright as the night's and, by day, a pale one coming up
+    // over the horizon (so it is there to rise, not faded in).
+    const p = frame.palette, sky = p.moon * (1 - veil);
+    const power = Math.max((state.own ? Math.max(sky, .55) : sky) * state.fade, smoothstep(.02, .3, state.space));
     if (power < .01) return;
     // From the mountain it is the full moon it is (opposite the sun, weather.js), lit from nearly behind the lens, a
     // little from the left, so only a sliver of its right edge is in shadow and its markings, not its relief, show; and
@@ -159,7 +169,7 @@ export function createBeyond(gl, scene, quality, glow) {
       uOrb: [...state.center, state.radius], uOrbTurn: turned(away.side, .9 + drift), uOrbLight: normalize(mix3(look, away.light, state.phase)),
       // From the mountain a soft-lit disc, as bright against the frame whatever the lens is exposed for; come near, it is dimmed until its plains and craters show in the light.
       uOrbColor: [1, .97, .9].map(c => c * lerp(.38 * Math.min(2, (1.2 / p.exposure) ** .8), .42, state.come)), uOrbShade: [.012, .017, .034].map(c => c * (1 - .55 * state.come)),
-      uOrbPower: [power, Math.max(smoothstep(.3, .9, p.moon), state.reveal, smoothstep(.05, .35, state.space))], uOrbDetail: quality.samples > 1 ? 1 : 0,
+      uOrbPower: [power, Math.max(smoothstep(.3, .9, p.moon), state.own ? .6 * state.fade : 0, smoothstep(.05, .35, state.space))], uOrbDetail: quality.samples > 1 ? 1 : 0,
       uOrbAir: air, uOrbSoft: lerp(1, 2.2, air)
     });
   }
