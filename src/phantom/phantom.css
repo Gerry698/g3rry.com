@@ -28,7 +28,7 @@ ol, ul { padding: 0; list-style: none; }
 
 .lab-skip { position: fixed; top: calc(var(--top) + 8px); left: 12px; z-index: 30; padding: .65rem 1rem; background: var(--paper); color: var(--ink); transform: translateY(-150%); }
 .lab-skip:focus { transform: none; }
-.lab-canvas { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100lvh; display: block; z-index: 0; touch-action: pan-y; }
+.lab-canvas { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100lvh; display: block; z-index: 0; }
 
 /* Viewfinder: frame corners, the focus point and a readout strip, drawn in the DOM so the text stays crisp. */
 .lab-finder { position: fixed; inset: 0; z-index: 3; pointer-events: none; color: #eee9dfb3; font: 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
@@ -43,6 +43,7 @@ ol, ul { padding: 0; list-style: none; }
     linear-gradient(var(--gold), var(--gold)) 0 100% / 7px 1px, linear-gradient(var(--gold), var(--gold)) 0 100% / 1px 7px,
     linear-gradient(var(--gold), var(--gold)) 100% 100% / 7px 1px, linear-gradient(var(--gold), var(--gold)) 100% 100% / 1px 7px;
   background-repeat: no-repeat; opacity: .85; }
+.af.is-off { opacity: 0; }
 .readout { position: absolute; left: var(--edge); right: var(--edge); bottom: calc(var(--bottom) + 16px); display: flex; justify-content: space-between; align-items: baseline; gap: 1.5rem; }
 .readout b { font-weight: 400; color: var(--paper); }
 .readout-exposure b + b { margin-left: 1.4em; }
@@ -78,18 +79,27 @@ h1, h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -.05em; li
 .lab-hint i { width: 1px; height: 38px; background: linear-gradient(var(--gold), transparent); animation: lab-drop 2.4s ease-in-out infinite; transform-origin: top; }
 @keyframes lab-drop { 0% { transform: scaleY(0); opacity: 1; } 60% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
 
-/* Each chapter is a tall scroll track; its panel stays put while the camera travels. */
-.lab-chapter { position: relative; min-height: 260vh; }
-/* Scrolling moves step by step: each chapter's resting steps are snap points, centred where the page reads progress. */
-html.lab-gl { scroll-snap-type: y mandatory; }
-html.lab-gl .lab-main > :first-child { scroll-snap-align: start; }
-html.lab-gl .lab-end { scroll-snap-align: end; }
-.lab-snap { position: absolute; left: 0; width: 1px; height: 1px; scroll-snap-align: center; pointer-events: none; }
-html:not(.lab-gl) .lab-snap { display: none; }
-.lab-chapter[data-chapter="ignite"] { min-height: 220vh; }
-.lab-chapter[data-chapter="sculpt"] { min-height: 400vh; }
-.lab-chapter[data-chapter="develop"] { min-height: 320vh; }
-.lab-chapter[data-chapter="atlas"] { min-height: 260vh; }
+.lab-chapter { position: relative; }
+/* With WebGL the page is a stage, not a scroll: the canvas fills it and the section of the current beat lies over it.
+   The wheel, a swipe, the keys and the rail move from beat to beat (main.js, "Beats"). */
+html.lab-gl, html.lab-gl body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+html.lab-gl body { touch-action: none; }
+html.lab-gl .lab-main > * { position: fixed; inset: 0; min-height: 0; visibility: hidden; opacity: 0; transition: opacity .35s ease, visibility 0s .35s; }
+html.lab-gl .lab-main > .is-active { visibility: visible; opacity: 1; transition: opacity .7s ease .2s, visibility 0s; }
+html.lab-gl .lab-main > :focus { outline: 0; }
+/* The rail: one tick per beat, grouped by chapter; the current one is gold (its name is in the readout), the others name themselves under the pointer. */
+.lab-rail { position: fixed; z-index: 4; top: 50%; right: max(5px, env(safe-area-inset-right, 0px)); transform: translateY(-50%); display: grid; gap: 12px; justify-items: end; }
+.lab-rail-group { display: grid; justify-items: end; }
+.lab-tick { position: relative; display: flex; align-items: center; justify-content: flex-end; height: 15px; width: 30px; padding: 0; border: 0; background: none; color: var(--muted); font: 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+.lab-tick i { width: 8px; height: 1px; background: #eee9df4d; transition: width .35s ease, background .35s ease; }
+.lab-tick span { position: absolute; right: 34px; opacity: 0; transform: translateX(6px); transition: opacity .3s ease, transform .3s ease; text-shadow: 0 0 10px #06080b, 0 0 3px #06080b; pointer-events: none; }
+.lab-tick.is-passed i { background: #eee9df99; }
+.lab-tick.is-current i { width: 16px; background: var(--gold); }
+.lab-tick:hover i, .lab-tick:focus-visible i { width: 16px; background: var(--paper); }
+.lab-tick:hover span, .lab-tick:focus-visible span { opacity: 1; transform: none; }
+.lab-tick:focus-visible { outline-offset: 2px; }
+.lab-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+html:not(.lab-gl) :is(.lab-rail, .lab-live) { display: none; }
 .lab-panel { position: sticky; top: 0; height: 100vh; height: 100svh; display: flex; flex-direction: column; justify-content: safe center; width: min(430px, 34vw); margin-left: var(--edge); padding-block: calc(var(--top) + 110px) calc(var(--bottom) + 70px); }
 .lab-panel h2 { font-size: clamp(2.4rem, 4.1vw, 4.3rem); margin-top: 1.1rem; text-shadow: 0 0 30px #06080b; }
 .lab-text { color: var(--muted); font-size: .88rem; line-height: 1.85; margin-top: 1.4rem; text-shadow: 0 0 16px #06080b, 0 0 4px #06080b; }
@@ -120,6 +130,8 @@ html.lab-gl .lab-sites li.is-current span:first-child::before { content: "● ";
 .lab-fallback { display: none; }
 
 .lab-end { position: relative; z-index: 2; min-height: 80vh; display: grid; place-content: center; justify-items: center; text-align: center; padding: 120px var(--edge) calc(var(--bottom) + 80px); background: linear-gradient(#06080b00, #06080b 35%); }
+/* On the stage the closing links stand over the ring of light; a screen too small for them lets this one panel scroll. */
+html.lab-gl .lab-end { align-content: safe center; overflow-y: auto; touch-action: pan-y; padding-block: calc(var(--top) + 96px) calc(var(--bottom) + 64px); background: radial-gradient(closest-side, #06080bb3, #06080b40 70%, #06080b00); scrollbar-width: none; }
 .lab-end-line { font: clamp(2rem, 4vw, 3.4rem)/1.1 var(--serif); letter-spacing: -.05em; margin-top: 1.2rem; }
 .lab-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem 2.4rem; margin-top: 2rem; font-size: .8rem; }
 .lab-links a { padding-bottom: .5rem; border-bottom: 1px solid #c9af775c; }
@@ -140,7 +152,7 @@ html:not(.lab-gl) .lab-fallback-photo img { max-height: 80vh; }
   .photo-page .lab-panel h1 { font-size: clamp(2.1rem, 9vw, 3rem); }
   html.lab-gl .lab-chapter.is-travelling :is(h1, .lab-meta, .lab-photo-links) { display: none; }
 }
-.lab-credits { margin-top: 3.2rem; color: #a3abb1aa; font-size: .72rem; line-height: 1.9; }
+.lab-credits { margin-top: 3.2rem; color: #a3abb1aa; font-size: .72rem; line-height: 1.9; text-shadow: 0 0 12px #06080b, 0 0 3px #06080b; }
 
 /* Without WebGL2 (or before it starts) the page is a plain illustrated essay. */
 html:not(.lab-gl) .lab-canvas, html:not(.lab-gl) .lab-finder, html:not(.lab-gl) [data-needs-gl], html:not(.lab-gl) .lab-hint { display: none; }
@@ -153,6 +165,12 @@ html:not(.lab-gl) .lab-fallback picture img { filter: none; opacity: 1; }
 
 @media (max-width: 860px) {
   .lab-index { display: none; }
+  .lab-rail { right: max(2px, env(safe-area-inset-right, 0px)); gap: 9px; }
+  .lab-tick { width: 22px; height: 14px; }
+  .lab-tick span { display: none; }
+  .readout { flex-wrap: wrap; row-gap: 7px; }
+  /* In the atlas the readout runs to three lines (beat, sun, exposure); the captions keep clear of it. */
+  .lab-chapter[data-chapter="atlas"] .lab-panel { padding-bottom: calc(var(--bottom) + 86px); }
   .lab-top { padding-top: max(20px, calc(var(--top) + 10px)); }
   .corner.tl, .corner.tr { top: calc(var(--top) + 70px); }
   .lab-panel { width: auto; margin: 0; padding: 0 var(--edge) calc(var(--bottom) + 64px); justify-content: flex-end; background: linear-gradient(#06080b00 42%, #06080be6 68%); }
@@ -169,6 +187,7 @@ html:not(.lab-gl) .lab-fallback picture img { filter: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .lab-hint i, .af { animation: none; transition: none; }
+  html.lab-gl .lab-main > *, .lab-tick i, .lab-tick span { transition: none; }
 }
 
 /* Atlas: the current stop is the only one shown while WebGL drives the page; without it they read as a list. */

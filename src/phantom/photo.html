@@ -53,14 +53,14 @@
           <fieldset class="lab-modes"><legend>Read it as</legend>
             <button type="button" data-mode="photo" aria-pressed="true">Photograph</button><button type="button" data-mode="isophote" aria-pressed="false">Equal light</button><button type="button" data-mode="depth" aria-pressed="false">Equal depth</button>
           </fieldset>
-          <p class="lab-note">Scroll to step away from where it was taken; drag to look around.</p>
+          <p class="lab-note">One scroll steps aside from where it was taken; drag to look around.</p>
         </div>
         <p class="lab-links lab-photo-links"><a href="{{LARGE}}">Open the image <span aria-hidden="true">↗</span></a></p>
       </div>
       <figure class="lab-fallback lab-fallback-photo">{{PICTURE}}</figure>
     </section>
     {{ATLAS_SECTION}}
-    <footer class="lab-end">
+    <footer class="lab-end" id="end" data-chapter="end">
       <p class="lab-kicker">Frame {{FRAME}} of {{COUNT}}</p>
       <nav class="lab-pager" aria-label="More photographs">{{PREVIOUS}}<a href="/photos/">All photographs</a>{{NEXT}}</nav>
       <p class="lab-links"><a href="/phantom/">How these are made <span aria-hidden="true">↗</span></a></p>
