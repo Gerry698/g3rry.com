@@ -8,11 +8,11 @@
     "hint": "Scroll or click to climb"
   },
   "camps": [
-    { "id": "about", "kicker": "Trailhead", "title": "About", "description": "Who is climbing, and why the mountain.", "time": "dawn", "model": "trailhead" },
-    { "id": "photography", "kicker": "Camp II", "title": "Photography", "description": "Fleeting light, familiar strangers, and the small scenes worth keeping.", "href": "/photos/", "time": "golden", "model": "photography" },
-    { "id": "phantom", "kicker": "Camp III", "title": "The Phantom", "description": "Experiments in light, depth and place: a thousand little points that grew into a million.", "href": "/phantom/", "time": "dusk", "model": "phantom" },
-    { "id": "mail", "kicker": "Camp IV", "title": "g3mail", "description": "Keeping in touch. A free @g3rry.com mailbox, open to anyone who climbs this far.", "href": "https://mail.g3rry.com/", "time": "dusk", "model": "mailboxes" },
-    { "id": "summit", "kicker": "Summit register", "title": "Say hello", "description": "Every climber signs the book at the top. Leave a note for whoever comes next.", "href": "/guestbook/", "time": "night", "model": "summit" }
+    { "id": "about", "kicker": "Trailhead", "title": "About", "description": "Who is climbing, and why the mountain.", "model": "trailhead" },
+    { "id": "photography", "kicker": "Camp II", "title": "Photography", "description": "Fleeting light, familiar strangers, and the small scenes worth keeping.", "href": "/photos/", "model": "photography" },
+    { "id": "phantom", "kicker": "Camp III", "title": "The Phantom", "description": "Experiments in light, depth and place: a thousand little points that grew into a million.", "href": "/phantom/", "model": "phantom" },
+    { "id": "mail", "kicker": "Camp IV", "title": "g3mail", "description": "Keeping in touch. A free @g3rry.com mailbox, open to anyone who climbs this far.", "href": "https://mail.g3rry.com/", "model": "mailboxes" },
+    { "id": "summit", "kicker": "Summit register", "title": "Say hello", "description": "Every climber signs the book at the top. Leave a note for whoever comes next.", "href": "/guestbook/", "model": "summit" }
   ],
   "beyond": {
     "below": {

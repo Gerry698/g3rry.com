@@ -58,7 +58,7 @@ export function program(gl, vertexSource, fragmentSource, name) {
   let unit = 0;
   const setters = {
     [gl.FLOAT]: (l, v) => gl.uniform1f(l, v), [gl.FLOAT_VEC2]: (l, v) => gl.uniform2fv(l, v), [gl.FLOAT_VEC3]: (l, v) => gl.uniform3fv(l, v),
-    [gl.FLOAT_VEC4]: (l, v) => gl.uniform4fv(l, v), [gl.FLOAT_MAT4]: (l, v) => gl.uniformMatrix4fv(l, false, v), [gl.INT]: (l, v) => gl.uniform1i(l, v)
+    [gl.FLOAT_VEC4]: (l, v) => gl.uniform4fv(l, v), [gl.FLOAT_MAT3]: (l, v) => gl.uniformMatrix3fv(l, false, v), [gl.FLOAT_MAT4]: (l, v) => gl.uniformMatrix4fv(l, false, v), [gl.INT]: (l, v) => gl.uniform1i(l, v)
   };
   return {
     handle,

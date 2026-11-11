@@ -1,6 +1,6 @@
 import { TAU, easeInOut } from './math.js';
 
-// The sky menu: the valley's hour and weather below the clouds (weather.js). It opens from the readout beside the
+// The sky menu: the mountain's hour, and the weather below the clouds (weather.js). It opens from the readout beside the
 // altitude meter and takes the camp card's place. The hour is a dial drawn like an astrolabe: a ring of 24 hours turned
 // so the day's noon is at the top, the sun's arc from sunrise to sunset over a horizon with the mountain standing on
 // it; drag the sun (the moon at night) round, or step it with the arrow keys. The weather is a list of five skies.
@@ -138,7 +138,7 @@ export function createSkyMenu({ weather, reduced, onToggle, onFree, onDone }) {
     if (text !== readout) {
       readout = text;
       read.replaceChildren(Object.assign(document.createElement('b'), { textContent: clockText(sky.hour) }), ' ' + sky.kind);
-      button.setAttribute('aria-label', 'Below the clouds: ' + clockText(sky.hour) + ', ' + NOUNS[sky.kind] + '. Change the hour and the weather');
+      button.setAttribute('aria-label', 'On the mountain: ' + clockText(sky.hour) + ', ' + NOUNS[sky.kind] + ' below the clouds. Change the hour and the weather');
       mark(sky);
     }
     if (!view.open) return;
@@ -237,7 +237,7 @@ export function createSkyMenu({ weather, reduced, onToggle, onFree, onDone }) {
     clearTimeout(cueTimer);
     cueTimer = setTimeout(() => {
       remember(remembered() + 1);
-      cue.querySelector('.cue-text').textContent = 'Below the clouds the valley keeps your own hour, and today’s ' + NOUNS[weather.now().today] + '.';
+      cue.querySelector('.cue-text').textContent = 'The mountain keeps your own hour, and below the clouds, today’s ' + NOUNS[weather.now().today] + '.';
       cue.hidden = false;
       root.classList.add('mountain-cueing');
       cueTimer = setTimeout(() => dismissCue(), 9000);

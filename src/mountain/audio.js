@@ -97,9 +97,40 @@ export function createAudio({ context = null } = {}) {
       }
       return buffer;
     };
+    // Rain is not a hiss. It is a great many separate drops, each a short ring at its own pitch that dies in a few
+    // milliseconds, some larger and lower, over a soft wash with no top to it. A few seconds of it are written out
+    // here once, drop by drop, different in each ear, and looped; a light fall and a heavy one are mixed by how hard
+    // it is raining.
+    const rain = (perSecond, wash) => {
+      const rate = ctx.sampleRate, seconds = 7, length = Math.round(seconds * rate), blend = Math.round(.08 * rate);
+      const buffer = ctx.createBuffer(2, length, rate), turn = Math.PI * 2;
+      for (let channel = 0; channel < 2; channel++) {
+        const out = buffer.getChannelData(channel);
+        // The wash: noise with its top rolled off twice above about 1.6 kHz and its bottom taken out below about
+        // 150 Hz, so it neither hisses nor rumbles. It runs a little past the end and that tail is folded into the
+        // start, so the loop has no seam.
+        let a = 0, b = 0, c = 0;
+        for (let i = 0; i < length + blend; i++) {
+          a += (Math.random() * 2 - 1 - a) * .2; b += (a - b) * .2; c += (b - c) * .02;
+          const v = (b - c) * wash;
+          if (i < length) out[i] = v; else { const k = (i - length) / blend; out[i - length] = out[i - length] * k + v * (1 - k); }
+        }
+      }
+      const left = buffer.getChannelData(0), right = buffer.getChannelData(1);
+      for (let k = 0, count = Math.round(perSecond * seconds); k < count; k++) {
+        const big = Math.random() < .06, f = big ? 320 + Math.random() * 420 : 950 * 2 ** (Math.random() * 2.2);
+        const life = (big ? .03 : .011) * (.6 + Math.random() * .9) * (1400 / (f + 700) + .5), level = (big ? .2 : .2) * Math.random() ** 2.2 + .008;
+        const pan = Math.random() * Math.PI / 2, phase = Math.random() * turn, start = Math.floor(Math.random() * length), span = Math.round(life * 6 * rate);
+        for (let i = 0; i < span; i++) {
+          const t = i / rate, v = Math.sin(turn * f * t * (1 - t * 3) + phase) * Math.exp(-t / life) * Math.min(1, i / 16) * level, at = (start + i) % length;
+          left[at] += v * Math.cos(pan); right[at] += v * Math.sin(pan);
+        }
+      }
+      return buffer;
+    };
     // The piano's partials, fixed once.
     const partials = new Float32Array([0, 1, .46, .2, .1, .06, .03, .02]);
-    graph = { gain, master, music, air, sounds, send, hallBack, cavernBack, echoIn, white: noise('white'), brown: noise('brown'), felt: ctx.createPeriodicWave(new Float32Array(partials.length), partials) };
+    graph = { gain, master, music, air, sounds, send, hallBack, cavernBack, echoIn, white: noise('white'), brown: noise('brown'), drizzle: rain(26, .035), downpour: rain(78, .07), felt: ctx.createPeriodicWave(new Float32Array(partials.length), partials) };
     graph.air = buildAir(air);
     graph.level = 0;
     return graph;
@@ -238,7 +269,7 @@ export function createAudio({ context = null } = {}) {
   function buildAir(bus) {
     const layer = (kind, type, frequency, q) => {
       const source = ctx.createBufferSource(), tone = ctx.createBiquadFilter(), level = ctx.createGain(), place = ctx.createStereoPanner();
-      source.buffer = graph[kind]; source.loop = true; source.playbackRate.value = .9 + Math.random() * .2;
+      source.buffer = graph[kind]; source.loop = true; source.playbackRate.value = source.buffer.numberOfChannels > 1 ? 1 : .9 + Math.random() * .2;
       tone.type = type; tone.frequency.value = frequency; tone.Q.value = q;
       level.gain.value = 0;
       source.connect(tone).connect(level).connect(place).connect(bus);
@@ -248,7 +279,7 @@ export function createAudio({ context = null } = {}) {
     };
     return {
       wind: layer('brown', 'bandpass', 380, .5), whistle: layer('white', 'bandpass', 1700, 3), fall: layer('white', 'bandpass', 1500, .35),
-      fire: layer('brown', 'lowpass', 340, .5), rain: layer('white', 'highpass', 1800, .4), cave: layer('brown', 'lowpass', 120, .7), thin: layer('white', 'highpass', 6500, .5)
+      fire: layer('brown', 'lowpass', 340, .5), rain: layer('drizzle', 'lowpass', 6500, .4), pour: layer('downpour', 'lowpass', 5500, .4), cave: layer('brown', 'lowpass', 120, .7), thin: layer('white', 'highpass', 6500, .5)
     };
   }
   let crackle = 0;
@@ -275,7 +306,9 @@ export function createAudio({ context = null } = {}) {
     }
     // Rain in the valley, heard from under the cloud deck.
     const low = 1 - smooth(2.4, 5.5, state.height);
-    set(air.rain, state.weather === 'rain' ? outside * low * (.02 + .07 * (state.intensity || 0)) : 0);
+    const raining = state.weather === 'rain' ? outside * low : 0, hard = state.intensity || 0;
+    set(air.rain, raining * .3 * (1 - .6 * smooth(.45, .95, hard)));
+    set(air.pour, raining * .3 * smooth(.3, .9, hard));
     set(air.cave, state.inside ? .075 : 0);
     set(air.thin, outside * aloft * .012);
     // The room: the hall outdoors, the cavern inside the mountain.

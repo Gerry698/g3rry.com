@@ -1,14 +1,10 @@
 import { hexToLinear, direction, lerp, normalize, mix3 } from './math.js';
 
-// Time of day as the climb goes on. Colours are sRGB here and converted to linear light once.
-// key: the light that shades and casts shadows (sun, or the moon at night); sun: where the sky glows.
+// The colours of the day: keyframes that the hour moves between (weather.js, skyPalette, which also puts the sun and
+// the moon where the hour has them; the directions here only stand in until it does). Colours are sRGB here and
+// converted to linear light once. key: the light that shades and casts shadows (sun, or the moon at night); sun:
+// where the sky glows.
 const RAW = {
-  idle: {
-    key: [215, 24], keyColor: '#9db2ff', keyPower: .95, sun: [35, -7], glow: '#ff9874', glowPower: .55,
-    zenith: '#0a1130', horizon: '#3a4b82', below: '#1b2346', ambSky: '#3b4f92', ambGround: '#1b1e33', ambPower: .7,
-    fog: .010, haze: .05, stars: .75, moon: 1, moonDir: [200, 32], aurora: 0, sunDisc: 0, snow: .45,
-    exposure: 1.15, saturation: .95, tint: '#f2f0ff', cloud: '#7f88aa'
-  },
   dawn: {
     key: [70, 7], keyColor: '#ffb58f', keyPower: 2.6, sun: [70, 3], glow: '#ffae86', glowPower: 1.25,
     zenith: '#28397a', horizon: '#f0a990', below: '#6e6a8c', ambSky: '#7181bd', ambGround: '#5b4b56', ambPower: .55,
@@ -45,14 +41,7 @@ const RAW = {
     fog: .010, haze: .05, stars: 1, moon: 1, moonDir: [140, 34], aurora: 1, sunDisc: 0, snow: .8,
     exposure: 1.2, saturation: .95, tint: '#eef2ff', cloud: '#6d7fb8'
   },
-  // The two chapters off the trail (beyond.js). Moonward: the summit's night, deeper: a black zenith, the galaxy
-  // (deep), the moon as the only light. The Heart is lit by itself; only its exposure and grade are used.
-  sky: {
-    key: [140, 34], keyColor: '#b4c4ff', keyPower: 1.2, sun: [320, -25], glow: '#2c3f8c', glowPower: .14,
-    zenith: '#010208', horizon: '#1b2a5c', below: '#0a1026', ambSky: '#2a3a76', ambGround: '#0c0e1d', ambPower: .62,
-    fog: .010, haze: .05, stars: 1, moon: 1, moonDir: [140, 34], aurora: .75, sunDisc: 0, snow: .3, deep: 1,
-    exposure: 1.25, saturation: 1, tint: '#eef2ff', cloud: '#6677b0'
-  },
+  // The Heart is lit by itself; only its exposure and grade are used.
   core: {
     key: [140, 34], keyColor: '#a8bdff', keyPower: 1.05, sun: [320, -25], glow: '#3b4f9e', glowPower: .2,
     zenith: '#03050e', horizon: '#16224a', below: '#0a0e20', ambSky: '#2c3d7a', ambGround: '#0e1020', ambPower: .7,

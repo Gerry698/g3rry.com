@@ -1,14 +1,13 @@
 import { program, precompile, vertexArray } from './gl.js';
 import * as sources from './beyond-shaders.js';
-import { HEART, MOON, nearMoon } from './beyond.js';
-import { PALETTES } from './palettes.js';
+import { HEART, MOON, spaceMoon } from './beyond.js';
 import { hexToLinear, lerp, clamp, smoothstep, mix3, normalize, cross, add, sub, scale, length, easeInOut } from './math.js';
 
 // Draws the chapters off the trail that beyond.js built: the chamber of the Heart (a frame of its own, in place of
-// the mountain) and, outdoors, the moon and the line of stars that leads from the summit to it.
+// the mountain) and, outdoors and out past the air, the moon, home, and the line of stars between them.
 const PROGRAMS = {
   rock: ['rockVertex', 'rockFragment'], crystal: ['crystalVertex', 'crystalFragment'], pool: ['poolVertex', 'poolFragment'],
-  mote: ['moteVertex', 'moteFragment'], shaft: ['shaftVertex', 'shaftFragment'], moon: ['moonVertex', 'moonFragment']
+  mote: ['moteVertex', 'moteFragment'], shaft: ['shaftVertex', 'shaftFragment'], moon: ['orbVertex', 'moonFragment'], home: ['orbVertex', 'homeFragment']
 };
 export const warmUpBeyond = gl => precompile(gl, Object.values(PROGRAMS).map(([vertex, fragment]) => [sources[vertex], sources[fragment]]));
 
@@ -91,48 +90,82 @@ export function createBeyond(gl, scene, quality, glow) {
     gl.depthMask(true);
   }
 
-  // ---- The moon and the way to it --------------------------------------------------------------------------------
-  const moon = scene.moon && vertexArray(gl, [{ data: scene.moon.positions, size: 3 }, { data: scene.moon.colors, ...bytes }]);
+  // ---- The moon, home, and the way between ------------------------------------------------------------------------
   const summit = scene.camps.at(-1), top = [summit.x, summit.y + .8, summit.z];
-  const night = PALETTES.sky.moonDir, near = nearMoon([summit.x, summit.y, summit.z], Math.atan2(night[2], night[0]));
-  // A line of stars from the summit's flag up to the moon's nearer limb, bowed like a thrown rope. Every seventh is a
-  // brighter one, so it reads as a constellation rather than a dotted rule.
-  const STARS = 50, stars = sprites(STARS), way = [];
+  // Moonward's places: the moon as a body of its own a long way up, and home behind (beyond.js).
+  const away = spaceMoon([summit.x, summit.y, summit.z]);
+  // A line of stars from the summit's flag out to the moon, bowed like a thrown rope: the way the lens goes. From the
+  // far side, looking back, it runs from home up towards the moon's edge. Every seventh is a brighter one, so it
+  // reads as a constellation rather than a dotted rule.
+  const STARS = 56, stars = sprites(STARS), way = [], lamps = sprites(2);
   {
-    const toward = normalize(sub(near.slice(0, 3), top)), end = sub(near.slice(0, 3), scale(toward, near[3] * 1.12));
-    const side = normalize(cross(toward, [0, 1, 0])), bow = add(mix3(top, end, .5), add(scale(side, 9), [0, -7, 0]));
+    // It ends over the far side, where the lens comes to rest, to the left of the view back; on the way it rises well
+    // clear of the moon's edge, so from there it is an arc across the sky from home.
+    const end = add(away.center, add(scale(away.side, away.radius * 2.6), add(scale(away.up, away.radius * 1.9), scale(away.toward, away.radius * .6))));
+    const bow = add(mix3(top, end, .45), add(scale(away.side, away.radius * 2.4), scale(away.up, away.radius * 1.1)));
     for (let i = 0; i < STARS; i++) {
-      const t = (i + 1.5) / (STARS + 1.5), a = mix3(top, bow, t), b = mix3(bow, end, t);
+      const t = ((i + 1.5) / (STARS + 1.5)) ** 1.25, a = mix3(top, bow, t), b = mix3(bow, end, t);
       way.push(mix3(a, b, t));
     }
   }
 
-  // Where the moon is in this frame and how the sky should glow round it. near: 0 far off, 1 come close (Moonward).
+  // Where the moon is in this frame. On the mountain it is far off where the hour puts it. Leaving for it (sky from 0
+  // to 1) it becomes the place the lens is flying to and grows to its own size on the way; if the hour had it under the
+  // horizon, it comes out of the dark ahead instead.
   function moonState(frame) {
-    const p = frame.palette, come = easeInOut(clamp(frame.beyond?.sky || 0, 0, 1));
-    const center = mix3(scale(p.moonDir, MOON.distance), near, come), radius = lerp(MOON.radius, near[3], come);
+    const p = frame.palette, space = clamp(frame.beyond?.sky || 0, 0, 1), come = easeInOut(space);
+    const ahead = add(top, scale(away.toward, MOON.distance)), far = mix3(ahead, scale(p.moonDir, MOON.distance), p.moon);
+    // It takes its place early, while it is still small, so the lens can keep it in the middle of the frame all the
+    // way; it grows over the whole flight.
+    const center = mix3(far, away.center, smoothstep(0, .3, space)), radius = lerp(MOON.radius, away.radius, come * come);
     const toMoon = sub(center, frame.eye), distance = length(toMoon), dir = scale(toMoon, 1 / distance);
-    return { center, radius, dir, size: Math.asin(Math.min(1, radius / distance)), come };
+    return { center, radius, dir, size: Math.asin(Math.min(1, radius / distance)), come, space };
   }
+
+  // A turn about an axis, as the world-to-body matrix the shaders want (column-major).
+  const turned = (axis, angle) => {
+    const [x, y, z] = axis, c = Math.cos(-angle), sn = Math.sin(-angle), k = 1 - c;
+    return [c + x * x * k, y * x * k + z * sn, z * x * k - y * sn, x * y * k - z * sn, c + y * y * k, z * y * k + x * sn, x * z * k + y * sn, y * z * k - x * sn, c + z * z * k];
+  };
+  // A body is one full-screen pass that keeps the pixels on it and writes their depth, so the mountain stands in front.
+  const drawOrb = (name, common, uniforms) => {
+    programs[name].use().set({ uViewProj: common.uViewProj, uInvViewProj: common.uInvViewProj, uCamPos: common.uCamPos, uPixel: common.uPixel, ...uniforms });
+    gl.depthMask(true);
+    gl.bindVertexArray(empty);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.depthMask(false);
+  };
 
   // After the opaque scene and before the clouds, which pass in front of it. veil: how much of it the valley's sky
   // hides when the lens is under the cloud deck (0 none).
   function drawMoon(frame, common, state, veil = 0) {
-    const p = frame.palette, power = p.moon * (1 - veil);
-    if (!moon || power < .01) return;
-    // Lit from the side the frame's middle is on, a little from below: the sun has set.
+    const p = frame.palette, power = Math.max(p.moon * (1 - veil), smoothstep(.02, .3, state.space));
+    if (power < .01) return;
+    // From the mountain it is lit for the look of it, from the side the frame's middle is on and a little below (a
+    // gibbous moon whatever the hour); out there the sun is a place, and the shadows keep still as the lens moves.
     const right = normalize(cross(state.dir, [0, 1, 0])), up = cross(right, state.dir);
-    const lightOn = normalize(add(scale(state.dir, -.42), add(scale(right, -.74), scale(up, -.36))));
-    programs.moon.use().set({
-      uViewProj: frame.viewProj, uMoon: [...state.center, state.radius], uMoonTurn: [Math.cos(2.2), Math.sin(2.2)], uMoonLight: lightOn,
+    const look = normalize(add(scale(state.dir, -.42), add(scale(right, -.74), scale(up, -.36))));
+    // Out there the ground slides slowly under the lens, as from an orbit.
+    const drift = frame.beyond?.calm ? 0 : frame.time * .0045 * state.come;
+    drawOrb('moon', common, {
+      uOrb: [...state.center, state.radius], uOrbTurn: turned(away.side, .9 + drift), uOrbLight: normalize(mix3(look, away.light, state.come)),
       // Far off it is a bright disc; come near, it is dimmed until its plains and craters show in the light.
-      uMoonColor: [1, .97, .9].map(c => c * lerp(1, .6, state.come)), uMoonShade: [.012, .017, .034], uMoonPower: [power, smoothstep(.3, .9, p.moon)]
+      uOrbColor: [1, .97, .9].map(c => c * lerp(1, .5, state.come)), uOrbShade: [.012, .017, .034].map(c => c * (1 - .55 * state.come)),
+      uOrbPower: [power, Math.max(smoothstep(.3, .9, p.moon), smoothstep(.05, .35, state.space))], uOrbDetail: quality.samples > 1 ? 1 : 0
     });
-    // Its own depth, so its far side stays behind its near one.
-    gl.depthMask(true);
-    gl.bindVertexArray(moon.vao);
-    gl.drawArrays(gl.TRIANGLES, 0, scene.moon.count);
-    gl.depthMask(false);
+  }
+
+  // Home, once the mountain itself has gone dark behind the lens: a small world where the mountain was, the summit's
+  // lantern still showing on the side that faces the moon.
+  function drawHome(frame, common, state) {
+    const power = smoothstep(.6, .9, state.space);
+    if (power < .01) return;
+    const { center, radius, summit: lamp } = away.home;
+    drawOrb('home', common, { uOrb: [...center, radius], uOrbTurn: turned([0, 1, 0], frame.beyond?.calm ? 0 : frame.time * .01), uOrbLight: away.light, uOrbPower: [power, power] });
+    const beat = frame.beyond?.calm ? 1 : 1 + .25 * Math.sin(frame.time * 1.7);
+    lamps.data.set([...lamp, radius * .34, ...lamp, radius * .34]);
+    lamps.colors.set([.9 * power * beat, .54 * power * beat, .23 * power * beat, 0, 0, 0, 0, 0]);
+    drawSprites(lamps, common);
   }
 
   // The stars of the way light one after another as the lens leaves the summit, gold at the flag and pale at the moon.
@@ -142,16 +175,18 @@ export function createBeyond(gl, scene, quality, glow) {
     for (let i = 0; i < STARS; i++) {
       const t = i / (STARS - 1), bright = i % 7 === 3;
       // Called (a nudge at the summit), only the first few show, as a hint of where it goes.
-      const lit = Math.max(smoothstep(t - .12, t, come * 1.14), call * smoothstep(.42, .1, t) * .8);
+      const lit = Math.max(smoothstep(t - .12, t, come * 1.14), call * smoothstep(.3, .06, t) * .8);
       const twinkle = frame.beyond?.calm ? 1 : .8 + .2 * Math.sin(frame.time * (1.3 + (i % 5) * .4) + i * 2.1);
-      const tone = mix3([1, .6, .26], [.75, .85, 1], smoothstep(.1, .7, t)), power = lit * twinkle * (bright ? 3.4 : 1.25);
+      // Seen from the moon the first of them would lie across home's own disc: those are left to the summit's lantern.
+      const clear = come > .5 && length(sub(way[i], away.home.center)) < away.home.radius * 1.35 ? 0 : 1;
+      const tone = mix3([1, .6, .26], [.75, .85, 1], smoothstep(.05, .5, t)), power = lit * twinkle * clear * (bright ? 3.4 : 1.25);
       // Sized by how far off they are, so they look the same from the summit (points by the flag, not lamps in the
-      // lens) as from Moonward, where every seventh stands out.
+      // lens) as from the moon, where every seventh stands out.
       stars.data.set([...way[i], length(sub(way[i], frame.eye)) * (bright ? .0075 : .0034)], i * 4);
       stars.colors.set([tone[0] * power, tone[1] * power, tone[2] * power, 0], i * 4);
     }
     drawSprites(stars, common);
   }
 
-  return { drawChamber, drip, moonState, drawMoon, drawWay, hasMoon: Boolean(moon), near, drops: scene.chamber?.drips || null };
+  return { drawChamber, drip, moonState, drawMoon, drawHome, drawWay, hasMoon: true, away, drops: scene.chamber?.drips || null };
 }

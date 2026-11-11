@@ -2,7 +2,7 @@ import { createTerrain, placeCamps, buildTerrainMesh, meshSurface, buildTrail, s
 import { buildProps } from './props.js';
 import { scatterDetail } from './detail.js';
 import { buildWater } from './water.js';
-import { placeCave, drawCave, buildChamber, buildMoon } from './beyond.js';
+import { placeCave, drawCave, buildChamber } from './beyond.js';
 
 // Everything drawn that depends only on the camps and the quality tier. It is a few hundred milliseconds of work,
 // so the page runs it in a worker (worker.js) and falls back to the main thread when a module worker is unavailable.
@@ -35,10 +35,11 @@ export function buildScene({ tier, camps: details, beyond = {} }) {
     // Spruces, broadleaves, shrubs and boulders around the pines (detail.js).
     detail,
     chamber: beyond.below ? buildChamber(beyond.below.eras ?? 4) : null,
-    moon: beyond.above ? buildMoon() : null
+    // Whether the page has Moonward (the moon and home are drawn without meshes).
+    above: Boolean(beyond.above)
   };
 }
 
 // The typed arrays a finished scene can hand over without copying.
-export const transferables = scene => [scene.mesh, scene.props, scene.detail, scene.water, scene.moon || {}, scene.chamber?.shell || {}, scene.chamber?.crystals || {}, { trees: scene.trees, clouds: scene.clouds, drips: scene.chamber?.drips }]
+export const transferables = scene => [scene.mesh, scene.props, scene.detail, scene.water, scene.chamber?.shell || {}, scene.chamber?.crystals || {}, { trees: scene.trees, clouds: scene.clouds, drips: scene.chamber?.drips }]
   .flatMap(group => Object.values(group)).filter(value => ArrayBuffer.isView(value)).map(view => view.buffer);

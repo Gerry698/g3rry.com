@@ -163,7 +163,8 @@ export function createRenderer(gl, scene, quality) {
     const right = [frame.view[0], frame.view[4], frame.view[8]], up = [frame.view[1], frame.view[5], frame.view[9]];
     const inside = Boolean(frame.beyond?.inside), moon = beyond.moonState(frame), meteor = frame.beyond?.meteor;
     const common = {
-      uMoonSize: moon.size, uMoonHalo: 1 - .72 * moon.come, uMoonDisc: beyond.hasMoon ? 0 : 1, uDeep: p.deep, uMeteor: meteor ? [...meteor.head, meteor.power] : [0, 1, 0, 0], uMeteorTail: meteor ? meteor.tail : [0, 1, 0],
+      // Leaving for the moon the world goes dark below (uSpace) before it is left out altogether (see drawOutdoors).
+      uSpace: smoothstep(.1, .45, moon.space), uMoonSize: moon.size, uMoonHalo: (1 - moon.come) * (1 - smoothstep(.1, .45, moon.space)), uMoonDisc: beyond.hasMoon ? 0 : 1, uDeep: p.deep, uMeteor: meteor ? [...meteor.head, meteor.power] : [0, 1, 0, 0], uMeteorTail: meteor ? meteor.tail : [0, 1, 0],
       uViewProj: frame.viewProj, uInvViewProj: frame.invViewProj, uCamPos: frame.eye, uTime: frame.time, uRight: right, uUp: up,
       uPixel: 2 * Math.tan(frame.fov / 2) / targets.height,
       uKeyDir: p.key, uKeyColor: p.keyColor, uAmbSky: p.ambSky, uAmbGround: p.ambGround,
@@ -174,11 +175,6 @@ export function createRenderer(gl, scene, quality) {
       uResolution: [targets.width, targets.height], uClip: [NEAR, FAR]
     };
     Object.assign(common, weather.update(frame, renderValleyShadow));
-    // From Moonward the valley lies under a sea of cloud, whatever the day's weather: the deck closes as the lens rises.
-    if (moon.come > 0) {
-      common.uDeck = [common.uDeck[0], common.uDeck[1], Math.max(common.uDeck[2], moon.come * .95), common.uDeck[3]];
-      common.uLowAir = [Math.max(common.uLowAir[0], moon.come * .2), common.uLowAir[1], common.uLowAir[2], common.uLowAir[3]];
-    }
     const sceneTarget = targets.multisampled || targets.resolved;
     gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
     gl.viewport(0, 0, targets.width, targets.height);
@@ -199,6 +195,18 @@ export function createRenderer(gl, scene, quality) {
     gl.depthMask(true);
     gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
+    // Out past the air (Moonward) the mountain is far behind and has gone dark (uSpace): only the sky, the moon, home
+    // and the stars of the way are drawn.
+    if (moon.space >= .5) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      if (!frame.hide?.has('moon')) { beyond.drawMoon(frame, common, moon); beyond.drawHome(frame, common, moon); }
+      beyond.drawWay(frame, common);
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+      return;
+    }
     programs.terrain.use().set(common);
     gl.bindVertexArray(terrain.vao);
     gl.drawArrays(gl.TRIANGLES, 0, scene.mesh.count);

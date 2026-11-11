@@ -22,6 +22,7 @@ float vnoise3(vec3 p) {
 const atmosphere = `
 uniform vec3 uCamPos, uSunDir, uGlow, uZenith, uHorizon, uBelow;
 uniform vec2 uFog;
+uniform float uSpace;  // leaving for the moon: the air runs out and the world below goes dark (0 on the mountain, 1 away)
 ${weatherAir}
 vec3 skyColor(vec3 d) {
   float e = d.y;
@@ -45,7 +46,7 @@ vec3 atmosphere(vec3 color, vec3 world) {
   float heightFog = uFog.y * 2.5 * exp(-uCamPos.y * falloff) * (abs(k) > 1e-4 ? (1. - exp(-k * dist)) / k : dist);
   float amount = 1. - exp(-max(dist - 10., 0.) * uFog.x - heightFog);
   vec3 haze = mix(uHorizon, skyColor(normalize(vec3(d.x, max(d.y, .0), d.z))), .65);
-  return lowAir(color, haze, amount, world);
+  return lowAir(color, haze, amount, world) * (1. - uSpace);
 }
 `;
 
@@ -203,10 +204,12 @@ vec3 aurora(vec3 d) {
 void main() {
   vec4 far = uInvViewProj * vec4(vUv * 2. - 1., 1., 1.);
   vec3 d = normalize(far.xyz / far.w - uCamPos);
-  vec3 color = skyColor(d);
+  // Out past the air there is no sky colour and no horizon: black, and stars all round.
+  vec3 color = mix(skyColor(d), vec3(.0012, .0018, .005), uSpace);
   float s = dot(d, uSunDir);
-  color += uKeyColor * uSunDisc * smoothstep(.99955, .99975, s) * 9.;
-  float above = smoothstep(-.02, .12, d.y);
+  // The sun: a small hot disc and a wider soft one, so it reads as a sun and not a star.
+  color += uKeyColor * uSunDisc * (smoothstep(.9994, .99972, s) * 9. + smoothstep(.9975, .9997, s) * .6) * (1. - uSpace);
+  float above = mix(smoothstep(-.02, .12, d.y), 1., uSpace);
   if (uStars > 0.) {
     color += starLayer(d, 260., .972, 3.2) * uStars * above;
     float across = dot(d, normalize(vec3(.35, .55, -.75))), band = exp(-across * across * 18.);
@@ -214,7 +217,7 @@ void main() {
     // Past the summit the sky deepens: a second, finer field of stars, and the galaxy's band shows its warm heart,
     // its cold arms and the dark lanes of dust between them.
     if (uDeep > 0.) {
-      color += starLayer(d, 640., .974, 1.5) * uDeep * above;
+      color += starLayer(d, 640., .981, 1.5) * uDeep * above;
       float lanes = smoothstep(.42, .72, vnoise3(d * 6.5 + 2.)) * exp(-across * across * 60.);
       vec3 arms = vec3(.42, .55, 1.) * (.05 + .1 * vnoise3(d * 12.)) + vec3(1., .74, .5) * .12 * smoothstep(.4, .85, vnoise3(d * 2.6 + 4.));
       color += arms * band * (1. - .75 * lanes) * uDeep * above;
@@ -238,7 +241,7 @@ void main() {
       color += uMoon * vec3(1., .97, .9) * smoothstep(.99925, .99945, m) * (2.6 - crater * 2.);
     }
   }
-  if (uAurora > 0.) color += aurora(d) * uAurora;
+  if (uAurora > 0.) color += aurora(d) * uAurora * (1. - uSpace);
   outColor = vec4(lowBackdrop(color, d), 1.);
 }`;
 
