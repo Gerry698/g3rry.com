@@ -1,4 +1,4 @@
-import { TAU, lerp, clamp, easeInOut, wrapAngle, add, sub, scale, normalize, cross, mix3 } from './math.js';
+import { TAU, lerp, clamp, smoothstep, easeInOut, wrapAngle, add, sub, scale, normalize, cross, mix3 } from './math.js';
 
 // Poses are cylindrical around the summit axis (angle, radius, height) plus a look-at target,
 // so travelling between camps turns around the mountain instead of cutting through it.
@@ -96,19 +96,38 @@ export function interpolate(from, to, t) {
 
 // ---- Off the trail (beyond.js) -----------------------------------------------------------------------------------
 
-// Moonward: well behind the summit as the moon sees it and a little above, so the summit stands low in the frame with
-// the moon over its shoulder. moon: [x, y, z, radius] where it hangs for the chapter. On a tall screen the lens moves
-// aside until the moon is straight above the summit.
-export function skyPose(summit, moon, layout) {
-  const ahead = normalize([moon[0] - summit.x, 0, moon[2] - summit.z]), right = [-ahead[2], 0, ahead[0]];
-  const reach = (moon[0] - summit.x) * ahead[0] + (moon[2] - summit.z) * ahead[2], aside = (moon[0] - summit.x) * right[0] + (moon[2] - summit.z) * right[2];
-  const back = layout === 'side' ? 46 : 60, slip = layout === 'side' ? 0 : -aside * back / reach;
-  const eye = [summit.x - ahead[0] * back + right[0] * slip, summit.y + (layout === 'side' ? 9.5 : 13), summit.z - ahead[2] * back + right[2] * slip];
-  // Aimed between the two, a little below level: the summit in the lower third, the moon in the upper.
-  const aim = mix3([summit.x, summit.y, summit.z], moon, .42);
-  aim[1] = eye[1] - Math.hypot(aim[0] - eye[0], aim[2] - eye[2]) * (layout === 'side' ? .078 : .06);
-  const forward = normalize(sub(aim, eye)), across = normalize(cross(forward, [0, 1, 0])), distance = Math.hypot(...sub(aim, eye));
-  return { angle: Math.atan2(eye[2], eye[0]), radius: Math.hypot(eye[0], eye[2]), y: eye[1], target: add(aim, layout === 'side' ? scale(across, -distance * .13) : [0, -distance * .1, 0]) };
+// Moonward. moon: the chapter's places (beyond.js, spaceMoon). Out there a pose is an eye and a target, as in the Heart.
+// At rest the lens is low over the moon's far side, looking back along the way it came: the moon's edge curves across
+// the lower part of the frame and home stands a little above it. It drifts a very little along its orbit.
+export function spacePose(moon, time, pointer, layout) {
+  const { center, radius, toward, up, side, home } = moon;
+  const lean = (21 + Math.sin(time * .045) * 1.3 - pointer[1] * .8) * Math.PI / 180, out = radius * 1.3;
+  const eye = add(center, add(scale(up, out * Math.cos(lean)), add(scale(toward, out * Math.sin(lean)), scale(side, radius * pointer[0] * -.04))));
+  const back = normalize(sub(home.center, eye));
+  // Aimed a little under home, so the moon's edge is in the frame; home sits right of centre beside the words, or above them.
+  const aim = add(back, add(scale(up, layout === 'side' ? -.085 : -.2), scale(side, layout === 'side' ? .15 : 0)));
+  return { eye, target: add(eye, scale(aim, 100)) };
+}
+// How far along the flight the lens is at time t. Not an even ease: it comes off the mark gently, is fastest a third
+// of the way through, and spends the rest slowing into its orbit, the way anything arriving at a moon does.
+const PACE = (() => {
+  const table = [0];
+  for (let i = 1; i <= 64; i++) { const x = (i - .5) / 64; table.push(table[i - 1] + x ** 1.3 * (1 - x) ** 2); }
+  return table.map(v => v / table[64]);
+})();
+const pace = t => { const x = clamp(t, 0, 1) * 64, i = Math.min(63, Math.floor(x)); return lerp(PACE[i], PACE[i + 1], x - i); };
+// The flight between a view on the mountain (ground: an eye and a target) and that rest, t from 0 on the ground to 1
+// out there. The lens climbs looking up at the moon, swings wide round its side with it filling the frame, and only
+// then, slowly, turns to look home.
+export function spaceFlight(ground, rest, moon, t) {
+  const { center, radius, toward, up, side } = moon, e = pace(t), f = 1 - e;
+  const wide = add(center, add(scale(side, -radius * 2.4), add(scale(up, radius * 1.5), scale(toward, -radius * .9))));
+  const eye = [0, 1, 2].map(i => f * f * ground.eye[i] + 2 * f * e * wide[i] + e * e * rest.eye[i]);
+  // Which way it looks is blended as directions, not as points: from the view it left, to the moon, to the view home.
+  const facing = (from, to) => normalize(sub(to, from));
+  const first = facing(ground.eye, ground.target), moonward = facing(eye, center), home = facing(rest.eye, rest.target);
+  const look = e < .5 ? mix3(first, moonward, smoothstep(0, .16, e)) : mix3(moonward, home, smoothstep(.7, .995, e));
+  return { eye, target: add(eye, scale(normalize(look), 100)) };
 }
 
 // The Heart, from inside: a slow walk round it, from a little above, looking down past it into the pool that mirrors it.

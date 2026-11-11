@@ -3,13 +3,14 @@ import { createTerrain } from './terrain.js';
 import { program, texture, framebuffer, vertexArray } from './gl.js';
 import { chunks } from './shaders.js';
 import { weatherShaders } from './weather-shaders.js';
-import { TAU, clamp, lerp, smoothstep, mix3, add, scale, dot, random, noise2 } from './math.js';
+import { TAU, clamp, lerp, smoothstep, mix3, add, scale, dot, normalize, direction, random, noise2 } from './math.js';
 
-// Weather below the cloud deck. Above the deck the climb keeps its designed hour per camp (palettes.js); below it,
-// over the valley floor and the lower slopes, the world follows the visitor's own clock and the day's weather:
-// clear, cloud, fog, rain or snow. The deck is a layer of puffs at DECK (about 1,700 m on the altitude meter) that
+// The mountain's clock and the weather below the cloud deck. One hour lights the whole mountain (skyPalette): the
+// visitor's own, or whatever the sky menu sets, with the sun and the moon where that hour puts them. Below the deck,
+// over the valley floor and the lower slopes, the day's weather is added: clear, cloud, fog, rain or snow. The deck is a layer of puffs at DECK (about 1,700 m on the altitude meter) that
 // thickens with the cover; rain and snow fall only beneath it, wet ground darkens, snow settles on the valley.
-// Climbing past Camp II the valley fades back into the climb's own palette, so the summit is exactly as designed.
+// Climbing past Camp II the weather thins away with the valley, and the air with it: by the summit the sky overhead
+// is dark at any hour, with the stars and the aurora out, while the sun or the moon still lights the snow.
 
 export const DECK = 2.35;
 const BAND = .6;
@@ -97,6 +98,50 @@ function hourPalette(hour, { rise, set }) {
   return mixHours(PALETTES.night, PALETTES.night, 0);
 }
 
+// Where the sun and the moon stand at a local hour. The sun goes round once a day: highest at noon, on the horizon at
+// the day's sunrise and sunset, under the mountain at night. The moon is full and keeps opposite it, a little higher,
+// so it clears one horizon as the sun reaches the other and one of the two is always up.
+const SOUTH = 164, HIGH = 52, UNDER = 40;
+export function heavens(hour, { rise, set }) {
+  const turn = (hour - (rise + set) / 2) / 24 * TAU, half = (set - rise) / 48 * TAU;
+  // 1 at noon, 0 at sunrise and sunset, down to -1 at night.
+  const height = Math.max(-1, (Math.cos(turn) - Math.cos(half)) / (1 - Math.cos(half)));
+  const bearing = SOUTH + turn * 180 / Math.PI, sunUp = height * (height > 0 ? HIGH : UNDER), moonUp = Math.min(44, 5 - sunUp * .95);
+  return { sun: direction(bearing, sunUp), moon: direction(bearing + 180, moonUp), sunUp, moonUp };
+}
+
+// The light of the whole mountain at an hour: the colours between the day's keyframes (hourPalette), the sun and the
+// moon where the hour puts them, and the mountain lit by whichever is up (through dusk and dawn the light passes
+// overhead from one to the other while it is at its weakest). thin, 0 at the foot and 1 at the summit and beyond, is
+// the air thinning with height: the sky overhead goes dark whatever the hour and the stars and the aurora come out,
+// but the light on the snow is still the hour's own. That is the one liberty taken with the clock.
+const softly = (a, b, t) => a.map((x, c) => lerp(Math.sqrt(x), Math.sqrt(b[c]), t) ** 2);
+export function skyPalette(sky, thin = 0) {
+  const p = hourPalette(sky.hour, sky.light), at = heavens(sky.hour, sky.light), night = PALETTES.night;
+  const day = smoothstep(-7, -2, at.sunUp), key = normalize(mix3(at.moon, at.sun, day));
+  p.sun = at.sun;
+  p.moonDir = at.moon;
+  p.key = normalize([key[0], Math.max(key[1], .07), key[2]]);
+  p.sunDisc = smoothstep(-1.5, 1, at.sunUp);
+  p.moon = smoothstep(-2, 5, at.moonUp);
+  // The stars and the aurora wait for the sky to be dark enough: they come out over the last stretch to the summit.
+  const dark = smoothstep(.5, 1, thin);
+  p.aurora = dark * (1 - .5 * day);
+  if (thin > 0) {
+    p.zenith = softly(p.zenith, night.zenith, thin * .94);
+    p.horizon = softly(p.horizon, night.horizon, thin * .62);
+    p.below = softly(p.below, night.below, thin * .6);
+    p.ambSky = softly(p.ambSky, night.ambSky, thin * .5);
+    p.stars = Math.max(p.stars, dark * .92);
+    p.snow = Math.max(p.snow, thin * .6);
+    // Under a dark sky full sun on snow would be a white glare: the lens stops down for it.
+    const glare = thin * smoothstep(-2, 10, at.sunUp);
+    p.exposure *= 1 - .34 * glare;
+    p.ambGround = p.ambGround.map(v => v * (1 - .3 * glare));
+  }
+  return p;
+}
+
 // What each weather does below the deck: cover of the deck's puffs, how overcast and how dim the light is, the fog
 // density, wetness, snow cover on the ground, and the strength of the rain or snow falling.
 function amounts(kind, i) {
@@ -129,13 +174,11 @@ function overcast(p, a) {
 // The weather's effects fade with the valley's presence; the light's character is in the palette blend instead.
 const scaled = (a, presence) => Object.fromEntries(Object.entries(a).map(([name, value]) => [name, ['dim', 'overcast', 'cool'].includes(name) ? value : value * presence]));
 
-// The shared shaders' valley uniforms (all but the shadow map) for the weather, its eased amounts, the climb's
-// palette in this frame, the valley's presence and how far the lens is above the deck (0 under it, 1 well above).
-// Seen from above the deck the valley's light leans halfway to the climb's, so a noon valley under the summit's
-// night reads as the same world rather than a pasted-in photograph; under the deck it is the visitor's hour in full.
-const ABOVE = .5;
-function valleyUniforms(sky, eased, camp, presence, above = 0) {
-  const v = blend(camp, overcast(sky ? hourPalette(sky.hour, sky.light) : camp, eased), presence * (1 - ABOVE * above));
+// The shared shaders' valley uniforms (all but the shadow map) for the weather, its eased amounts, the frame's
+// palette and the valley's presence. The valley is lit by the same hour as everything above it; what differs is the
+// weather over it, and that the air down there is never thin.
+function valleyUniforms(sky, eased, camp, presence) {
+  const v = blend(camp, overcast(sky ? skyPalette(sky) : camp, eased), presence);
   // The frame is exposed and graded for the climb's palette; the valley's light is scaled to look as its own would.
   // An overcast valley keeps the frame's colour grade, so its greys sit with the climb's colours instead of against them.
   const tint = mix3(v.tint, camp.tint, eased.overcast);
@@ -243,7 +286,7 @@ export function createWeather(gl, scene, quality) {
     eased = Object.fromEntries(Object.entries(target).map(([name, value]) => [name, lerp(eased?.[name] ?? value, value, step)]));
     last = frame.time;
     version = sky?.version;
-    const valley = valleyUniforms(sky, eased, camp, presence, smoothstep(DECK + .5, DECK + 3.5, frame.eye[1]));
+    const valley = valleyUniforms(sky, eased, camp, presence);
     if (!shadowKey || dot(shadowKey, valley.uLowKeyDir) < .99998) { lightMatrix = renderShadow(valley.uLowKeyDir, shadowTarget); shadowKey = valley.uLowKeyDir.slice(); }
     live = { ...scaled(eased, presence), calm: sky?.calm, presence, windows: sky ? windows(sky.hour, sky.light) * presence : 0 };
     uniforms = { ...valley, uLowShadow: shadowMap, uLowLightMatrix: lightMatrix };

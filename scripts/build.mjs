@@ -31,14 +31,12 @@ const site = JSON.parse(await readFile(path.join(root, 'content/site.json'), 'ut
 const photos = JSON.parse(await readFile(path.join(root, 'content/photos.json'), 'utf8'));
 const mountain = JSON.parse(await readFile(path.join(root, 'content/mountain.json'), 'utf8'));
 const numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
-const times = ['dawn', 'morning', 'noon', 'golden', 'dusk', 'night'];
 if (!Array.isArray(mountain.camps) || mountain.camps.length < 3 || mountain.camps.length > numerals.length) throw new Error('The mountain needs 3 to 9 camps.');
 const campIds = new Set();
 for (const camp of mountain.camps) {
   if (!/^[a-z][a-z0-9-]*$/.test(camp.id) || campIds.has(camp.id) || !camp.title || !camp.description) throw new Error('Invalid mountain camp: ' + camp.id);
   if (camp.href !== undefined && !/^\/(?!\/)|^https:\/\/[a-z0-9.-]+\.g3rry\.com\//.test(camp.href)) throw new Error('Camp links must be site paths or g3rry.com subdomains: ' + camp.id);
   if (camp.model !== undefined && !['trailhead', 'photography', 'phantom', 'mailboxes', 'summit'].includes(camp.model)) throw new Error('Unknown camp model: ' + camp.model);
-  if (camp.time !== undefined && !times.includes(camp.time)) throw new Error('Unknown camp time "' + camp.time + '"; use one of ' + times.join(', '));
   campIds.add(camp.id);
 }
 // Two chapters off the trail: one inside the mountain (below), one past the summit (above). Each is a stop of its own
@@ -325,7 +323,7 @@ const campData = {
   photography: () => ' data-prints="' + printColors.join(',') + '"',
   phantom: async () => ' data-shape="' + await phantomPoints(site.phantom.shapes[0].source) + '"'
 };
-const camps = await Promise.all(mountain.camps.map(async (camp, index) => '<li id="' + camp.id + '" data-kicker="' + escape(camp.kicker || 'Camp ' + numerals[index]) + '"' + (camp.time ? ' data-time="' + camp.time + '"' : '')
+const camps = await Promise.all(mountain.camps.map(async (camp, index) => '<li id="' + camp.id + '" data-kicker="' + escape(camp.kicker || 'Camp ' + numerals[index]) + '"' 
   + (camp.model ? ' data-model="' + camp.model + '"' + (campData[camp.model] ? await campData[camp.model]() : '') : '') + '>'
   + '<a href="' + escape(camp.href || '#' + camp.id) + '"' + (camp.href ? '' : ' data-pending') + '><span class="camp-number">' + numerals[index] + '</span><span class="camp-title">' + escape(camp.title) + '</span></a>'
   + '<p>' + escape(camp.description) + '</p>' + (campExtras[camp.model] ? campExtras[camp.model]() : '') + '</li>'));

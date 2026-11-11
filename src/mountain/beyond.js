@@ -1,16 +1,34 @@
-import { TAU, clamp, lerp, smoothstep, random, hexToLinear, add, sub, scale, normalize, cross, dot } from './math.js';
+import { TAU, clamp, lerp, smoothstep, random, hexToLinear, add, sub, scale, normalize, cross } from './math.js';
 
 // Two chapters off the trail. Below it, the Heart: a door of standing stones in the cliff beside the waterfall leads
 // into a chamber inside the massif, where a cluster of crystals hangs over still water and lights the rock in slow
 // beats; one seam of light runs round the walls for every earlier version of the site the mountain keeps. Above it,
-// Moonward: past the summit the camera keeps rising and the moon, a faceted body like the mountain, comes close.
+// Moonward: past the summit the lens leaves the mountain altogether, goes out to the moon, round its far side, and
+// looks back at home, small over the moon's edge. (The moon and home are not built here: they are exact spheres drawn
+// per pixel, beyond-shaders.js.)
 // This file is their geometry, built in the scene worker with everything else; beyond-renderer.js draws it.
 
 // The chamber, in world units. It lies inside the massif, but nothing outside ever shows it and nothing inside shows
 // the outside: the camera goes in and out through black (main.js), so the two never have to meet.
 export const HEART = { at: [0, 3.4, 0], water: 2.48, period: 2.6, orbit: 2.55 };
-// The moon stands far off in the direction the night's palette gives it, and comes near for the chapter above.
-export const MOON = { distance: 300, radius: 11, near: { ahead: 66, lift: 16, aside: 24, radius: 14 } };
+// The moon stands far off where the hour puts it (weather.js, heavens). For Moonward it is a place: a body of its own
+// size a long way up one bearing from the summit, with home a small world behind. Nothing of the mountain is drawn
+// out there, so the two are never seen side by side.
+export const MOON = { distance: 300, radius: 11, away: { bearing: 140, rise: 40, reach: 380, radius: 60, home: 17 } };
+// Moonward's places for a summit at [x, y, z]: the moon; toward, the way to it from the summit; the sun that lights it
+// (from the right of the view back home and level with the ground under the lens, so the edge of the moon's night
+// runs through the middle of the view: craters in long shadow to the right of it, darkness under the words); and home, a small world whose nearest point to the moon is the summit.
+export function spaceMoon(summit) {
+  const { bearing, rise, reach, radius, home } = MOON.away, a = bearing * Math.PI / 180, e = rise * Math.PI / 180;
+  const toward = [Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a)];
+  // up: over the moon as seen looking home; side: to the left of that view.
+  const up = normalize(sub([0, 1, 0], scale(toward, toward[1]))), side = cross(toward, up);
+  return {
+    center: add(summit, scale(toward, reach)), radius, toward, up, side,
+    light: normalize(add(scale(side, -.9), add(scale(up, .03), scale(toward, .02)))),
+    home: { center: sub(summit, scale(toward, home)), radius: home, summit }
+  };
+}
 
 const paint = hex => hexToLinear(hex).map(c => Math.round(Math.sqrt(c) * 255));
 const mixBytes = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t)));
@@ -219,51 +237,4 @@ export function buildChamber(eras = 4, seed = 19) {
     // Where water drops from the longer stalactites: x, z and the height it falls from.
     drips: new Float32Array(drips.flat())
   };
-}
-
-// ---- The moon ------------------------------------------------------------------------------------------------------
-
-// A unit sphere with craters pressed into it, their rims raised, and dark plains over part of one side. Colours are
-// per vertex and blend across the facets; the facets' own normals do the shading, as on the mountain.
-export function buildMoon(level = 5, seed = 77) {
-  const next = random(seed), field = noise3(seed + 1);
-  const anywhere = () => { const y = next() * 2 - 1, a = next() * TAU, l = Math.sqrt(1 - y * y); return [Math.cos(a) * l, y, Math.sin(a) * l]; };
-  const craters = [];
-  const add_ = (count, low, high, fresh) => { for (let i = 0; i < count; i++) { const r = lerp(low, high, next() * next()); craters.push({ dir: anywhere(), r, depth: r * lerp(.13, .2, next()), reach: Math.cos(Math.min(3, r * 2.6)), fresh: next() < fresh ? .5 + next() * .5 : 0, peak: r > .17 }); } };
-  add_(5, .18, .3, .2); add_(13, .1, .16, .3); add_(12, .075, .1, .15);
-  const plains = normalize([.5, .25, -.8]);
-  const HIGH = hexToLinear('#d9d4c7'), LOW = hexToLinear('#74757c'), RAY = hexToLinear('#f7f3ec'), FLOOR = hexToLinear('#b3ae9f');
-  const sphere = icosphere(level);
-  const vertices = sphere.vertices.map(d => {
-    let height = .012 * field(d[0] * 3.1, d[1] * 3.1, d[2] * 3.1) + .005 * field(d[0] * 9 + 4, d[1] * 9, d[2] * 9), bright = 0, floor = 0;
-    for (const crater of craters) {
-      const cosine = dot(d, crater.dir);
-      if (cosine < crater.reach) continue;
-      const a = Math.acos(Math.min(1, cosine)) / crater.r;
-      // A bowl with a flat floor, a raised rim that falls away outside, and a peak in the middle of the largest.
-      const inside = 1 - smoothstep(.5, 1, a);
-      height += crater.depth * (-inside + .42 * Math.exp(-(((a - 1) / .2) ** 2)) + (crater.peak ? .35 * Math.exp(-((a / .16) ** 2)) : 0));
-      floor = Math.max(floor, inside * .6);
-      // Young craters throw bright rays outward, broken into streaks.
-      if (crater.fresh && a < 2.6) bright = Math.max(bright, crater.fresh * Math.exp(-Math.max(a - .9, 0) * 1.5) * (.55 + .45 * field(d[0] * 14, d[1] * 14, d[2] * 14)));
-    }
-    const mare = smoothstep(.06, .3, field(d[0] * 1.5 + 2, d[1] * 1.5, d[2] * 1.5)) * smoothstep(-.9, .1, dot(d, plains));
-    let color = HIGH.map((v, i) => lerp(v, LOW[i], mare * .9));
-    color = color.map((v, i) => lerp(v, FLOOR[i], floor * (1 - mare) * .5));
-    color = color.map((v, i) => lerp(v, RAY[i], clamp(bright, 0, 1) * .8) * (.94 + .12 * field(d[0] * 21, d[1] * 21 + 5, d[2] * 21)));
-    return { p: scale(d, 1 + height * (1 - mare * .5)), color: color.map(v => Math.round(Math.sqrt(clamp(v, 0, 1)) * 255)) };
-  });
-  const positions = new Float32Array(sphere.faces.length * 9), colors = new Uint8Array(sphere.faces.length * 12);
-  sphere.faces.forEach((face, f) => face.forEach((index, k) => {
-    positions.set(vertices[index].p, f * 9 + k * 3);
-    colors.set([...vertices[index].color, 255], f * 12 + k * 4);
-  }));
-  return { positions, colors, count: sphere.faces.length * 3 };
-}
-
-// Where the moon hangs for the chapter above: ahead of the summit along the night's bearing to it, well above, and a
-// little to one side so the summit and the moon share the frame. summit: [x, y, z]; bearing: radians from +x to +z.
-export function nearMoon(summit, bearing) {
-  const { ahead, lift, aside, radius } = MOON.near, c = Math.cos(bearing), s = Math.sin(bearing);
-  return [summit[0] + c * ahead - s * aside, summit[1] + lift, summit[2] + s * ahead + c * aside, radius];
 }
