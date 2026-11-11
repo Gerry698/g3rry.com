@@ -7,20 +7,20 @@ import { TAU, clamp, lerp, smoothstep, mix3, add, scale, dot, normalize, directi
 
 // The mountain's clock and the weather below the cloud deck. One hour lights the whole mountain (skyPalette): the
 // visitor's own, or whatever the sky menu sets, with the sun and the moon where that hour puts them. Below the deck,
-// over the valley floor and the lower slopes, the day's weather is added: clear, cloud, fog, rain or snow. The deck is a layer of puffs at DECK (about 1,700 m on the altitude meter) that
+// over the valley floor and the lower slopes, the day's weather is added: clear, cloud, fog, rain, storm or snow. The deck is a layer of puffs at DECK (about 1,700 m on the altitude meter) that
 // thickens with the cover; rain and snow fall only beneath it, wet ground darkens, snow settles on the valley.
 // Climbing past Camp II the weather thins away with the valley, and the air with it: by the summit the sky overhead
 // is dark at any hour, with the stars and the aurora out, while the sun or the moon still lights the snow.
 
 export const DECK = 2.35;
 const BAND = .6;
-export const KINDS = ['clear', 'cloud', 'fog', 'rain', 'snow'];
+export const KINDS = ['clear', 'cloud', 'fog', 'rain', 'storm', 'snow'];
 
-// Chances of clear, cloud, fog, rain and snow by month, for a temperate mountain valley.
+// Chances of clear, cloud, fog, rain, storm and snow by month, for a temperate mountain valley: thunder in summer.
 const CLIMATE = [
-  [.30, .24, .14, .08, .24], [.30, .24, .12, .12, .22], [.34, .26, .10, .20, .10], [.40, .26, .08, .24, .02],
-  [.46, .24, .06, .24, 0], [.56, .20, .04, .20, 0], [.62, .16, .04, .18, 0], [.60, .18, .06, .16, 0],
-  [.50, .22, .12, .16, 0], [.40, .24, .18, .16, .02], [.32, .26, .18, .14, .10], [.28, .24, .16, .10, .22]
+  [.30, .24, .14, .08, 0, .24], [.30, .24, .12, .12, 0, .22], [.34, .26, .10, .18, .02, .10], [.40, .26, .08, .20, .04, .02],
+  [.44, .24, .06, .20, .06, 0], [.52, .20, .04, .16, .08, 0], [.58, .16, .04, .12, .10, 0], [.56, .18, .06, .11, .09, 0],
+  [.48, .22, .12, .13, .05, 0], [.40, .24, .18, .14, .02, .02], [.32, .26, .18, .14, 0, .10], [.28, .24, .16, .10, 0, .22]
 ];
 // The visitor's season: time zones south of the equator get the months turned half a year.
 const zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })();
@@ -48,7 +48,7 @@ function daylight(date) {
 }
 
 // The valley's state for the page: the day's weather and the local hour, unless the query, the sky menu or the debug
-// API set them (?weather=clear|cloud|fog|rain|snow, ?hour=0..24).
+// API set them (?weather=clear|cloud|fog|rain|storm|snow, ?hour=0..24).
 export function conditions(params, reduced) {
   const pick = value => KINDS.includes(value) ? value : null;
   const hourOf = value => value === null || value === '' || !Number.isFinite(+value) ? null : clamp(+value, 0, 24);
@@ -143,13 +143,15 @@ export function skyPalette(sky, thin = 0) {
 }
 
 // What each weather does below the deck: cover of the deck's puffs, how overcast and how dim the light is, the fog
-// density, wetness, snow cover on the ground, and the strength of the rain or snow falling.
+// density, wetness, snow cover on the ground, and the strength of the rain or snow falling. sea is how much of the
+// mountain's own cloud (the banks round its foot and the wisps higher up) is out: on a clear day only a few wisps.
 function amounts(kind, i) {
-  const base = { cover: .05, overcast: 0, dim: 1, cool: 0, fog: .004, wet: 0, snow: 0, rain: 0, flakes: 0 };
-  if (kind === 'cloud') return { ...base, cover: .45 + .4 * i, overcast: .55 + .4 * i, dim: .88 - .18 * i, cool: .3, fog: .012 };
-  if (kind === 'fog') return { ...base, cover: .4 + .3 * i, overcast: .92, dim: 1, cool: .3, fog: .3 + .45 * i, wet: .12 };
-  if (kind === 'rain') return { ...base, cover: .55 + .3 * i, overcast: .85 + .15 * i, dim: .6 - .16 * i, cool: 1, fog: .025 + .02 * i, wet: .55 + .45 * i, rain: .45 + .55 * i };
-  if (kind === 'snow') return { ...base, cover: .5 + .3 * i, overcast: .8 + .15 * i, dim: .95, cool: .6, fog: .025 + .02 * i, snow: .55 + .45 * i, flakes: .45 + .55 * i };
+  const base = { cover: .05, overcast: 0, dim: 1, cool: 0, fog: .004, wet: 0, snow: 0, rain: 0, flakes: 0, sea: .12 };
+  if (kind === 'cloud') return { ...base, cover: .45 + .4 * i, overcast: .55 + .4 * i, dim: .88 - .18 * i, cool: .3, fog: .012, sea: .7 + .3 * i };
+  if (kind === 'fog') return { ...base, cover: .4 + .3 * i, overcast: .92, dim: 1, cool: .3, fog: .3 + .45 * i, wet: .12, sea: .75 };
+  if (kind === 'rain') return { ...base, cover: .55 + .3 * i, overcast: .85 + .15 * i, dim: .6 - .16 * i, cool: 1, fog: .025 + .02 * i, wet: .55 + .45 * i, rain: .45 + .55 * i, sea: .85 + .15 * i };
+  if (kind === 'storm') return { ...base, cover: .75 + .25 * i, overcast: 1, dim: .4 - .12 * i, cool: 1, fog: .03 + .02 * i, wet: .85 + .15 * i, rain: .7 + .3 * i, sea: 1 };
+  if (kind === 'snow') return { ...base, cover: .5 + .3 * i, overcast: .8 + .15 * i, dim: .95, cool: .6, fog: .025 + .02 * i, snow: .55 + .45 * i, flakes: .45 + .55 * i, sea: .85 };
   return base;
 }
 
@@ -172,7 +174,7 @@ function overcast(p, a) {
 }
 
 // The weather's effects fade with the valley's presence; the light's character is in the palette blend instead.
-const scaled = (a, presence) => Object.fromEntries(Object.entries(a).map(([name, value]) => [name, ['dim', 'overcast', 'cool'].includes(name) ? value : value * presence]));
+const scaled = (a, presence) => Object.fromEntries(Object.entries(a).map(([name, value]) => [name, ['dim', 'overcast', 'cool', 'sea'].includes(name) ? value : value * presence]));
 
 // The shared shaders' valley uniforms (all but the shadow map) for the weather, its eased amounts, the frame's
 // palette and the valley's presence. The valley is lit by the same hour as everything above it; what differs is the
@@ -187,7 +189,7 @@ function valleyUniforms(sky, eased, camp, presence) {
   const a = scaled(eased, presence);
   return {
     uDeck: [DECK, BAND, a.cover, presence], uLowAir: [a.fog, v.saturation / camp.saturation, a.wet, a.snow],
-    uLowFog: [DECK - .1, .9, .12 + eased.overcast * .5 * presence, 0],
+    uLowFog: [DECK - .1, .9, .12 + eased.overcast * (.5 + 1.3 * eased.overcast ** 3) * presence, 0], uGloom: eased.overcast * presence,
     uLowKeyDir: v.key, uLowKeyColor: lit(v.keyColor), uLowAmbSky: lit(v.ambSky), uLowAmbGround: lit(v.ambGround), uLowZenith: lit(v.zenith),
     uLowHorizon: lit(v.horizon), uLowBelow: lit(v.below), uLowGlow: lit(v.glow), uLowSunDir: v.sun, uLowCloud: v.cloud
   };
@@ -244,9 +246,66 @@ function windows(hour, { rise, set }) {
   return dark * (1 - .65 * smoothstep(11, 13.5, t) + .35 * smoothstep(17, 18.5, t));
 }
 
+// Lightning, in a storm: a strike every few seconds somewhere over the valley floor, from the deck to the ground. Each
+// lights the valley and the cloud round it in one pulse or two (never more than two flashes in a second, and with
+// reduced motion a slow glow and no bolt); main.js sends the thunder after it by as long as the sound takes to come.
+// tick() returns a strike once, when it happens; flash() is how bright it is at a time.
+export function createStorm(terrain) {
+  const next = random(41);
+  let due = 2.5, strike = null, count = 0, held = 0, place = null;
+  return {
+    // For the debug API: the next frame strikes.
+    soon(hold = 0, at = null) { due = 0; held = hold; place = at; },
+    tick(time, sky) {
+      if (sky?.kind !== 'storm') { strike = null; due = time + 1.5 + next() * 2.5; return null; }
+      if (time < due) return null;
+      let x = 0, z = 0, ground = 0;
+      for (let tries = 0; tries < 20 && !place; tries++) {
+        const angle = next() * TAU, r = 7 + next() * 28;
+        x = Math.cos(angle) * r; z = Math.sin(angle) * r; ground = terrain.height(x, z);
+        if (ground < DECK - .9) break;
+      }
+      if (place) { [x, z] = place; ground = terrain.height(x, z); place = null; }
+      strike = { id: ++count, start: time, at: [x, ground, z], seed: Math.floor(next() * 1e6), pulses: next() < .5 ? 2 : 1, power: .6 + next() * .4 };
+      due = time + (sky.calm ? 9 : 3.2) + next() * (sky.calm ? 9 : 8) * (1.35 - .6 * sky.intensity);
+      return strike;
+    },
+    flash(time, calm) {
+      if (!strike) return 0;
+      if (held) return held;
+      const t = time - strike.start;
+      if (calm) return t > 0 && t < 2.4 ? strike.power * .3 * Math.sin(Math.PI * t / 2.4) ** 2 : 0;
+      const pulse = u => u > 0 ? Math.exp(-u * 8) * smoothstep(0, .025, u) : 0;
+      return strike.power * Math.max(pulse(t), strike.pulses > 1 ? .75 * pulse(t - .42) : 0);
+    },
+    get strike() { return strike; }
+  };
+}
+
+// A bolt from the deck to the ground at `at`, as segments (stride 8: from xyz, width; to xyz, brightness): a main
+// channel that wanders as it falls, with a branch or two that die away.
+function boltSegments(at, seed) {
+  const next = random(seed), out = [], top = DECK + .35;
+  const channel = (from, to, steps, width, bright) => {
+    let p = from;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps, base = mix3(from, to, t), wander = (1 - Math.abs(t * 2 - 1) ** 3) * .55;
+      const q = i === steps ? to : [base[0] + (next() - .5) * wander, base[1] + (next() - .5) * .06, base[2] + (next() - .5) * wander];
+      out.push(...p, width, ...q, bright * (1 - t * .25));
+      p = q;
+      if (width > .6 && i > 2 && i < steps - 2 && next() < .16) {
+        const end = [q[0] + (next() - .5) * 1.6, q[1] - .3 - next() * .5, q[2] + (next() - .5) * 1.6];
+        channel(q, end, 4, width * .45, bright * .5);
+      }
+    }
+  };
+  channel([at[0] + (next() - .5) * .8, top, at[2] + (next() - .5) * .8], at, 16, 1, 1);
+  return new Float32Array(out.slice(0, 8 * 48));
+}
+
 const SOURCES = weatherShaders(chunks);
 const PROGRAMS = {
-  rain: ['rainVertex', 'rainFragment'], flakes: ['flakeVertex', 'flakeFragment'], curtain: ['curtainVertex', 'curtainFragment'], lights: ['lightVertex', 'lightFragment']
+  rain: ['rainVertex', 'rainFragment'], flakes: ['flakeVertex', 'flakeFragment'], curtain: ['curtainVertex', 'curtainFragment'], lights: ['lightVertex', 'lightFragment'], bolt: ['boltVertex', 'boltFragment']
 };
 // For the renderer's warm-up, so the driver compiles these with everything else.
 export const weatherSources = Object.values(PROGRAMS).map(([vertex, fragment]) => [SOURCES[vertex], SOURCES[fragment]]);
@@ -266,6 +325,9 @@ export function createWeather(gl, scene, quality) {
   const shafts = curtains(terrain, quality.clouds > 200 ? 72 : 48);
   const curtainArray = vertexArray(gl, [{ data: shafts.shafts, size: 4, divisor: 1 }, { data: shafts.seeds, size: 1, divisor: 1 }]);
   const lightPoints = hamlets(terrain), lightArray = vertexArray(gl, [{ data: lightPoints, size: 4 }]);
+  const boltFrom = new Float32Array(4 * 48), boltTo = new Float32Array(4 * 48);
+  const boltArray = vertexArray(gl, [{ data: boltFrom, size: 4, divisor: 1, usage: gl.DYNAMIC_DRAW }, { data: boltTo, size: 4, divisor: 1, usage: gl.DYNAMIC_DRAW }]);
+  let boltCount = 0, boltId = -1;
   const empty = gl.createVertexArray();
   const counts = { rain: Math.round(quality.snow * 1.5), flakes: Math.round(quality.snow * 1.3) };
   const shadowMap = texture(gl, quality.shadow, quality.shadow, { internal: gl.DEPTH_COMPONENT24, format: gl.DEPTH_COMPONENT, type: gl.UNSIGNED_INT, compare: true });
@@ -288,17 +350,33 @@ export function createWeather(gl, scene, quality) {
     version = sky?.version;
     const valley = valleyUniforms(sky, eased, camp, presence);
     if (!shadowKey || dot(shadowKey, valley.uLowKeyDir) < .99998) { lightMatrix = renderShadow(valley.uLowKeyDir, shadowTarget); shadowKey = valley.uLowKeyDir.slice(); }
-    live = { ...scaled(eased, presence), calm: sky?.calm, presence, windows: sky ? windows(sky.hour, sky.light) * presence : 0 };
-    uniforms = { ...valley, uLowShadow: shadowMap, uLowLightMatrix: lightMatrix };
+    // Lightning (createStorm, driven from main.js): where it struck and how bright the flash is now.
+    const storm = off ? null : frame.storm, flash = storm?.strike ? storm.flash * presence : 0, at = storm?.strike?.at || [0, 0, 0];
+    live = { ...scaled(eased, presence), calm: sky?.calm, presence, windows: sky ? windows(sky.hour, sky.light) * presence : 0, flash, strike: storm?.strike || null };
+    uniforms = { ...valley, uLowShadow: shadowMap, uLowLightMatrix: lightMatrix, uSea: off ? 1 : eased.sea, uFlash: [at[0], (at[1] + DECK) / 2, at[2], flash] };
     return uniforms;
   }
 
-  // Before the clouds, which pass in front of them: the valley's lights after dark, and the shafts under the deck.
+  // Before the clouds, which pass in front of them: the valley's lights after dark, the bolt of a strike, and the
+  // shafts under the deck.
   function drawUnderClouds(common, hide) {
     if (live.windows > .01 && !hide?.has('lights')) {
       programs.lights.use().set({ ...common, uLights: [live.windows, 2] });
       gl.bindVertexArray(lightArray.vao);
       gl.drawArrays(gl.POINTS, 0, lightPoints.length / 4);
+    }
+    if (live.strike && live.flash > .02 && !live.calm && !hide?.has('lightning')) {
+      if (live.strike.id !== boltId) {
+        boltId = live.strike.id;
+        const segments = boltSegments(live.strike.at, live.strike.seed);
+        boltCount = segments.length / 8;
+        for (let i = 0; i < boltCount; i++) { boltFrom.set(segments.subarray(i * 8, i * 8 + 4), i * 4); boltTo.set(segments.subarray(i * 8 + 4, i * 8 + 8), i * 4); }
+        boltArray.update(0, boltFrom);
+        boltArray.update(1, boltTo);
+      }
+      programs.bolt.use().set({ ...common, uBolt: [live.flash, Math.max(1, common.uHeight / 700)] });
+      gl.bindVertexArray(boltArray.vao);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, boltCount);
     }
     const strength = Math.max(live.rain, live.flakes);
     if (strength < .01 || hide?.has('curtains')) return;

@@ -186,6 +186,16 @@ h1, h2, p { margin: 0; }
 .sound-themes [aria-checked="true"] { opacity: 1; color: var(--paper); }
 .sound-themes [aria-checked="true"] b { color: var(--lantern); }
 .sound-themes [aria-checked="true"] span { display: inline; }
+/* The volume: a hairline with a lantern on it, like the sky menu's strength. */
+.sound-volume { display: flex; align-items: center; padding-left: .9rem; border-left: 1px solid var(--faint); }
+.sound-volume[hidden] { display: none; }
+.sound-volume input { -webkit-appearance: none; appearance: none; width: 72px; height: 24px; margin: 0; background: none; cursor: pointer; --level: 75%; }
+.sound-volume input::-webkit-slider-runnable-track { height: 1px; background: linear-gradient(90deg, var(--lantern) var(--level), var(--faint) var(--level)); }
+.sound-volume input::-webkit-slider-thumb { -webkit-appearance: none; width: 9px; height: 9px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--lantern); box-shadow: 0 0 10px #ffcf7dcc; }
+.sound-volume input::-moz-range-track { height: 1px; background: var(--faint); }
+.sound-volume input::-moz-range-progress { height: 1px; background: var(--lantern); }
+.sound-volume input::-moz-range-thumb { width: 9px; height: 9px; border: 0; border-radius: 50%; background: var(--lantern); }
+.sound-volume input:focus-visible { outline: 1px solid var(--mist); outline-offset: 2px; }
 
 .mountain-hint { position: fixed; left: 50%; bottom: calc(var(--bottom) + 30px); z-index: 3; transform: translateX(-50%); animation: mountain-fade 1s ease .3s backwards; display: grid; justify-items: center; gap: .7rem; font: .66rem/1 var(--mono); letter-spacing: .24em; text-transform: uppercase; color: var(--mist); }
 .mountain-hint i { width: 1px; height: 34px; background: linear-gradient(var(--mist), transparent); animation: mountain-drop 2.2s cubic-bezier(.6, 0, .3, 1) infinite; transform-origin: top; }
@@ -310,9 +320,11 @@ h1, h2, p { margin: 0; }
 .almanac-kinds label:nth-of-type(3) { animation-delay: .65s; }
 .almanac-kinds label:nth-of-type(4) { animation-delay: .7s; }
 .almanac-kinds label:nth-of-type(5) { animation-delay: .75s; }
+.almanac-kinds label:nth-of-type(6) { animation-delay: .8s; }
 .almanac-kinds input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
 .almanac-kinds svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; transition: color .25s, filter .25s; }
 .almanac-kinds input[value="snow"] + svg circle { fill: currentColor; stroke: none; }
+.almanac-kinds input[value="storm"] + svg path:first-child { stroke-linejoin: round; }
 .almanac-kinds .kind-ground { stroke-opacity: .35; }
 .almanac-kinds label:hover { color: var(--paper); }
 .almanac-kinds input:checked + svg { color: var(--lantern); filter: drop-shadow(0 0 5px #ffcf7d99); }
@@ -385,7 +397,8 @@ h1, h2, p { margin: 0; }
   /* On a phone the sound switch sits under the name and the answering line under the top bar; the card has the bottom. */
   .js:not(.mountain-static) .mountain-sound { right: auto; bottom: auto; left: max(22px, calc(env(safe-area-inset-left) + 16px)); top: calc(var(--top) + 62px); gap: .5rem; }
   .sound-label, .sound-themes [aria-checked="true"] span { display: none; }
-  .sound-themes { padding-left: .5rem; }
+  .sound-themes, .sound-volume { padding-left: .5rem; }
+  .sound-volume input { width: 56px; }
   .js:not(.mountain-static) .mountain-nudge { bottom: auto; top: calc(var(--top) + 108px); white-space: normal; text-align: center; width: max-content; max-width: 78vw; line-height: 1.5; border-radius: 18px; }
   .js:not(.mountain-static) .camp-title { display: none; }
   .mountain-hint { display: none; }

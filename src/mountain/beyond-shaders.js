@@ -255,6 +255,7 @@ uniform vec4 uOrb;        // centre and radius
 uniform mat3 uOrbTurn;    // world to the body's own frame (it turns slowly under the lens)
 uniform vec3 uOrbLight;   // towards the sun
 uniform vec2 uOrbPower;   // brightness, and how solid it is (a daytime moon lets the sky through)
+uniform float uOrbSoft;   // how many pixels its edge is spread over (at least one)
 vec3 hash33(vec3 p) { p = fract(p * vec3(.1031, .1030, .0973)); p += dot(p, p.yxz + 33.33); return fract((p.xxy + p.yxx) * p.zyx); }
 // The point of the body this pixel sees: its direction from the centre in the world (xyz) and how much of the pixel
 // the body covers (w, less than 1 only along the edge, which is what keeps the edge smooth). footprint: the size of
@@ -266,7 +267,7 @@ vec4 orbHit(float reach, out vec3 rd, out float footprint) {
   float along = -dot(oc, rd), radius = uOrb.w * reach;
   if (along < 0.) discard;
   float miss = sqrt(max(dot(oc, oc) - along * along, 0.)), px = along * uPixel;
-  float cover = clamp((radius - miss) / px + .5, 0., 1.);
+  float cover = clamp((radius - miss) / (px * max(uOrbSoft, 1.)) + .5, 0., 1.);
   if (cover <= 0.) discard;
   float t = along - sqrt(max(radius * radius - miss * miss, 0.));
   vec3 hit = uCamPos + rd * t;
@@ -278,30 +279,41 @@ vec4 orbHit(float reach, out vec3 rd, out float footprint) {
 `;
 
 // The moon's surface is a rule, the same from any distance. Craters come in sizes: for each size a grid of cells is
-// laid through the body, each cell may hold one crater, and where a crater's ball cuts the surface is its bowl, with a
-// raised rim that falls away outside. Every size slopes alike, so small craters look like large ones seen from far.
-// Sizes too small for the pixel are left out, so the far moon costs almost nothing. Dark plains lie over part of it,
-// and craters are shallower there. The light on it is whatever the slopes make of the sun, with no softening: along
-// the edge of its night every rim throws a shadow.
+// laid through the body and only some cells hold one, anywhere inside the cell, so they never line up. None is a true
+// circle: its rim wanders in and out as it goes round. And each has an age: most are old, worn down to shallow dishes
+// with soft low rims; a few are young, deep and sharp-rimmed, the big ones flat-floored, with a pale skirt of thrown-out
+// rock round them. Every size slopes alike, so small craters look like large ones seen from far. Sizes too small for
+// the pixel are left out, so the far moon costs almost nothing. Dark plains lie over part of it, where craters are
+// shallower. The light on it is whatever the slopes make of the sun: along the edge of its night every rim throws a
+// shadow. Seen from the mountain it is through the air (uOrbAir): dimmer and warmer the lower it stands, its markings
+// paler and its edge a little soft, as the air scatters across it.
 export const moonFragment = header + noise + orb + `
 uniform vec3 uOrbColor, uOrbShade;
 uniform float uOrbDetail;   // 1 for every size of crater, 0 to leave the finest out
-float craters(vec3 p, float freq, float amount, inout vec3 slope) {
+uniform float uOrbAir;      // how much air it is seen through: 1 from the mountain, 0 out in space
+float craters(vec3 p, float freq, float chance, float amount, inout vec3 slope, inout float fresh) {
   if (amount <= 0.) return 0.;
   vec3 q = p * freq, base = floor(q - .5);
   float h = 0.;
   for (int i = 0; i < 8; i++) {
     vec3 cell = base + vec3(i & 1, (i >> 1) & 1, (i >> 2) & 1), rnd = hash33(cell + freq * 7.3);
-    if (rnd.z > .5) continue;
-    vec3 v = q - (cell + .5 + (rnd - .5) * .4);
-    float r = .2 + .3 * fract(rnd.y * 7.31), dist = length(v), x = dist / r;
-    if (x > 1.6) continue;
-    // Old craters are worn shallow, a few are fresh and sharp.
-    float worn = amount * (.3 + .7 * rnd.z * 2.);
-    float rim = .3 * exp(-(x - 1.) * (x - 1.) / .0289);
-    float bowl = x < 1. ? x * x - 1. : 0., dbowl = x < 1. ? 2. * x : 0.;
-    h += worn * r / freq * (bowl + rim);
-    slope += worn * (dbowl - rim * (x - 1.) / .01445) * v / max(dist, 1e-4);
+    if (rnd.z > chance) continue;
+    vec3 more = hash33(cell * 1.71 + freq * 3.1 + 19.);
+    vec3 v = q - (cell + .5 + (rnd - .5) * .92);
+    float dist = length(v);
+    vec3 dir = v / max(dist, 1e-4);
+    float r = .12 + .32 * more.x * more.x, wobble = 1. + .2 * (vnoise3(dir * 2.2 + more * 13.) - .5) + .08 * (vnoise3(dir * 5.3 + rnd * 9.) - .5);
+    float x = dist / (r * wobble);
+    if (x > 2.3) continue;
+    // Young or old: depth, rim and how sharp the rim is all go with it.
+    float young = more.y * more.y * more.y, depth = amount * mix(.22, 1., young);
+    float floorAt = mix(1., .55, young * smoothstep(.25, .4, r)), width = mix(.34, .13, young), rise = mix(.1, .3, young);
+    float bowl = x < 1. ? max(x * x - 1., -floorAt) : 0., dbowl = x < 1. && x * x - 1. > -floorAt ? 2. * x : 0.;
+    float k = (x - 1.) / width, ring = exp(-k * k), skirt = x > 1. ? .06 * young * exp(-(x - 1.) * 3.) : 0.;
+    h += depth * r / freq * (bowl + rise * ring + skirt);
+    slope += depth / wobble * (dbowl - rise * ring * 2. * k / width - (x > 1. ? .18 * young * exp(-(x - 1.) * 3.) : 0.)) * dir;
+    // The pale rock thrown out by a young crater, thinning in streaks away from it.
+    fresh = max(fresh, young * young * (1. - smoothstep(.85, 2.3, x)) * (.55 + .45 * vnoise3(dir * 9. + more * 5.)));
   }
   return h;
 }
@@ -311,28 +323,41 @@ void main() {
   vec3 rd; float footprint;
   vec4 hit = orbHit(1., rd, footprint);
   vec3 d = uOrbTurn * hit.xyz, light = uOrbTurn * uOrbLight;
+  float air = uOrbAir;
   // The plains: broad, soft-edged, darker.
   float mare = smoothstep(.5, .66, vnoise3(d * 1.25 + 3.1) * .62 + vnoise3(d * 2.9 + 8.7) * .28 + vnoise3(d * 6.3) * .1);
   vec3 slope = vec3(0);
-  float h = 0., deep = .27 * (1. - .6 * mare);
-  h += craters(d, 2.3, deep * shown(2.3, footprint), slope);
-  h += craters(d, 5.7, deep * shown(5.7, footprint), slope);
-  h += craters(d, 13.9, deep * shown(13.9, footprint), slope);
-  h += craters(d, 33., deep * .9 * shown(33., footprint), slope);
-  h += craters(d, 79., deep * .8 * shown(79., footprint) * uOrbDetail, slope);
-  // The ground between them is not smooth either.
+  float h = 0., fresh = 0., deep = .24 * (1. - .62 * mare) * (1. - .45 * air);
+  h += craters(d, 2.3, .4, deep * shown(2.3, footprint), slope, fresh);
+  h += craters(d, 5.3, .3, deep * shown(5.3, footprint), slope, fresh);
+  h += craters(d, 12.7, .26, deep * shown(12.7, footprint), slope, fresh);
+  h += craters(d, 29., .24, deep * .9 * shown(29., footprint), slope, fresh);
+  h += craters(d, 71., .22, deep * .8 * shown(71., footprint) * uOrbDetail, slope, fresh);
+  // The ground between them rolls a little, and close up it is rough.
   float grit = shown(60., footprint);
-  slope += (vec3(vnoise3(d * 150.), vnoise3(d * 150. + 31.), vnoise3(d * 150. + 67.)) - .5) * .12 * grit;
+  slope += (vec3(vnoise3(d * 4.), vnoise3(d * 4. + 31.), vnoise3(d * 4. + 67.)) - .5) * .06;
+  slope += (vec3(vnoise3(d * 150.), vnoise3(d * 150. + 31.), vnoise3(d * 150. + 67.)) - .5) * .06 * grit;
   vec3 n = normalize(d - (slope - d * dot(slope, d)));
-  float sun = dot(n, light), whole = dot(d, light);
-  // A little light comes back off the lit ground into the shadows, so a bowl in daylight is dark, not black.
-  float lit = (pow(clamp(sun, 0., 1.), .8) + .035) * smoothstep(-.06, .08, whole);
-  // Pale highlands, dark plains, bowls a little darker than their rims, and a mottling over all of it.
-  vec3 albedo = mix(vec3(.74, .72, .67), vec3(.3, .31, .34), mare * .85);
-  albedo *= (.9 + .22 * vnoise3(d * 9.) + .1 * vnoise3(d * 37.) * grit) * (1. + clamp(h * 9., -.3, .2));
+  float sun = dot(n, light), whole = dot(d, light), view = max(dot(n, -rd), .02);
+  // Moon dust does not darken towards the edge as paint would: lit from behind the lens the full moon is as bright at
+  // its rim as in its middle (Lommel-Seeliger: the sun's angle against the eye's). A little light comes back off the
+  // lit ground into the shadows, so a bowl in daylight is dark, not black.
+  float lit = (mix(pow(clamp(sun, 0., 1.), .8), 2. * max(sun, 0.) / (max(sun, 0.) + view), .7) + .035) * smoothstep(-.06, .08, whole);
+  // Pale highlands, dark plains, the young rock paler still, and a mottling over all of it.
+  vec3 albedo = mix(vec3(.72, .7, .66), vec3(.3, .31, .34), mare * .85);
+  albedo = mix(albedo, vec3(.86, .85, .82), fresh * .55);
+  albedo *= (.9 + .22 * vnoise3(d * 9.) + .1 * vnoise3(d * 37.) * grit) * (1. + clamp(h * 7., -.25, .15));
+  // Through the air its markings are fainter: the air lays the same scattered light over dark and pale alike.
+  albedo = mix(albedo, vec3(.6, .59, .56), .15 * air);
   vec3 color = albedo * (uOrbColor * lit * 2.6 + uOrbShade);
+  if (air > 0.) {
+    // The lower it stands, the longer its light's way through the air: dimmer, and warmer, the blue lost first.
+    float mass = 1. / (max(rd.y, 0.) + .1);
+    color *= mix(vec3(1), exp(-vec3(.035, .065, .13) * mass), air);
+  }
   outColor = vec4(color * uOrbPower.x * hit.w, uOrbPower.y * hit.w);
 }`;
+
 
 // Home, seen from the moon: sea, land, ice at the poles and cloud over them, the sun glinting off the sea, and a thin
 // blue shell of air that shows as a bright edge on the day side and a soft ring beyond it.

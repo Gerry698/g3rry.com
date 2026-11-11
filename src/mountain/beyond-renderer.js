@@ -92,34 +92,40 @@ export function createBeyond(gl, scene, quality, glow) {
 
   // ---- The moon, home, and the way between ------------------------------------------------------------------------
   const summit = scene.camps.at(-1), top = [summit.x, summit.y + .8, summit.z];
-  // Moonward's places: the moon as a body of its own a long way up, and home behind (beyond.js).
-  const away = spaceMoon([summit.x, summit.y, summit.z]);
+  // Moonward's places: the moon as a body of its own a long way off, and home behind (beyond.js). Aimed afresh each
+  // time the lens sets off (aim below).
+  let away = spaceMoon([summit.x, summit.y, summit.z]);
   // A line of stars from the summit's flag out to the moon, bowed like a thrown rope: the way the lens goes. From the
   // far side, looking back, it runs from home up towards the moon's edge. Every seventh is a brighter one, so it
   // reads as a constellation rather than a dotted rule.
   const STARS = 56, stars = sprites(STARS), way = [], lamps = sprites(2);
-  {
+  function layWay() {
     // It ends over the far side, where the lens comes to rest, to the left of the view back; on the way it rises well
     // clear of the moon's edge, so from there it is an arc across the sky from home.
     const end = add(away.center, add(scale(away.side, away.radius * 2.6), add(scale(away.up, away.radius * 1.9), scale(away.toward, away.radius * .6))));
     const bow = add(mix3(top, end, .45), add(scale(away.side, away.radius * 2.4), scale(away.up, away.radius * 1.1)));
+    way.length = 0;
     for (let i = 0; i < STARS; i++) {
       const t = ((i + 1.5) / (STARS + 1.5)) ** 1.25, a = mix3(top, bow, t), b = mix3(bow, end, t);
       way.push(mix3(a, b, t));
     }
   }
+  layWay();
+  // The moon's place out there, the way the lens is about to go (a direction from the summit; none for the usual one).
+  function aim(direction = null) { away = spaceMoon([summit.x, summit.y, summit.z], direction); layWay(); }
 
   // Where the moon is in this frame. On the mountain it is far off where the hour puts it. Leaving for it (sky from 0
   // to 1) it becomes the place the lens is flying to and grows to its own size on the way; if the hour had it under the
-  // horizon, it comes out of the dark ahead instead.
+  // horizon, or somewhere else in the sky (beyond.stay going to 0: it fades from there first), it comes out of the dark
+  // ahead instead.
   function moonState(frame) {
-    const p = frame.palette, space = clamp(frame.beyond?.sky || 0, 0, 1), come = easeInOut(space);
-    const ahead = add(top, scale(away.toward, MOON.distance)), far = mix3(ahead, scale(p.moonDir, MOON.distance), p.moon);
+    const p = frame.palette, space = clamp(frame.beyond?.sky || 0, 0, 1), come = easeInOut(space), stay = frame.beyond?.stay ?? 1;
+    const ahead = add(top, scale(away.toward, MOON.distance)), far = stay > .5 ? mix3(ahead, add(top, scale(p.moonDir, MOON.distance)), p.moon) : ahead;
     // It takes its place early, while it is still small, so the lens can keep it in the middle of the frame all the
     // way; it grows over the whole flight.
     const center = mix3(far, away.center, smoothstep(0, .3, space)), radius = lerp(MOON.radius, away.radius, come * come);
     const toMoon = sub(center, frame.eye), distance = length(toMoon), dir = scale(toMoon, 1 / distance);
-    return { center, radius, dir, size: Math.asin(Math.min(1, radius / distance)), come, space };
+    return { center, radius, dir, size: Math.asin(Math.min(1, radius / distance)), come, space, stay: Math.abs(stay * 2 - 1), reveal: stay > .5 ? 0 : frame.beyond?.reveal || 0, phase: frame.beyond?.phase ?? come };
   }
 
   // A turn about an axis, as the world-to-body matrix the shaders want (column-major).
@@ -139,29 +145,33 @@ export function createBeyond(gl, scene, quality, glow) {
   // After the opaque scene and before the clouds, which pass in front of it. veil: how much of it the valley's sky
   // hides when the lens is under the cloud deck (0 none).
   function drawMoon(frame, common, state, veil = 0) {
-    const p = frame.palette, power = Math.max(p.moon * (1 - veil), smoothstep(.02, .3, state.space));
+    const p = frame.palette, power = Math.max(p.moon * (1 - veil) * state.stay, state.reveal, smoothstep(.02, .3, state.space));
     if (power < .01) return;
-    // From the mountain it is lit for the look of it, from the side the frame's middle is on and a little below (a
-    // gibbous moon whatever the hour); out there the sun is a place, and the shadows keep still as the lens moves.
+    // From the mountain it is the full moon it is (opposite the sun, weather.js), lit from nearly behind the lens, a
+    // little from the left, so only a sliver of its right edge is in shadow and its markings, not its relief, show; and
+    // it is seen through the air. Out there the sun is a place, and the shadows keep still as the lens moves.
     const right = normalize(cross(state.dir, [0, 1, 0])), up = cross(right, state.dir);
-    const look = normalize(add(scale(state.dir, -.42), add(scale(right, -.74), scale(up, -.36))));
+    const look = normalize(add(scale(state.dir, -1), add(scale(right, -.3), scale(up, .1))));
+    const air = 1 - smoothstep(.02, .3, state.space);
     // Out there the ground slides slowly under the lens, as from an orbit.
     const drift = frame.beyond?.calm ? 0 : frame.time * .0045 * state.come;
     drawOrb('moon', common, {
-      uOrb: [...state.center, state.radius], uOrbTurn: turned(away.side, .9 + drift), uOrbLight: normalize(mix3(look, away.light, state.come)),
-      // Far off it is a bright disc; come near, it is dimmed until its plains and craters show in the light.
-      uOrbColor: [1, .97, .9].map(c => c * lerp(1, .5, state.come)), uOrbShade: [.012, .017, .034].map(c => c * (1 - .55 * state.come)),
-      uOrbPower: [power, Math.max(smoothstep(.3, .9, p.moon), smoothstep(.05, .35, state.space))], uOrbDetail: quality.samples > 1 ? 1 : 0
+      uOrb: [...state.center, state.radius], uOrbTurn: turned(away.side, .9 + drift), uOrbLight: normalize(mix3(look, away.light, state.phase)),
+      // From the mountain a soft-lit disc, as bright against the frame whatever the lens is exposed for; come near, it is dimmed until its plains and craters show in the light.
+      uOrbColor: [1, .97, .9].map(c => c * lerp(.38 * Math.min(2, (1.2 / p.exposure) ** .8), .42, state.come)), uOrbShade: [.012, .017, .034].map(c => c * (1 - .55 * state.come)),
+      uOrbPower: [power, Math.max(smoothstep(.3, .9, p.moon), state.reveal, smoothstep(.05, .35, state.space))], uOrbDetail: quality.samples > 1 ? 1 : 0,
+      uOrbAir: air, uOrbSoft: lerp(1, 2.2, air)
     });
   }
 
   // Home, once the mountain itself has gone dark behind the lens: a small world where the mountain was, the summit's
   // lantern still showing on the side that faces the moon.
   function drawHome(frame, common, state) {
-    const power = smoothstep(.6, .9, state.space);
+    // It stays until the mountain itself is back in sight (renderer.js draws the world again under space .5).
+    const power = smoothstep(.44, .72, state.space);
     if (power < .01) return;
     const { center, radius, summit: lamp } = away.home;
-    drawOrb('home', common, { uOrb: [...center, radius], uOrbTurn: turned([0, 1, 0], frame.beyond?.calm ? 0 : frame.time * .01), uOrbLight: away.light, uOrbPower: [power, power] });
+    drawOrb('home', common, { uOrb: [...center, radius], uOrbTurn: turned([0, 1, 0], frame.beyond?.calm ? 0 : frame.time * .01), uOrbLight: away.light, uOrbPower: [power, power], uOrbSoft: 1 });
     const beat = frame.beyond?.calm ? 1 : 1 + .25 * Math.sin(frame.time * 1.7);
     lamps.data.set([...lamp, radius * .34, ...lamp, radius * .34]);
     lamps.colors.set([.9 * power * beat, .54 * power * beat, .23 * power * beat, 0, 0, 0, 0, 0]);
@@ -188,5 +198,5 @@ export function createBeyond(gl, scene, quality, glow) {
     drawSprites(stars, common);
   }
 
-  return { drawChamber, drip, moonState, drawMoon, drawHome, drawWay, hasMoon: true, away, drops: scene.chamber?.drips || null };
+  return { drawChamber, drip, moonState, drawMoon, drawHome, drawWay, hasMoon: true, aim, get away() { return away; }, drops: scene.chamber?.drips || null };
 }

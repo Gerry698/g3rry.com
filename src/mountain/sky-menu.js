@@ -19,8 +19,8 @@ export const clockText = hour => { const m = Math.round(wrap(hour) * 60) % 1440;
 const daytime = (hour, { rise, set }) => hour >= rise && hour < set;
 const clockHour = (date = new Date()) => date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
 
-const NAMES = { cloud: ['Broken cloud', 'Cloud', 'Overcast'], fog: ['Thin fog', 'Fog', 'Thick fog'], rain: ['Drizzle', 'Rain', 'Heavy rain'], snow: ['Flurries', 'Snow', 'Heavy snow'] };
-const NOUNS = { clear: 'clear sky', cloud: 'cloud', fog: 'fog', rain: 'rain', snow: 'snow' };
+const NAMES = { cloud: ['Broken cloud', 'Cloud', 'Overcast'], fog: ['Thin fog', 'Fog', 'Thick fog'], rain: ['Drizzle', 'Rain', 'Heavy rain'], storm: ['Distant thunder', 'Thunderstorm', 'Violent storm'], snow: ['Flurries', 'Snow', 'Heavy snow'] };
+const NOUNS = { clear: 'clear sky', cloud: 'cloud', fog: 'fog', rain: 'rain', storm: 'thunder', snow: 'snow' };
 function phase(hour, { rise, set }) {
   const noon = (rise + set) / 2;
   if (hour >= rise - .4 && hour < rise + .8) return 'at dawn';
