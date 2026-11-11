@@ -176,12 +176,15 @@ function start({ gl, hdr }) {
     return catmull(at(i - 1), at(i), at(i + 1), at(i + 2), t);
   }
 
-  // Sculpt's camera keys: azimuth, elevation, focal length, f-number.
-  const SCULPT_KEYS = [[0, .02, 50, 4], [.62, .14, 35, 2.8], [1.15, .22, 135, 2.8], [2.2, -.1, 85, 2], [3.0, .08, 70, 2.8], [Math.PI * 2 - .2, .04, 50, 4]];
+  // Sculpt's camera keys: azimuth, elevation, focal length, f-number, exposure compensation. The first is how the chapter
+  // is entered (the flat mark's own view); each of the others is a beat. The wide lens stands so close that the points
+  // thin out across the frame, so it is opened up a stop.
+  const SCULPT_KEYS = [[0, .02, 50, 4, 0], [.62, .14, 35, 2.8, 0], [1.15, .22, 135, 2.8, 0], [-.42, -.1, 24, 2.8, 1]];
+  // A chapter is a row of beats: resting views at a progress `p`, each with a name and the seconds the move into it takes.
+  // One gesture goes one beat (see "Beats" below); between gestures nothing moves but the scene's own drift.
   const chapters = {
     intro: {
-      steps: () => [],
-      pace: .5,
+      beats: () => [{ p: 0, label: '', seconds: 1 }],
       targets: introTargets,
       sim: { stiffness: 6, damping: .9, turbulence: .1, flight: 2.2, noiseScale: .35 },
       pointer: true,
@@ -192,8 +195,7 @@ function start({ gl, hdr }) {
       }
     },
     ignite: {
-      steps: () => [.3, .75],
-      pace: .4,
+      beats: () => [{ p: .5, label: 'The mark', seconds: 1.6 }],
       targets: () => markTargets(state.shape, false),
       sim: { stiffness: 14, damping: .8, turbulence: 0, flight: 3, noiseScale: .55 },
       pointer: true,
@@ -205,27 +207,24 @@ function start({ gl, hdr }) {
       }
     },
     sculpt: {
-      // One resting step per camera key, each in focus; the moves between them carry the depth of field.
-      steps: () => SCULPT_KEYS.map((_, k) => (k + .5) / SCULPT_KEYS.length),
-      pace: .12,
+      // One beat per lens, each in focus and each holding the mark at the same size: what changes is the depth behind it.
+      beats: () => [{ p: 1 / 3, label: 'In relief', seconds: 2.2 }, { p: 2 / 3, label: 'Long lens', seconds: 2.4 }, { p: 1, label: 'Wide lens', seconds: 2.8 }],
       targets: () => markTargets(state.shape, true),
       sim: { stiffness: 16, damping: .85, turbulence: 0, flight: 3, noiseScale: .5 },
       pointer: true,
       drag: true,
       camera(p, time) {
-        const keys = SCULPT_KEYS.length;
-        const [azimuth, elevation, railFocal, railAperture] = rail(SCULPT_KEYS, clamp((p * keys - .5) / (keys - 1), 0, 1));
+        const [azimuth, elevation, railFocal, railAperture, ev] = rail(SCULPT_KEYS, p);
         const focal = state.focal || railFocal;
         const aperture = state.aperture || railAperture;
         const distance = framingDistance(wide() ? 4.4 : 4.9, focal);
         const look = [0, 0, 0];
         const pos = orbit(look, azimuth + state.dragAzimuth + Math.sin(time * .1) * .008, clamp(elevation + state.dragElevation, -.9, 1.2), distance);
-        return { pos, look, focal, aperture, focus: Math.max(.5, distance), shift: subjectShift(), metersPerUnit: .6 };
+        return { pos, look, focal, aperture, focus: Math.max(.5, distance), shift: subjectShift(), metersPerUnit: .6, ev };
       }
     },
     develop: {
-      steps: () => [.15, .5, .85],
-      pace: .3,
+      beats: () => [{ p: .1, label: 'As it was taken', seconds: 1 }, { p: .5, label: 'A step aside', seconds: 2.4 }],
       targets: () => photoTargets(developPhotos[state.photo]),
       sim: { stiffness: 18, damping: .9, turbulence: 0, flight: 2.4, noiseScale: .3 },
       pointer: false,
@@ -246,9 +245,16 @@ function start({ gl, hdr }) {
       }
     },
     atlas: {
-      // Per stop: arrived (globe, overview); or the light at the moment, the photograph set in place, and the print.
-      steps: () => stops.flatMap((stop, i) => (!stop.vantage ? [.82] : sceneOf(stop) ? [.44, .74, .94] : [.6, .93]).map(t => (i + t) / stops.length)),
-      pace: .035,
+      // Per stop: arrived (globe, overview); or the light at the moment, the photograph set in place, and the print. A
+      // move forward into a stop starts from the stop's own beginning; a move back out of one cuts to the stop before.
+      beats: () => stops.flatMap((stop, i) => {
+        const at = t => (i + t) / stops.length;
+        const list = !stop.vantage ? [[.82, stop.kind === 'globe' ? 'The planet' : 'From above', 3]]
+          : sceneOf(stop) ? [[.44, 'The light then', 3.2], [.74, 'Set in place', 2], [.94, 'The print', 1.2]]
+            : stop.photo || stop.photos ? [[.6, 'Standing there', 3.2], [.93, stop.photos ? 'The prints' : 'The print', 1.6]]
+              : [[.7, 'Standing there', 3.2]];
+        return list.map(([t, label, seconds], k) => ({ p: at(t), label, seconds, from: at(k ? list[k - 1][0] : 0), until: at(1) }));
+      }),
       phase: p => stopAt(p).id + (developed(stopAt(p), stopProgress(p)) ? ':photo' : ''),
       targets: (p = shown.p) => {
         const stop = stopAt(p);
@@ -259,6 +265,19 @@ function start({ gl, hdr }) {
       pointer: false,
       drag: true,
       camera(p, time) { return atlasCamera(stopAt(p), stopProgress(p), time); }
+    },
+    // The last beat lets the points go back to the ring of light the lab opens with, dimmed behind the closing links.
+    end: {
+      beats: () => [{ p: 0, label: 'End', seconds: 1 }],
+      targets: introTargets,
+      sim: { stiffness: 6, damping: .9, turbulence: .1, flight: 2.2, noiseScale: .35 },
+      pointer: true,
+      camera(p, time) {
+        // Far enough that the ring (2.2 across its radius) stands around the links on any screen, and two stops down.
+        const aspect = viewWidth / viewHeight, distance = 2.2 / (18 / 35 * (aspect >= 1 ? .84 / aspect : .92 * aspect));
+        const pos = orbit([0, 0, 0], Math.sin(time * .05) * .12, .1 + Math.sin(time * .037) * .03, distance);
+        return { pos, look: [0, 0, 0], focal: 35, aperture: 1.6, focus: distance - .2, shift: [0, 0], metersPerUnit: .5, ev: -2 };
+      }
     }
   };
 
@@ -273,7 +292,6 @@ function start({ gl, hdr }) {
   const stopProgress = p => clamp(p * stops.length - stops.indexOf(stopAt(p)), 0, 1);
   const metersOf = stop => stop.scale || 100;
   const atlasSection = $('#atlas');
-  if (atlasSection) atlasSection.style.minHeight = stops.length * 90 + 'vh';
   const inflate = async url => new Response((await fetch(url)).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
   let land = null;
   function globeTargets() {
@@ -559,32 +577,83 @@ function start({ gl, hdr }) {
     for (const item of document.querySelectorAll('[data-site]')) item.classList.toggle('is-current', item.dataset.site === current?.site);
     atlasSection?.classList.toggle('is-travelling', stops.indexOf(current) > 0);
   }
+  // ---- Beats: the page is a row of resting views, and one gesture goes one beat ---------------------------------
+  // Nothing follows the scroll position: a wheel gesture, a swipe, a key or a tick on the rail names the beat to go to, and
+  // the view travels there in its own time and stops. Each chapter's section is laid over the canvas only while it is current.
   const sections = [...document.querySelectorAll('[data-chapter]')].map(element => ({ id: element.dataset.chapter, element }));
   const order = sections.map(section => section.id);
+  const beats = sections.flatMap(({ id, element }) => chapters[id].beats().map((beat, k, all) => ({ from: k ? all[k - 1].p : 0, until: 1, ...beat, chapter: id, element, step: k, of: all.length })));
+  const labels = { intro: 'Lab', ignite: '00 Ignite', sculpt: '01 Sculpt', develop: '02 Develop', atlas: '03 Atlas', end: 'End' };
   const developSection = $('#develop');
-  let active = order[0];
-  let activePhase = '';
-  let progress = 0;
-  // Where the view is on its way to: the scroll sets `progress`, the view follows at the chapter's pace.
-  const shown = { p: 0 };
+  const firstBeat = id => beats.findIndex(beat => beat.element.id === id);
+  let here = Math.max(0, firstBeat(location.hash.slice(1)));
+  let active = beats[here].chapter;
+  // Where the view is within the chapter, and the move it is making (null at rest).
+  const shown = { p: beats[here].p };
+  let travel = null;
+  let activePhase = chapters[active].phase ? chapters[active].phase(shown.p) : '';
   let wanted = null;
 
-  function measure() {
-    const middle = innerHeight * .5;
-    let found = sections[0], found_p = 0;
-    for (const section of sections) {
-      const rect = section.element.getBoundingClientRect();
-      if (rect.top <= middle) { found = section; found_p = clamp((middle - rect.top) / rect.height, 0, 1); }
-    }
-    progress = found_p;
-    developSection?.classList.toggle('is-travelling', found.id === 'develop' && progress > .06);
-    if (found.id !== active) {
-      state.dragAzimuth = state.dragElevation = 0;
-      active = found.id;
-      shown.p = progress;
+  function go(index) {
+    index = clamp(index, 0, beats.length - 1);
+    if (index === here) return;
+    const beat = beats[index], forward = index > here;
+    here = index;
+    // Whatever the reader turned the view to, the next beat starts from its own framing.
+    state.dragAzimuth = state.dragElevation = 0;
+    if (beat.chapter !== active) {
+      // Into a chapter from before it, its opening move plays; back into one, it is simply there as it was left.
+      active = beat.chapter;
+      shown.p = forward ? beat.from : beat.p;
       activePhase = chapters[active].phase ? chapters[active].phase(shown.p) : '';
       retarget();
+    } else if (forward) shown.p = Math.max(shown.p, beat.from);
+    else if (shown.p > beat.until) shown.p = beat.p;
+    const distance = Math.abs(beat.p - shown.p);
+    if (reduced.matches || distance < 1e-4) { shown.p = beat.p; travel = null; }
+    else {
+      // The stretch being covered sets the time: a beat's own seconds going forward, a little quicker coming back.
+      const stretch = forward ? beat : beats[index + 1];
+      const seconds = stretch.seconds * (forward ? 1 : .75) * distance / (Math.abs(stretch.p - stretch.from) || 1);
+      travel = { from: shown.p, to: beat.p, start: performance.now(), duration: clamp(seconds, .5, 3.4) };
     }
+    showBeat();
+  }
+
+  // The rail: every beat as a tick, grouped by chapter, the current one named. It is the map of the page and a way around it.
+  const steps = document.createElement('nav');
+  steps.className = 'lab-rail';
+  steps.setAttribute('aria-label', 'Steps');
+  const ticks = beats.map((beat, index) => {
+    if (!beat.step) steps.append(Object.assign(document.createElement('div'), { className: 'lab-rail-group' }));
+    const tick = document.createElement('button');
+    tick.type = 'button';
+    tick.className = 'lab-tick';
+    const name = [labels[beat.chapter], beat.of > 1 ? beat.label : ''].filter(Boolean).join(' · ');
+    tick.setAttribute('aria-label', name);
+    tick.append(Object.assign(document.createElement('span'), { textContent: name }), document.createElement('i'));
+    tick.addEventListener('click', () => go(index));
+    steps.lastChild.append(tick);
+    return tick;
+  });
+  const live = Object.assign(document.createElement('p'), { className: 'lab-live' });
+  live.setAttribute('aria-live', 'polite');
+  document.body.append(steps, live);
+  function showBeat() {
+    const beat = beats[here];
+    for (const section of sections) section.element.classList.toggle('is-active', section.element === beat.element);
+    developSection?.classList.toggle('is-travelling', beat.chapter === 'develop' && beat.step > 0);
+    // The closing panel is text over the ring; the focus mark would sit in the middle of it.
+    read.af.classList.toggle('is-off', beat.chapter === 'end');
+    ticks.forEach((tick, index) => {
+      tick.classList.toggle('is-current', index === here);
+      tick.classList.toggle('is-passed', index < here);
+      if (index === here) tick.setAttribute('aria-current', 'step'); else tick.removeAttribute('aria-current');
+    });
+    live.textContent = ticks[here].getAttribute('aria-label') + (beat.of > 1 ? ', ' + (beat.step + 1) + ' of ' + beat.of : '');
+    // The address follows the chapter, so a reload or a shared link opens where the reader was.
+    const hash = here && beat.element.id ? '#' + beat.element.id : '';
+    if (hash !== location.hash) history.replaceState(null, '', location.pathname + location.search + hash);
   }
 
   // Requests the active chapter's targets; a stale answer (the reader has moved on) is dropped.
@@ -603,16 +672,20 @@ function start({ gl, hdr }) {
   }
 
   // ---- Input ----------------------------------------------------------------------------------
-  const pointer = { x: 0, y: 0, active: 0, down: null, moved: false };
+  const pointer = { x: 0, y: 0, active: 0, down: null, moved: false, swipe: false };
   const shocks = [];
   addEventListener('pointermove', event => {
     pointer.x = event.clientX / innerWidth * 2 - 1;
     pointer.y = 1 - event.clientY / innerHeight * 2;
     pointer.active = 1;
-    if (pointer.down && event.pointerType === 'mouse' && chapters[active].drag) {
-      const dx = event.clientX - pointer.down.x, dy = event.clientY - pointer.down.y;
-      if (Math.hypot(dx, dy) > 4) pointer.moved = true;
-      if (pointer.moved) {
+    if (pointer.down) {
+      const dx = event.clientX - pointer.down.x, dy = event.clientY - pointer.down.y, finger = event.pointerType !== 'mouse';
+      if (!pointer.moved && Math.hypot(dx, dy) > (finger ? 10 : 4)) {
+        pointer.moved = true;
+        // A finger moving mostly up or down is a step, like the wheel; any other drag turns the view.
+        pointer.swipe = finger && Math.abs(dy) > Math.abs(dx) * 1.2;
+      }
+      if (pointer.moved && !pointer.swipe && chapters[active].drag) {
         state.dragAzimuth = pointer.down.azimuth - dx / innerWidth * 3.2;
         state.dragElevation = clamp(pointer.down.elevation + dy / innerHeight * 1.6, -.8, .9);
       }
@@ -625,13 +698,17 @@ function start({ gl, hdr }) {
     pointer.y = 1 - event.clientY / innerHeight * 2;
     pointer.active = 1;
     pointer.down = { x: event.clientX, y: event.clientY, azimuth: state.dragAzimuth, elevation: state.dragElevation };
-    pointer.moved = false;
+    pointer.moved = pointer.swipe = false;
   });
   addEventListener('pointerup', event => {
-    if (pointer.down && !pointer.moved && chapters[active].pointer && !reduced.matches && !state.paused && state.cursor !== 'off') shock();
+    if (pointer.down && pointer.swipe) {
+      const dy = event.clientY - pointer.down.y;
+      if (Math.abs(dy) > 40) step(dy < 0 ? 1 : -1);
+    } else if (pointer.down && !pointer.moved && chapters[active].pointer && !reduced.matches && !state.paused && state.cursor !== 'off') shock();
     pointer.down = null;
     if (event.pointerType !== 'mouse') setTimeout(() => { pointer.active = 0; }, 600);
   });
+  addEventListener('pointercancel', () => { pointer.down = null; pointer.active = 0; });
   document.addEventListener('pointerleave', () => { pointer.active = 0; });
   function shock() {
     if (!frame) return;
@@ -713,9 +790,8 @@ function start({ gl, hdr }) {
     chapter: $('#lab-read-chapter'), focal: $('#lab-read-focal'), aperture: $('#lab-read-aperture'),
     shutter: $('#lab-read-shutter'), focus: $('#lab-read-focus'), count: $('#lab-read-count'), af: $('#lab-af'), sun: $('#lab-read-sun')
   };
-  const labels = { intro: 'Lab', ignite: '00 Ignite', sculpt: '01 Sculpt', develop: '02 Develop', atlas: '03 Atlas' };
   function readout(view, matrices) {
-    read.chapter.textContent = labels[active];
+    read.chapter.textContent = ticks[here].getAttribute('aria-label');
     // The sun's bearing and height, and the local time the light is shown at (the exposure itself once the camera arrives).
     if (sunNow) {
       const [, sign, hh, mm] = sunNow.light.utcOffset.match(/^([+-])(\d\d):(\d\d)$/), offset = (sign === '-' ? -1 : 1) * (+hh * 60 + +mm);
@@ -809,11 +885,13 @@ function start({ gl, hdr }) {
     const moving = !state.paused && !reduced.matches;
     const dt = Math.min(.05, interval / 1000);
     if (moving) time += dt;
-    measure();
     const chapter = chapters[active];
-    // Toward the scrolled-to step at the chapter's pace (faster across long jumps), so every move plays out and then rests.
-    const gap = progress - shown.p, pace = chapter.pace || .3;
-    shown.p = reduced.matches ? progress : shown.p + Math.sign(gap) * Math.min(Math.abs(gap), Math.max(pace, Math.abs(gap) * 1.5) * dt);
+    // The move to the beat last asked for: eased at both ends, done in the time go() gave it, then at rest.
+    if (travel) {
+      const u = clamp((now - travel.start) / (travel.duration * 1000), 0, 1);
+      shown.p = lerp(travel.from, travel.to, u * u * (3 - 2 * u));
+      if (u >= 1) travel = null;
+    }
     if (chapter.phase) {
       const phase = chapter.phase(shown.p);
       if (phase !== activePhase) {
@@ -823,7 +901,7 @@ function start({ gl, hdr }) {
       }
     }
     const desired = chapter.camera(shown.p, time);
-    const view = camera.follow(desired, dt, reduced.matches ? 30 : 3.2);
+    const view = camera.follow(desired, dt, reduced.matches ? 30 : 4);
     // Exposure compensation: a close view of a sparse cloud spreads few points over the frame, so it is opened up, like a lens.
     state.ev += ((desired.ev || 0) - state.ev) * Math.min(1, dt * (reduced.matches ? 30 : 3.2));
     frame = camera.matrices(viewWidth, viewHeight);
@@ -902,49 +980,64 @@ function start({ gl, hdr }) {
     if (Math.round(now / 66) !== Math.round((now - interval) / 66)) readout(view, frame);
   }
 
-  for (const { id, element } of sections) {
-    for (const p of chapters[id].steps()) {
-      const mark = document.createElement('i');
-      mark.className = 'lab-snap';
-      mark.setAttribute('aria-hidden', 'true');
-      mark.style.top = (p * 100).toFixed(3) + '%';
-      element.append(mark);
-    }
+  // One gesture, one beat. A wheel gesture is a run of events with no pause of 180 ms in it: however long a trackpad
+  // coasts, it counts once. A second flick inside an unbroken run is still heard (the deltas had died away and jump
+  // again, or turn round), and so is a wheel rolled steadily, at most one beat every 550 ms, so each one is seen.
+  let lastStep = -Infinity;
+  function step(direction) {
+    // At either end there is nowhere to go, and nothing is spent: the gesture back the other way is heard at once.
+    if (!beats[here + direction]) return;
+    lastStep = performance.now();
+    go(here + direction);
   }
-  // One wheel gesture or key press, one step. The wheel is read as intent (accumulated past a small threshold) and the page
-  // glides to the next resting step; a short lock keeps a trackpad's long tail of small deltas from skipping steps.
-  // Touch keeps the browser's own snapping, which already moves a swipe to the next point.
-  const restingTops = () => {
-    const tops = [0, document.documentElement.scrollHeight - innerHeight];
-    for (const mark of document.querySelectorAll('.lab-snap')) tops.push(mark.getBoundingClientRect().top + scrollY - innerHeight / 2);
-    return tops.map(Math.round).sort((a, b) => a - b);
-  };
-  let wheelAccumulated = 0, wheelLockedUntil = 0;
-  const step = direction => {
-    const tops = restingTops(), here = scrollY;
-    const next = direction > 0 ? tops.find(top => top > here + 4) : [...tops].reverse().find(top => top < here - 4);
-    if (next === undefined) return;
-    scrollTo({ top: next, behavior: reduced.matches ? 'auto' : 'smooth' });
-    wheelLockedUntil = performance.now() + 650;
+  const wheel = { total: 0, last: 0, locked: false, peak: 0, floor: 0, sign: 0 };
+  // The closing panel scrolls on its own when a small screen cannot hold it; the wheel is its until it reaches an edge.
+  const scrolls = (target, amount) => {
+    const box = target.closest?.('.lab-end');
+    return Boolean(box) && (amount > 0 ? box.scrollTop + box.clientHeight < box.scrollHeight - 1 : box.scrollTop > 0);
   };
   addEventListener('wheel', event => {
-    if (event.ctrlKey || event.defaultPrevented) return;
+    if (event.ctrlKey) return;
+    const amount = event.deltaY * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1), size = Math.abs(amount);
+    if (scrolls(event.target, amount)) return;
     event.preventDefault();
-    if (performance.now() < wheelLockedUntil) { wheelAccumulated = 0; return; }
-    wheelAccumulated += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
-    if (Math.abs(wheelAccumulated) < 30) return;
-    step(Math.sign(wheelAccumulated));
-    wheelAccumulated = 0;
+    const now = performance.now();
+    if (now - wheel.last > 180) Object.assign(wheel, { total: 0, locked: false, peak: 0 });
+    wheel.last = now;
+    if (wheel.locked) {
+      const again = (wheel.floor < wheel.peak * .4 && size > wheel.floor * 3 + 16) || (Math.sign(amount) === -wheel.sign && size > 4);
+      if (size > wheel.peak) wheel.peak = wheel.floor = size; else wheel.floor = Math.min(wheel.floor, size);
+      if (!again || now - lastStep < 550) return;
+      Object.assign(wheel, { total: 0, locked: false, peak: 0 });
+    }
+    wheel.peak = Math.max(wheel.peak, size);
+    wheel.total += amount;
+    if (Math.abs(wheel.total) < 45 || now - lastStep < 550) return;
+    Object.assign(wheel, { locked: true, floor: size, sign: Math.sign(wheel.total) });
+    step(wheel.sign);
   }, { passive: false });
   addEventListener('keydown', event => {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest?.('input, select, textarea, button')) return;
-    const direction = { ArrowDown: 1, PageDown: 1, ' ': event.shiftKey ? -1 : 1, ArrowUp: -1, PageUp: -1 }[event.key];
-    if (!direction) return;
-    event.preventDefault();
-    step(direction);
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    // Sliders and menus keep their own keys; a button or a link keeps only the keys that press it.
+    const field = event.target.closest?.('input, select, textarea'), press = event.target.closest?.('button, a');
+    if (field || (press && (event.key === ' ' || event.key === 'Enter'))) return;
+    const direction = { ArrowDown: 1, ArrowRight: 1, PageDown: 1, ' ': event.shiftKey ? -1 : 1, ArrowUp: -1, ArrowLeft: -1, PageUp: -1 }[event.key];
+    if (direction) {
+      event.preventDefault();
+      if (!event.repeat || performance.now() - lastStep > 550) step(direction);
+    } else if (event.key === 'Home' || event.key === 'End') { event.preventDefault(); go(event.key === 'Home' ? 0 : beats.length - 1); }
   });
-  addEventListener('scroll', measure, { passive: true });
-  measure();
+  // Links to a chapter (the index, the skip link, a typed address) go to its first beat.
+  const toHash = hash => { const index = firstBeat(hash.slice(1)); if (index >= 0) go(index); return index >= 0; };
+  document.addEventListener('click', event => {
+    const link = event.target.closest?.('a[href^="#"]');
+    if (!link || !toHash(link.getAttribute('href'))) return;
+    event.preventDefault();
+    if (link.classList.contains('lab-skip')) { const section = beats[here].element; section.tabIndex = -1; section.focus({ preventScroll: true }); }
+  });
+  addEventListener('hashchange', () => toHash(location.hash));
+  scrollTo(0, 0);
+  showBeat();
   chapters[active].targets().then(set => {
     particles.allocate(set.count, set, { burst: !reduced.matches });
     retarget();
