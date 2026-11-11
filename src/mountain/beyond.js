@@ -12,15 +12,16 @@ import { TAU, clamp, lerp, smoothstep, random, hexToLinear, add, sub, scale, nor
 // the outside: the camera goes in and out through black (main.js), so the two never have to meet.
 export const HEART = { at: [0, 3.4, 0], water: 2.48, period: 2.6, orbit: 2.55 };
 // The moon stands far off where the hour puts it (weather.js, heavens). For Moonward it is a place: a body of its own
-// size a long way up one bearing from the summit, with home a small world behind. Nothing of the mountain is drawn
-// out there, so the two are never seen side by side.
-export const MOON = { distance: 300, radius: 11, away: { bearing: 140, rise: 40, reach: 380, radius: 60, home: 17 } };
+// size a long way off from the summit, the way the lens sets off (main.js aims it: at the moon in the sky if that is
+// ahead, otherwise low over the crest ahead, so it shows over the horizon as the lens comes over the top), with home a
+// small world behind. Nothing of the mountain is drawn out there, so the two are never seen side by side.
+export const MOON = { distance: 300, radius: 11, away: { bearing: 140, rise: 15, reach: 380, radius: 60, home: 17 } };
 // Moonward's places for a summit at [x, y, z]: the moon; toward, the way to it from the summit; the sun that lights it
 // (from the right of the view back home and level with the ground under the lens, so the edge of the moon's night
 // runs through the middle of the view: craters in long shadow to the right of it, darkness under the words); and home, a small world whose nearest point to the moon is the summit.
-export function spaceMoon(summit) {
+export function spaceMoon(summit, toward = null) {
   const { bearing, rise, reach, radius, home } = MOON.away, a = bearing * Math.PI / 180, e = rise * Math.PI / 180;
-  const toward = [Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a)];
+  toward = toward ? normalize(toward) : [Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a)];
   // up: over the moon as seen looking home; side: to the left of that view.
   const up = normalize(sub([0, 1, 0], scale(toward, toward[1]))), side = cross(toward, up);
   return {

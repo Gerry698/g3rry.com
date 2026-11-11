@@ -236,7 +236,8 @@ export function createRenderer(gl, scene, quality) {
     // The moon stands behind everything but the sky; under the cloud deck the valley's own sky veils it, as it
     // veils the stars (weather-shaders.js, lowBackdrop).
     const below = common.uDeck[0] - frame.eye[1], band = common.uDeck[1];
-    const veil = below <= -band ? 0 : (1 - Math.exp(-Math.max(below, 0) / Math.max(moon.dir[1], 1e-3) * common.uLowFog[2])) * smoothstep(-band, band, below);
+    // (The same as overhead() in weather-shaders.js.)
+    const veil = below <= -band ? 0 : Math.max((1 - Math.exp(-Math.max(below, 0) / Math.max(moon.dir[1], 1e-3) * common.uLowFog[2])) * smoothstep(-band, band, below), common.uGloom ** 2 * smoothstep(-band, band * .25, below));
     if (!frame.hide?.has('moon')) beyond.drawMoon(frame, common, moon, veil);
     if (!frame.hide?.has('water')) water.drawMist(common);
     weather.drawUnderClouds(common, frame.hide);

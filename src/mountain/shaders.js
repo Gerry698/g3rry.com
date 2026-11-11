@@ -235,13 +235,17 @@ void main() {
     // The moon itself is a body of its own (beyond.js); here is the glow in the air round it, measured from its limb,
     // so the glow keeps to it when it comes near.
     float past = max(acos(clamp(m, -1., 1.)) - uMoonSize * .96, 0.);
-    color += uMoon * uMoonHalo * vec3(.55, .65, 1.) * (exp(-past * past * 450.) * .5 + exp(-past * past * 12.) * .04);
+    // A tight soft aureole where the air scatters its light just off the edge, and a faint wide glow; warmer low down.
+    vec3 tone = mix(vec3(1., .86, .7), vec3(.74, .8, 1.), smoothstep(.02, .35, d.y));
+    color += uMoon * uMoonHalo * tone * (exp(-past * past * 2600.) * .18 + exp(-past * past * 110.) * .03 + exp(-past * past * 9.) * .01);
     if (uMoonDisc > .5) {
       float crater = vnoise3(d * 900.) * .25 + vnoise3(d * 2400.) * .1;
       color += uMoon * vec3(1., .97, .9) * smoothstep(.99925, .99945, m) * (2.6 - crater * 2.);
     }
   }
   if (uAurora > 0.) color += aurora(d) * uAurora * (1. - uSpace);
+  // Under the horizon the far ground is in the valley's haze (lowAir), so the sky that shows past its edge is too.
+  color = mix(color, mix(uLowHorizon, lowSky(normalize(vec3(d.x, 0., d.z))), .65), uDeck.w * smoothstep(.02, -.05, d.y) * (1. - uSpace));
   outColor = vec4(lowBackdrop(color, d), 1.);
 }`;
 

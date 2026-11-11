@@ -12,8 +12,15 @@ float underDeck(vec3 world) {
   float edge = (sin(world.x * .9 + world.z * .5) + sin(world.z * 1.3 - world.x * .7) * .7 + sin(world.x * 2.9 - world.z * 2.3) * .3) * .14;
   return smoothstep(uDeck.x + uDeck.y, uDeck.x - uDeck.y, world.y + edge);
 }
-// The deck's puffs carry 1 + the cover at which they appear as their seed; the scene's own clouds are always there.
-float deckPuff(float seed) { return seed < 1. ? 1. : smoothstep(seed - 1., seed - .92, uDeck.z); }
+uniform float uSea;    // how much of the mountain's own cloud is out (weather.js, amounts): a few wisps on a clear day
+uniform float uGloom;  // how overcast the valley is
+uniform vec4 uFlash;   // lightning: where the flash is (under the deck, above the strike) and how bright, 0 between strikes
+// The deck's puffs carry 1 + the cover at which they appear as their seed and come and go with it; the mountain's own
+// clouds carry a seed under 1 and come and go with the sea, the lowest seeds staying longest.
+float deckPuff(float seed) { return seed < 1. ? 1. - smoothstep(uSea * 1.1 - .1, uSea * 1.1, seed) : smoothstep(seed - 1., seed - .92, uDeck.z); }
+const vec3 FLASH = vec3(.72, .78, 1.);
+// The light a flash throws on a point: some everywhere under the deck, most round the strike.
+float flashAt(vec3 world) { vec3 d = world - uFlash.xyz; return uFlash.w * (.1 + 1.6 * exp(-dot(d, d) / 140.)); }
 `;
 
 // Goes into the shared atmosphere chunk, after its uniforms (it uses uCamPos).
@@ -33,7 +40,17 @@ vec3 lowSky(vec3 d) {
   float band = exp(-abs(e - .015) * 8.);
   color += uLowGlow * (pow(s, 5.) * .5 + pow(s, 40.) * .8) * (.3 + .7 * band);
   color += uLowGlow * band * .1 * (.35 + .65 * s);
+  // Lightning lights the cloud overhead, brightest towards the strike.
+  if (uFlash.w > 0.) color += FLASH * uFlash.w * (.12 + 1.1 * pow(max(dot(d, normalize(uFlash.xyz - uCamPos)), 0.), 4.)) * smoothstep(-.3, .2, e);
   return color;
+}
+// How much of the sky in direction d the deck hides from a lens under it: more the deeper under it the lens is and
+// the lower it looks, and all of it under a full overcast.
+float overhead(vec3 d) {
+  float below = uDeck.x - uCamPos.y;
+  if (below <= -uDeck.y) return 0.;
+  float t = d.y > 1e-3 ? max(below, 0.) / d.y : 1e3;
+  return max((1. - exp(-t * uLowFog.z)) * smoothstep(-uDeck.y, uDeck.y, below), uGloom * uGloom * smoothstep(-uDeck.y, uDeck.y * .25, below));
 }
 // Valley air: full density below a soft top, none above. Its integral over height gives the exact average density
 // along any straight path, so the fog layer costs no marching.
@@ -75,18 +92,18 @@ vec3 weathered(vec3 albedo, vec3 n, vec3 world) {
   float cover = uLowAir.w * w * smoothstep(.95 - uLowAir.w * .32, .98 - uLowAir.w * .32, n.y + drift);
   return mix(albedo * (1. - uLowAir.z * w * .45), vec3(.8, .84, .9), cover);
 }
-// Cloud puffs below the deck are lit by the valley.
+// Cloud puffs below the deck are lit by the valley, and from inside by lightning. Seen from above, the deck's tops
+// keep the light over it; seen from under an overcast, all of it is the grey underside.
 vec3 lowCloud(vec3 color, float lit, vec3 world) {
-  float w = underDeck(world);
-  return w <= 0. ? color : mix(color, uLowCloud * mix(uLowAmbSky * 1.1, uLowKeyColor * .55 + uLowAmbSky * .6, lit), w);
+  float under = smoothstep(uDeck.x + uDeck.y, uDeck.x - uDeck.y, uCamPos.y);
+  float w = mix(underDeck(world) * (1. - .3 * lit), max(underDeck(world), uGloom * smoothstep(uDeck.x + 1.6, uDeck.x, world.y)), under);
+  if (w > 0.) color = mix(color, uLowCloud * mix(uLowAmbSky * 1.1, uLowKeyColor * .55 + uLowAmbSky * .6, lit) + FLASH * flashAt(world) * (.6 + .6 * lit), w);
+  // Cloud above the deck, seen from under it, is behind the deck.
+  if (under > 0. && world.y > uDeck.x) { vec3 d = normalize(world - uCamPos); color = mix(color, lowSky(d), overhead(d)); }
+  return color;
 }
 // The sky seen from under the deck: the valley's own sky towards the horizon, the climb's overhead.
-vec3 lowBackdrop(vec3 color, vec3 d) {
-  float below = uDeck.x - uCamPos.y;
-  if (below <= -uDeck.y) return color;
-  float t = d.y > 1e-3 ? max(below, 0.) / d.y : 1e3;
-  return mix(color, lowSky(d), (1. - exp(-t * uLowFog.z)) * smoothstep(-uDeck.y, uDeck.y, below));
-}
+vec3 lowBackdrop(vec3 color, vec3 d) { return mix(color, lowSky(d), overhead(d)); }
 `;
 
 // Appended to the shared lighting chunk: light() with the surface's position blends in the valley's light.
@@ -97,7 +114,7 @@ vec3 light(vec3 albedo, vec3 n, float ao, float wrap, float shadow, vec3 world) 
   if (w <= 0.) return camp;
   float diffuse = clamp((dot(n, uLowKeyDir) + wrap) / (1. + wrap), 0., 1.);
   vec3 ambient = mix(uLowAmbGround, uLowAmbSky, n.y * .5 + .5) * ao;
-  vec3 below = albedo * (uLowKeyColor * diffuse * shadow + ambient);
+  vec3 below = albedo * (uLowKeyColor * diffuse * shadow + ambient + FLASH * flashAt(world) * (.35 + .65 * max(n.y, 0.)));
   // Wet ground mirrors the valley sky on its flatter facets.
   if (uLowAir.z > 0.) {
     vec3 v = normalize(uCamPos - world);
@@ -149,9 +166,41 @@ in float vAlpha;
 in vec2 vCorner;
 out vec4 outColor;
 uniform vec3 uLowAmbSky, uLowKeyColor;
+uniform vec4 uFlash;
 void main() {
   float a = vAlpha * (1. - abs(vCorner.x)) * (.3 + .7 * smoothstep(1., -1., vCorner.y));
-  outColor = vec4((uLowAmbSky * 1.7 + uLowKeyColor * .3 + .025) * a, a * .5);
+  outColor = vec4((uLowAmbSky * 1.7 + uLowKeyColor * .3 + .025 + vec3(.72, .78, 1.) * uFlash.w * .5) * a, a * .5);
+}`,
+  // A bolt of lightning: each segment of its channel a strip a few pixels wide, turned to the lens, a white-hot core
+  // in a violet glow. Additive.
+  boltVertex: header + corners + `
+layout(location = 0) in vec4 aFrom;  // one end, and the channel's width (1 the main stroke)
+layout(location = 1) in vec4 aTo;    // the other end, and its brightness
+uniform mat4 uViewProj;
+uniform vec2 uResolution;
+uniform vec2 uBolt;  // the flash, and pixels per pixel at this resolution
+out vec2 vCorner;
+out float vBright;
+void main() {
+  vec2 c = corners[gl_VertexID];
+  vCorner = c;
+  vBright = aTo.w * uBolt.x;
+  vec4 a = uViewProj * vec4(aFrom.xyz, 1.), b = uViewProj * vec4(aTo.xyz, 1.);
+  if (a.w < .05 || b.w < .05) { gl_Position = vec4(2., 2., 2., 1.); return; }
+  vec2 along = (b.xy / b.w - a.xy / a.w) * uResolution;
+  along = dot(along, along) > 1e-6 ? normalize(along) : vec2(0., 1.);
+  vec4 clip = c.y < 0. ? a : b;
+  // A little longer than the segment, so the joints overlap.
+  clip.xy += (vec2(-along.y, along.x) * c.x * (3. + 15. * aFrom.w) + along * c.y * 1.5) * 2. * uBolt.y / uResolution * clip.w;
+  gl_Position = clip;
+}`,
+  boltFragment: header + `
+in vec2 vCorner;
+in float vBright;
+out vec4 outColor;
+void main() {
+  float x = abs(vCorner.x), core = exp(-x * x * 45.), glow = exp(-x * x * 5.);
+  outColor = vec4((vec3(.85, .88, 1.) * core * 7. + vec3(.5, .45, 1.) * glow * .6) * vBright, 0.);
 }`,
   // Snow, like the climb's own flurries (snowVertex) but heavier and only below the deck.
   flakeVertex: header + noise + weatherBasics + box + `
