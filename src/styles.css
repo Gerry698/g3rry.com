@@ -92,26 +92,20 @@ figcaption { display: flex; justify-content: space-between; font-size: .75rem; l
 .collection-intro h1 { font-size: clamp(3.8rem, 8vw, 8rem); }
 .collection-intro .intro { max-width: 25em; padding-bottom: .6rem; }
 .collection-rule { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--line); padding-block: 17px; color: var(--muted); font-size: .75rem; }
-.collection-tools { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 5px 22px; }
-.collection-tools p { color: var(--muted); font-size: .75rem; }
-/* The switch needs JavaScript; keep its space reserved so revealing it causes no layout shift. */
-.collection-tools:not(.ready) .view-switch { visibility: hidden; }
-.view-switch { display: flex; border: 1px solid var(--line); padding: 3px; flex-shrink: 0; }
-.view-switch button { min-height: 44px; min-width: 66px; padding: .5rem .9rem; border: 0; background: none; color: var(--muted); font-size: .75rem; }
-.view-switch button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
-.photo-collection { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px 24px; align-items: start; margin-top: 17px; }
-.photo-card { min-width: 0; }
-/* Grid view: uniform 4:5 cells without a tinted frame; photos rest on the bottom edge so captions line up. */
-.photo-card a { aspect-ratio: 4/5; display: grid; place-items: center; background: none; }
-.photo-card picture { display: flex; width: 100%; height: 100%; min-height: 0; }
-.photo-card img { height: 100%; object-fit: contain; object-position: 50% 100%; }
-.photo-collection[data-view="large"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 44px 32px; }
-.photo-collection[data-view="large"] .photo-card a { aspect-ratio: auto; background: var(--ink-deep); }
-.photo-collection[data-view="large"] .photo-card img { height: auto; }
-.photo-card figcaption { font-size: .75rem; }
-.photo-card figcaption span:last-child { color: var(--gold); }
-.collection-end { padding-block: 68px 78px; text-align: center; }
+.gallery-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .4rem 2rem; padding-block: 50px 30px; }
+.gallery-header h1 { font-size: clamp(2.5rem, 4vw, 3.5rem); }
+.gallery-header p { color: var(--muted); font-size: .8rem; letter-spacing: .04em; }
+/* Natural aspect ratios in CSS columns: frames run down each column in turn, and the preview's Previous and Next
+   follow frame order. */
+.photo-collection { column-count: 3; column-gap: 16px; }
+.photo-card { break-inside: avoid; margin-bottom: 16px; }
+.photo-card a { position: relative; }
+.photo-place { position: absolute; left: 0; bottom: 0; padding: .4rem .75rem; background: var(--ink); color: var(--paper); font-size: .72rem; letter-spacing: .05em; opacity: 0; transition: opacity .25s; pointer-events: none; }
+/* The place shows on hover and keyboard focus; screens without hover keep the photographs clean. */
+@media (hover: hover) { .photo-card a:hover .photo-place, .photo-card a:focus-visible .photo-place { opacity: 1; } }
+.collection-end { padding-block: 56px 70px; text-align: center; }
 .collection-end p { font: 2.2rem/1.3 var(--serif); margin-block: 20px 24px; }
+.collection-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.2rem 2.6rem; }
 .photo-dialog { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; inset: 0; padding: max(16px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); margin: 0; border: 0; background: #090f17f7; color: var(--paper); overflow: hidden; }
 .photo-dialog[open] { display: flex; flex-direction: column; gap: 16px; }
 .photo-dialog::backdrop { background: #090f17f7; }
@@ -119,13 +113,19 @@ body:has(.photo-dialog[open]) { overflow: hidden; }
 .dialog-toolbar, .dialog-bottom { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-shrink: 0; }
 .dialog-toolbar p { font-size: .75rem; color: var(--muted); }
 .dialog-actions { display: flex; gap: 8px; }
-.dialog-button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; border: 1px solid #ffffff26; padding: .55rem .85rem; color: var(--paper); background: transparent; font-size: .75rem; white-space: nowrap; }
+.dialog-button { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-height: 44px; min-width: 44px; border: 1px solid #ffffff26; padding: .55rem .85rem; color: var(--paper); background: transparent; font-size: .75rem; white-space: nowrap; }
 .dialog-button:hover { border-color: var(--gold); }
-.dialog-image-area { display: grid; place-items: center; position: relative; min-height: 0; flex: 1; touch-action: pan-y pinch-zoom; }
+.dialog-phantom { border-color: var(--gold); color: var(--gold); transition: background .2s, color .2s; }
+.dialog-phantom:hover { background: var(--gold); color: var(--ink); }
+.dialog-image-area { display: grid; place-items: center; position: relative; min-height: 0; flex: 1; touch-action: pan-y pinch-zoom; container-type: size; }
 .dialog-image-area img { width: 100%; height: 100%; min-height: 0; object-fit: contain; user-select: none; }
+/* The image box is the photograph's own shape (gallery.js sets --ratio), so a thumbnail can grow straight into it. */
+@supports (width: 1cqw) { .dialog-image-area img { width: min(100cqw, 100cqh * var(--ratio, 1.5)); height: auto; } }
 #dialog-status { position: absolute; max-width: 30em; padding: 1rem; color: var(--muted); font-size: .8rem; text-align: center; pointer-events: none; }
-.dialog-hint { color: var(--muted); font-size: .75rem; text-align: center; min-height: 1.65em; }
 .dialog-bottom p { max-width: 650px; text-align: center; font-size: .75rem; color: var(--muted); line-height: 1.6; }
+.dialog-caption span { display: block; }
+.dialog-caption span:first-child { color: var(--paper); }
+::view-transition-group(photo) { animation-duration: .4s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
 .simple-page { padding-block: 110px; min-height: 60vh; }
 .simple-page p { margin-block: 25px; max-width: 38em; color: var(--muted); }
 .guestbook { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 5.5rem; align-items: start; padding-block: 30px 110px; }
@@ -175,8 +175,6 @@ body:has(.photo-dialog[open]) { overflow: hidden; }
   .hero h1 { font-size: clamp(2.5rem, 5.2vw, 5.5rem); }
   .hero-photo img { height: 350px; }
   .phantom-inner { gap: 2rem; }
-  .photo-collection { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .photo-collection[data-view="large"] { grid-template-columns: 1fr; max-width: 850px; }
   .site-footer { flex-wrap: wrap; }
   .guestbook { gap: 3rem; }
 }
@@ -214,8 +212,10 @@ body:has(.photo-dialog[open]) { overflow: hidden; }
   .collection-intro h1 { font-size: clamp(2.4rem, 11.8vw, 5.8rem); }
   .collection-intro .intro { margin-top: 23px; }
   .collection-rule { font-size: .7rem; }
-  .photo-collection { gap: 24px 12px; }
-  .collection-tools p { max-width: 12em; font-size: .7rem; }
+  .gallery-header { padding-block: 34px 22px; }
+  .photo-collection { column-gap: 12px; }
+  .photo-card { margin-bottom: 12px; }
+  .collection-end p { font-size: 1.8rem; }
   .photo-dialog { padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
   .dialog-toolbar { gap: 8px; }
   .dialog-toolbar p { font-size: .7rem; flex-shrink: 0; }
@@ -223,11 +223,14 @@ body:has(.photo-dialog[open]) { overflow: hidden; }
   .dialog-button { padding-inline: .6rem; font-size: .7rem; }
   .dialog-bottom { flex-wrap: wrap; gap: 18px; }
   .dialog-bottom p { order: 3; flex-basis: 100%; font-size: .7rem; }
-  .dialog-hint { font-size: .7rem; }
   .note { padding-block: 24px 26px; }
   .note-header { flex-direction: column; gap: .2rem; }
   .note-name { font-size: 1.35rem; }
 }
+/* The gallery's own column steps: three above 900px, two down to phones, one at 560px. sizes.grid in
+   scripts/build.mjs follows them together with the .wrap margins. */
+@media (max-width: 900px) { .photo-collection { column-count: 2; } }
+@media (max-width: 560px) { .photo-collection { column-count: 1; } }
 @media (max-width: 400px) {
   .wordmark { font-size: 1.25rem; }
   .site-header nav { gap: .85rem; font-size: .7rem; }

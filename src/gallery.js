@@ -1,62 +1,59 @@
+// A thumbnail opens a preview; the photograph's own page (the Phantom) is one step further, from the preview.
+// Modified and middle clicks keep the link's own target.
 const dialog = document.querySelector('#photo-dialog');
 const links = [...document.querySelectorAll('a[data-photo]')];
-const collection = document.querySelector('.photo-collection');
-const tools = document.querySelector('#collection-tools');
-
-if (tools && collection) {
-  tools.classList.add('ready');
-  tools.querySelectorAll('[data-view]').forEach(button => {
-    button.addEventListener('click', () => {
-      collection.dataset.view = button.dataset.view;
-      const sizes = button.dataset.view === 'large' ? collection.dataset.sizesLarge : collection.dataset.sizesGrid;
-      collection.querySelectorAll('source[sizes]').forEach(source => { source.sizes = sizes; });
-      tools.querySelectorAll('[data-view]').forEach(control => {
-        control.setAttribute('aria-pressed', String(control === button));
-      });
-    });
-  });
-}
 
 if (dialog && typeof dialog.showModal === 'function' && links.length) {
   const image = dialog.querySelector('#dialog-image');
   const stage = dialog.querySelector('#dialog-stage');
   const status = dialog.querySelector('#dialog-status');
-  const feedback = dialog.querySelector('#dialog-feedback');
   const caption = dialog.querySelector('#dialog-caption');
+  const exposure = dialog.querySelector('#dialog-exposure');
   const position = dialog.querySelector('#dialog-position');
   const close = dialog.querySelector('#dialog-close');
-  const original = dialog.querySelector('#dialog-original');
-  const share = dialog.querySelector('#dialog-share');
-  const page = dialog.querySelector('#dialog-page');
+  const phantom = dialog.querySelector('#dialog-phantom');
   const previous = dialog.querySelector('#dialog-previous');
   const next = dialog.querySelector('#dialog-next');
-  const hint = 'Swipe or use arrow keys. Open image to zoom.';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let current = 0;
+  let opener = 0;
   let request = 0;
-  let returnFocus = null;
+  let morphing = false;
   let gesture = null;
   const pointers = new Set();
-  const photoHash = index => '#' + links[index].closest('figure').id;
+  const photoHash = index => '#photo-' + links[index].dataset.photo;
   const hashIndex = () => links.findIndex((link, index) => photoHash(index) === location.hash);
+  const thumbnail = index => links[index].querySelector('img');
+  const decoded = img => img.complete && img.naturalWidth > 0;
+  const onScreen = element => {
+    const box = element.getBoundingClientRect();
+    return box.bottom > 0 && box.top < innerHeight;
+  };
 
   function show(index) {
     current = (index + links.length) % links.length;
     const link = links[current];
-    const thumbnail = link.querySelector('img');
+    const thumb = thumbnail(current);
     const token = ++request;
-    image.hidden = true;
-    image.removeAttribute('src');
-    image.alt = thumbnail.alt;
-    image.width = Number(link.dataset.width);
-    image.height = Number(link.dataset.height);
-    caption.textContent = thumbnail.alt;
+    const width = Number(link.dataset.width);
+    const height = Number(link.dataset.height);
+    image.alt = thumb.alt;
+    image.width = width;
+    image.height = height;
+    // The image box takes the photograph's own shape (styles.css), not the whole stage's.
+    image.style.setProperty('--ratio', String(width / height));
+    caption.textContent = link.dataset.caption;
+    exposure.textContent = link.dataset.exposure;
     position.textContent = String(current + 1).padStart(2, '0') + ' / ' + links.length;
-    original.href = link.dataset.large;
-    page.href = link.href;
-    feedback.textContent = hint;
+    phantom.href = link.getAttribute('href');
+    // A thumbnail that has already loaded stands in until the full size arrives; the preview grows out of it.
+    const standIn = decoded(thumb);
+    if (standIn) image.src = thumb.currentSrc || thumb.src;
+    else image.removeAttribute('src');
+    image.hidden = !standIn;
     stage.setAttribute('aria-busy', 'true');
-    status.textContent = 'Loading photograph…';
-    // Let the browser pick a WebP size for the screen; the JPEG link stays the fallback and the "Open image" target.
+    status.textContent = standIn ? '' : 'Loading photograph…';
+    // Let the browser pick a WebP size for the screen; the JPEG stays the fallback.
     const loading = new Image();
     loading.sizes = '100vw';
     if (link.dataset.srcset) loading.srcset = link.dataset.srcset;
@@ -69,38 +66,75 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
     };
     loading.onerror = () => {
       if (token !== request || !dialog.open) return;
-      status.textContent = 'This photograph could not load. Try Open image or another frame.';
+      image.hidden = true;
+      status.textContent = 'This photograph could not load. Try another frame.';
       stage.setAttribute('aria-busy', 'false');
     };
     loading.src = link.dataset.large;
   }
+  // Where the browser has view transitions, the photograph moves between its thumbnail and the preview; never under
+  // reduced motion. Exactly one element carries the name at each snapshot, and each name is cleared when its part ends.
+  function morph(from, update, target) {
+    if (!document.startViewTransition || reduced.matches || morphing || !from) return update();
+    let to = null;
+    morphing = true;
+    from.style.viewTransitionName = 'photo';
+    const transition = document.startViewTransition(async () => {
+      from.style.viewTransitionName = '';
+      update();
+      to = target();
+      if (!to) return;
+      to.style.viewTransitionName = 'photo';
+      // The page stays frozen on the old frame meanwhile; this is a decoded thumbnail, so it takes a moment at most.
+      await to.decode().catch(() => {});
+    });
+    transition.ready.catch(() => {});
+    transition.updateCallbackDone.catch(() => {}).finally(() => { morphing = false; });
+    transition.finished.catch(() => {}).finally(() => { if (to) to.style.viewTransitionName = ''; });
+  }
   function open(index, fromLink = false) {
-    if (!dialog.open) {
-      returnFocus = links[index];
-      dialog.showModal();
-      close.focus();
-    }
-    show(index);
-    if (fromLink) history.pushState({ g3rryPhoto: true }, '', photoHash(current));
+    const enter = () => {
+      if (!dialog.open) {
+        opener = index;
+        dialog.showModal();
+        close.focus();
+        // Arriving at a frame's address (back from its page, or a shared link): put the grid behind on that frame. A
+        // preview opened from the grid leaves it where it is, which is also where going back restores it.
+        if (!fromLink && !onScreen(links[index])) links[index].scrollIntoView({ block: 'center', behavior: 'instant' });
+      }
+      show(index);
+    };
+    if (fromLink && !dialog.open) morph(decoded(thumbnail(index)) ? thumbnail(index) : null, enter, () => image.hidden ? null : image);
+    else enter();
+    if (fromLink) history.pushState({ g3rryPhoto: true }, '', photoHash(index));
+  }
+  // Closing returns the photograph to its thumbnail when that is on screen; otherwise it fades where it is.
+  function dismiss() {
+    if (!dialog.open || morphing) return;
+    const thumb = thumbnail(current);
+    morph(image.hidden ? null : image, () => dialog.close(), () => decoded(thumb) && onScreen(thumb) ? thumb : null);
   }
   function navigate(step) {
     show(current + step);
     // A shared URL owns no history entry; closing it should stay on the gallery.
     history.replaceState(history.state, '', photoHash(current));
   }
-  close.addEventListener('click', () => dialog.close());
+  links.forEach((link, index) => link.addEventListener('click', event => {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (!morphing) open(index, true);
+  }));
+  close.addEventListener('click', dismiss);
   previous.addEventListener('click', () => navigate(-1));
   next.addEventListener('click', () => navigate(1));
-  share.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(location.href);
-      feedback.textContent = 'Link copied. Share this frame.';
-    } catch {
-      feedback.textContent = 'Copy this page’s address to share this frame.';
-    }
-  });
   dialog.addEventListener('click', event => {
-    if (event.target === dialog) dialog.close();
+    if (event.target === dialog) dismiss();
+  });
+  // Escape closes through the same path as Close; when the browser will not let a close be held back, it simply closes.
+  dialog.addEventListener('cancel', event => {
+    if (!event.cancelable) return;
+    event.preventDefault();
+    dismiss();
   });
   dialog.addEventListener('keydown', event => {
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -156,12 +190,12 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
       if (history.state?.g3rryPhoto) history.back();
       else history.replaceState(history.state, '', location.pathname + location.search);
     }
-    returnFocus?.focus({ preventScroll: true });
+    links[opener].focus({ preventScroll: true });
   });
   function syncAddress() {
     const index = hashIndex();
     if (index !== -1) open(index);
-    else if (dialog.open) dialog.close();
+    else dismiss();
   }
   window.addEventListener('popstate', syncAddress);
   window.addEventListener('hashchange', syncAddress);
