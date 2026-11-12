@@ -25,7 +25,7 @@
 ## 照片
 
 - 数组顺序就是画廊顺序；`move` 不改 ID。画廊是按原始比例排的多栏瀑布流（900px 以上 3 栏、≤900px 2 栏、≤560px 1 栏；改断点时同步 `build.mjs` 的 `sizes.grid`），视觉上按栏从上往下排，预览里的上一张 / 下一张按数组顺序走。
-- 点缩略图打开快速预览（地址变成 `/photos/#photo-p16`，可直接分享；返回键关闭）；预览底部是地点、拍摄时间和曝光，由构建从 `content/phantom.json` 生成。每张照片有自己的页面 `/photos/<id>/`（见下文 Phantom），从预览里的 "Enter Phantom" 进入；Ctrl/中键点缩略图、没有脚本时直接打开照片页。照片页的 "All photographs" 回到 `/photos/#photo-<id>`，即同一张的预览。
+- 点缩略图打开快速预览（地址变成 `/photos/#photo-p16`，可直接分享；点照片、按钮和说明文字以外的空白处，或按返回键，都会关闭预览）；预览底部是地点、拍摄时间和曝光，由构建从 `content/phantom.json` 生成。每张照片有自己的页面 `/photos/<id>/`（见下文 Phantom），从预览里的 "Enter Phantom" 进入；Ctrl/中键点缩略图、没有脚本时直接打开照片页。照片页的 "All photographs" 回到 `/photos/#photo-<id>`，即同一张的预览。
 - `featured: true` 的照片进雪山 Photography 营地的三张小图和旧首页精选，至少保留一张。
 - `add` 生成网页母版（长边 ≤ 3200px，无元数据），不保存相机原片。所有修改命令都支持 `--dry-run`。
 - 工具运行时持有 `.cache/photos.lock`；进程异常退出后，确认没有照片命令在跑再删掉它。

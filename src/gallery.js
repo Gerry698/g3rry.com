@@ -127,8 +127,19 @@ if (dialog && typeof dialog.showModal === 'function' && links.length) {
   close.addEventListener('click', dismiss);
   previous.addEventListener('click', () => navigate(-1));
   next.addEventListener('click', () => navigate(1));
+  // Empty space closes the preview; the photograph, the controls and the caption (so it can be copied) do not. Only a
+  // press that began on empty space and stayed put counts: a drag off the caption or a button ends in a click on their
+  // common ancestor, and a drag that selects text or swipes to another frame is not a click.
+  const keep = '#dialog-image, button, a, .dialog-caption';
+  let press = null;
+  dialog.addEventListener('pointerdown', event => {
+    // A second finger (a pinch) is never primary, so it cancels the press.
+    press = event.isPrimary && event.button === 0 && !event.target.closest(keep) ? { x: event.clientX, y: event.clientY } : null;
+  });
   dialog.addEventListener('click', event => {
-    if (event.target === dialog) dismiss();
+    const empty = press && !event.target.closest(keep) && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 10;
+    press = null;
+    if (empty) dismiss();
   });
   // Escape closes through the same path as Close; when the browser will not let a close be held back, it simply closes.
   dialog.addEventListener('cancel', event => {
