@@ -1,19 +1,13 @@
-<section class="collection-header wrap" aria-labelledby="collection-title">
-  <p class="eyebrow">An ongoing collection / {{PHOTO_COUNT}} photographs</p>
-  <div class="collection-intro"><h1 id="collection-title">{{COLLECTION_TITLE}}<span class="gold-dot" aria-hidden="true">.</span></h1><p class="intro">{{COLLECTION_DESCRIPTION}}</p></div>
-  <div class="collection-rule"><span>Look a little closer.</span><span>Selected frames, 01—{{PHOTO_COUNT}}</span></div>
-</section>
-<div class="collection-tools wrap" id="collection-tools">
-  <p>Each frame opens with its depth and where it was taken. <a class="text-link" href="/phantom/">How these are made ↗</a></p>
-  <div class="view-switch" role="group" aria-label="Photograph layout"><button type="button" data-view="grid" aria-pressed="true">Grid</button><button type="button" data-view="large" aria-pressed="false">Large</button></div>
-</div>
-<section class="photo-collection wrap" aria-label="Photograph collection" data-sizes-grid="{{SIZES_GRID}}" data-sizes-large="{{SIZES_LARGE}}">
+<header class="gallery-header wrap">
+  <h1 id="collection-title">{{COLLECTION_TITLE}}<span class="gold-dot" aria-hidden="true">.</span></h1>
+  <p>{{COLLECTION_SUMMARY}}</p>
+</header>
+<section class="photo-collection wrap" aria-label="Photograph collection">
   {{GALLERY_PHOTOS}}
 </section>
-<div class="collection-end wrap"><span class="gold-line" aria-hidden="true"></span><p>Thanks for looking.</p><a class="text-link" href="/">Back to my world <span aria-hidden="true">↗</span></a></div>
+<div class="collection-end wrap"><span class="gold-line" aria-hidden="true"></span><p>Thanks for looking.</p><div class="collection-links"><a class="text-link" href="/phantom/">How these are made <span aria-hidden="true">↗</span></a><a class="text-link" href="/">Back to my world <span aria-hidden="true">↗</span></a></div></div>
 <dialog class="photo-dialog" id="photo-dialog" aria-labelledby="dialog-caption">
-  <div class="dialog-toolbar"><p id="dialog-position" aria-live="polite"></p><div class="dialog-actions"><a class="dialog-button" id="dialog-page">Depth and place <span aria-hidden="true">↗</span></a><button class="dialog-button" id="dialog-share" type="button">Copy link</button><a class="dialog-button" id="dialog-original" target="_blank" rel="noopener">Open image <span aria-hidden="true">↗</span></a><button class="dialog-button" id="dialog-close" type="button" aria-label="Close photograph">Close <span aria-hidden="true">×</span></button></div></div>
+  <div class="dialog-toolbar"><p id="dialog-position" aria-live="polite"></p><div class="dialog-actions"><a class="dialog-button dialog-phantom" id="dialog-phantom">Enter Phantom <span aria-hidden="true">↗</span></a><button class="dialog-button" id="dialog-close" type="button" aria-label="Close photograph">Close <span aria-hidden="true">×</span></button></div></div>
   <div class="dialog-image-area" id="dialog-stage" aria-busy="false"><img id="dialog-image" alt="" width="1920" height="1280" hidden><p id="dialog-status" role="status" aria-live="polite"></p></div>
-  <div class="dialog-bottom"><button class="dialog-button" id="dialog-previous" type="button" aria-label="Previous photograph"><span aria-hidden="true">←</span> Previous</button><p id="dialog-caption"></p><button class="dialog-button" id="dialog-next" type="button" aria-label="Next photograph">Next <span aria-hidden="true">→</span></button></div>
-  <p class="dialog-hint" id="dialog-feedback" role="status">Swipe or use arrow keys. Open image to zoom.</p>
+  <div class="dialog-bottom"><button class="dialog-button" id="dialog-previous" type="button" aria-label="Previous photograph"><span aria-hidden="true">←</span> Previous</button><p class="dialog-caption"><span id="dialog-caption"></span><span id="dialog-exposure"></span></p><button class="dialog-button" id="dialog-next" type="button" aria-label="Next photograph">Next <span aria-hidden="true">→</span></button></div>
 </dialog>

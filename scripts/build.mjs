@@ -23,7 +23,7 @@ const escape = value => String(value).replace(/[&<>"']/g, character => ({ '&': '
 const sizes = {
   hero: '(max-width: 760px) calc(100vw - 40px), (max-width: 1080px) calc((100vw - 104px) / 2.05), (max-width: 1432px) calc((100vw - 168px) / 2.05), 616px',
   featured: '(max-width: 760px) calc(100vw - 40px), (max-width: 1080px) calc((100vw - 128px) / 3), (max-width: 1432px) calc((100vw - 168px) / 3), 421px',
-  grid: '(max-width: 760px) calc((100vw - 52px) / 2), (max-width: 1080px) calc((100vw - 96px) / 2), (max-width: 1432px) calc((100vw - 160px) / 3), 424px',
+  grid: '(max-width: 560px) calc(100vw - 40px), (max-width: 760px) calc((100vw - 52px) / 2), (max-width: 900px) calc((100vw - 88px) / 2), (max-width: 1080px) calc((100vw - 104px) / 3), (max-width: 1432px) calc((100vw - 144px) / 3), 430px',
   large: '(max-width: 760px) calc(100vw - 40px), (max-width: 1080px) min(calc(100vw - 72px), 850px), (max-width: 1432px) calc((100vw - 144px) / 2), 644px'
 };
 
@@ -255,14 +255,34 @@ const home = replace(await readFile(path.join(root, 'src/index.html'), 'utf8'), 
 // sitemap and the navigation. The mountain is the home page now (below).
 await output('legacy/index.html', render(home, { title: site.title, description: site.description, route: '/legacy/', pageClass: 'home-page', script: particleScript, noindex: true }));
 
-const galleryPhotos = generated.map((photo, index) =>
-  '<figure class="photo-card" id="photo-' + photo.id + '"><a data-photo="' + photo.id + '" data-srcset="' + photo.srcset.webp + '" data-large="' + photo.large + '"'
-  + ' data-width="' + photo.width + '" data-height="' + photo.height + '" href="/photos/' + photo.id + '/" aria-label="Open photograph: ' + escape(photo.alt) + '">'
-  + picture(photo, 'grid', index === 0 ? 'high' : index < 3 ? 'eager' : '') + '</a><figcaption><span>' + frame(index) + (lab.photos[photo.id] ? ' · ' + escape(lab.photos[photo.id].place) : '') + '</span>'
-  + '<span>' + (lab.atlas.stops.some(stop => stop.vantage && (stop.photo === photo.id || stop.photos?.includes(photo.id))) ? 'Depth · Placed' : 'Depth') + ' ↗</span></figcaption></figure>');
+// A photograph's two lines of facts, under its title on its own page and under the gallery's preview: where and when
+// (local time), then the exposure.
+const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function takenLine(id) {
+  const at = capturedAt(id);
+  if (!at) return '';
+  const [, sign, hh, mm] = at.utcOffset.match(/^([+-])(\d\d):(\d\d)$/);
+  const local = new Date(Date.parse(at.when) + (sign === '-' ? -1 : 1) * (+hh * 60 + +mm) * 60000);
+  return local.getUTCDate() + ' ' + months[local.getUTCMonth()] + ' ' + local.getUTCFullYear() + ' · ' + local.toISOString().slice(11, 16) + ' UTC' + (sign === '-' ? '−' : '+') + Number(hh);
+}
+// A shutter of whole seconds is written as a bare number in phantom.json; it reads as a time only with its unit.
+const exposureLine = id => {
+  const meta = lab.photos[id], shutter = String(meta.shutter);
+  return [meta.focal + ' mm', 'ƒ/' + meta.aperture, /^\d+(\.\d+)?$/.test(shutter) ? shutter + ' s' : shutter, 'ISO ' + meta.iso].join(' · ');
+};
+// A thumbnail opens a preview (gallery.js); its href, the photograph's own page, is what a new tab or no script gets.
+const galleryPhotos = generated.map((photo, index) => {
+  const meta = lab.photos[photo.id];
+  return '<figure class="photo-card" id="photo-' + photo.id + '"><a data-photo="' + photo.id + '" data-srcset="' + photo.srcset.webp + '" data-large="' + photo.large + '"'
+    + ' data-width="' + photo.width + '" data-height="' + photo.height + '" data-caption="' + escape([meta.place, takenLine(photo.id)].filter(Boolean).join(' · ')) + '"'
+    + ' data-exposure="' + escape(exposureLine(photo.id)) + '" href="/photos/' + photo.id + '/" aria-label="Open photograph: ' + escape(photo.alt) + '">'
+    + picture(photo, 'grid', index === 0 ? 'high' : index < 3 ? 'eager' : '') + '<span class="photo-place" aria-hidden="true">' + escape(meta.place) + '</span></a></figure>';
+});
+// The cities of the photographs present, in frame order, through each photograph's trip.
+const galleryCities = [...new Set(generated.map(photo => lab.sites.find(item => item.id === lab.trips.find(trip => trip.id === lab.photos[photo.id].trip)?.site)?.name).filter(Boolean))];
 const gallery = replace(await readFile(path.join(root, 'src/photos.html'), 'utf8'), {
-  PHOTO_COUNT: String(generated.length).padStart(2, '0'), COLLECTION_TITLE: escape(site.photography.title), COLLECTION_DESCRIPTION: escape(site.photography.description),
-  SIZES_GRID: sizes.grid, SIZES_LARGE: sizes.large, GALLERY_PHOTOS: galleryPhotos.join('\n')
+  COLLECTION_TITLE: escape(site.photography.title), GALLERY_PHOTOS: galleryPhotos.join('\n'),
+  COLLECTION_SUMMARY: escape([generated.length + (generated.length === 1 ? ' frame' : ' frames'), ...galleryCities].join(' · '))
 });
 await output('photos/index.html', render(gallery, { title: site.photography.title + ' — ' + site.name, description: site.photography.description, route: '/photos/', pageClass: 'gallery-page', script: galleryScript }));
 
@@ -430,14 +450,6 @@ await output('phantom/index.html', replace(await readFile(path.join(root, 'src/p
 }));
 // ---- One page per photograph: the print, its depth (02 Develop) and where it was taken (03 Atlas) ----------------
 const photoTemplate = await readFile(path.join(root, 'src/phantom/photo.html'), 'utf8');
-const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-function takenLine(id) {
-  const at = capturedAt(id);
-  if (!at) return '';
-  const [, sign, hh, mm] = at.utcOffset.match(/^([+-])(\d\d):(\d\d)$/);
-  const local = new Date(Date.parse(at.when) + (sign === '-' ? -1 : 1) * (+hh * 60 + +mm) * 60000);
-  return local.getUTCDate() + ' ' + months[local.getUTCMonth()] + ' ' + local.getUTCFullYear() + ' · ' + local.toISOString().slice(11, 16) + ' UTC' + (sign === '-' ? '−' : '+') + Number(hh);
-}
 // A photograph's own stop when it has one; otherwise the LiDAR around a solved stop at the same place; otherwise its city.
 function photoStops(id) {
   const meta = lab.photos[id], site = lab.trips.find(trip => trip.id === meta.trip)?.site;
@@ -475,8 +487,8 @@ for (const [index, photo] of generated.entries()) {
     CANONICAL: escape(new URL(route, origin).href), CSP: '<meta http-equiv="Content-Security-Policy" content="' + policy() + '">', SOCIAL_IMAGE: escape(new URL(photo.large, origin).href),
     STYLES: labFiles.find(file => file.endsWith('.css')), SCRIPT: labScript, VEIL: veilScript,
     PRELOADS: labFiles.filter(file => file.endsWith('.js') && file !== labScript && !file.endsWith('/worker.js')).map(file => '<link rel="modulepreload" href="' + file + '">').join('\n  '),
-    FRAME: frame(index), COUNT: frame(generated.length - 1), PLACE: escape(meta.place), HEADING: escape(meta.place) + '<span class="lab-dot" aria-hidden="true">.</span>',
-    TAKEN: escape(takenLine(photo.id)), EXPOSURE: escape([meta.focal + ' mm', 'ƒ/' + meta.aperture, meta.shutter, 'ISO ' + meta.iso].join(' · ')),
+    ID: photo.id, FRAME: frame(index), COUNT: frame(generated.length - 1), PLACE: escape(meta.place), HEADING: escape(meta.place) + '<span class="lab-dot" aria-hidden="true">.</span>',
+    TAKEN: escape(takenLine(photo.id)), EXPOSURE: escape(exposureLine(photo.id)),
     NOTE: escape(scenes[photo.id].note || ''), LARGE: photo.large, PICTURE: picture(photo, 'large', 'high'),
     ATLAS_INDEX: stops.length ? '<a href="#atlas" data-index="atlas"><span>03</span> Atlas</a>' : '', ATLAS_SECTION: atlasSection,
     PREVIOUS: index > 0 ? photoLink(generated[index - 1], 'prev') : '', NEXT: index < generated.length - 1 ? photoLink(generated[index + 1], 'next') : '',

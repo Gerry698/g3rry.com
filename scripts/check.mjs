@@ -64,7 +64,9 @@ for (const [file, html] of htmlByFile) {
 const home = htmlByFile.get('index.html');
 const gallery = htmlByFile.get('photos/index.html');
 assert.equal([...gallery.matchAll(/\bdata-photo="/g)].length, photos.length, 'Every photo needs a static gallery link.');
-assert(/<dialog\b/.test(gallery) && /id="dialog-close"/.test(gallery), 'Gallery dialog controls are missing.');
+assert(/<dialog\b/.test(gallery) && /id="dialog-close"/.test(gallery) && /id="dialog-phantom"/.test(gallery), 'Gallery dialog controls are missing.');
+// The preview's caption comes from the build, on each thumbnail link.
+assert.equal([...gallery.matchAll(/\bdata-caption="[^"]+" data-exposure="[^"]+"/g)].length, photos.length, 'Every gallery link needs its preview caption.');
 const legacy = htmlByFile.get('legacy/index.html');
 assert(/id="phantom-shape" disabled/.test(legacy), 'No-JavaScript shape selector must be disabled.');
 // The earlier home page stays reachable at /legacy/ but out of sight: not indexed, not in the sitemap, linked only from /eras/ (as 2025).
@@ -102,6 +104,7 @@ for (const photo of photos) {
   const page = htmlByFile.get('photos/' + photo.id + '/index.html');
   assert(page && /id="lab-config"/.test(page) && /data-chapter="develop"/.test(page), 'Photograph page is missing: ' + photo.id);
   assert(gallery.includes('href="/photos/' + photo.id + '/"'), 'The gallery must link to the page of ' + photo.id);
+  assert(page.includes('href="/photos/#photo-' + photo.id + '"'), 'The page of ' + photo.id + ' must lead back to its own frame in the gallery.');
   assert((await readFile(path.join(dist, 'sitemap.xml'), 'utf8')).includes(new URL('/photos/' + photo.id + '/', site.url).href), 'Sitemap misses the page of ' + photo.id);
 }
 assert.deepEqual(files.filter(file => file.startsWith('Photo/')), ['Photo/gallery.html'], 'Only the old gallery redirect belongs under Photo/.');
